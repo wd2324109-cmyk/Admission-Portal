@@ -1,0 +1,12 @@
+import assert from 'node:assert';
+import { planRevert } from './revert.js';
+const A = { total: 400, orank: 100 };
+const h = (total, orank, regno) => ({ total, orank, regno });
+assert.equal(planRevert(A, { vacancies: 3 }, [h(450, 1), h(300, 5)]).action, 'free');                                              
+assert.equal(planRevert(A, { vacancies: 2 }, [h(450, 1, 1), h(300, 5, 2)]).bump.regno, 2);                                                              
+assert.equal(planRevert(A, { vacancies: 3 }, [h(450, 1, 1), h(350, 9, 2), h(300, 5, 3)]).bump.regno, 3);                                   
+assert.equal(planRevert(A, { vacancies: 2 }, [h(400, 100, 7), h(400, 250, 8)]).bump.regno, 8);                                                         
+assert.equal(planRevert(A, { vacancies: 1 }, [h(450, 1, 1)]).action, 'none');                                                                  
+assert.equal(planRevert(A, { vacancies: 0 }, []).action, 'none');                                                            
+assert.equal(planRevert(A, undefined, []).action, 'none');                                                                   
+console.log('Revert planning OK');

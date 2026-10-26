@@ -1,0 +1,36 @@
+import { pgTable, serial, text, integer, boolean, timestamp, uniqueIndex, index, jsonb } from 'drizzle-orm/pg-core';
+
+                                                                                                          
+export const students = pgTable('students', {
+  id: serial('id').primaryKey(),
+  regno: integer('regno').notNull().unique(),
+  emisNo: text('emis_no').notNull(),
+  name: text('name').notNull(),
+  dob: text('dob'),
+  gender: text('gender').notNull(),                            
+  classLevel: integer('class_level').notNull(),            
+  district: text('district').notNull(),
+  regionalCentre: text('regional_centre').notNull(),
+  schoolName: text('school_name'),
+  community: text('community').notNull(),                                   
+  medium: text('medium').notNull(),
+  disability: boolean('disability').notNull().default(false),
+  total: integer('total').notNull(),                            
+  orank: integer('orank').notNull(),                                            
+  phone: text('phone'),
+  selectStatus: text('select_status').default(''),                                  
+  selectedCategory: text('selected_category').default(''),                                               
+  admitStatus: text('admit_status').default(''),                                                                     
+  willingStatus: text('willing_status').notNull().default('WILLING'),
+  unwillingLetter: text('unwilling_letter'),
+  verificationStatus: text('verification_status').notNull().default('PENDING'),                             
+  verificationRemarks: text('verification_remarks'),
+  replacesRegno: integer('replaces_regno'),
+  documents: jsonb('documents').notNull().default({}),                                                                                                                  
+  tc: jsonb('tc'),                                                                                                                                                                                                                                          
+}, t => ({
+  cell: index('cell_idx').on(t.regionalCentre, t.classLevel, t.gender, t.medium),
+  classAdmit: index('students_class_admit_idx').on(t.classLevel, t.admitStatus),
+  classSelect: index('students_class_select_idx').on(t.classLevel, t.selectStatus),
+  districtClass: index('students_district_idx').on(t.district, t.classLevel),
+}));

@@ -1,0 +1,21 @@
+import assert from 'node:assert';
+import { mapStudentRow, mapVacancyRow } from './importMap.js';
+const row = { Regional_centre: 'TIRUPPUR', District: 'COIMBATORE', school_name: 'GOVERNMENT BOYS HSS ONDIPUDUR', class_studying_id: 11, Emis_No: 2016847655, name: 'ARSATH M ', dob: '10-01-2011',
+  Gender: 'Boy', Disability_status: 'No', Community: 'BCM', Medium: 'English', TOTAL: 285, REGNO: 5385080, ORANK: 268475, PHONE_NUMBER: 9865923650, Select_Status: '', Selected_category: '', Admit_status: '' };
+const r = mapStudentRow(row, 9).value;
+assert.deepEqual([r.regno, r.name, r.classLevel, r.gender, r.disability, r.total, r.orank, r.community, r.emisNo], [5385080, 'ARSATH M', 9, 'Boy', false, 285, 268475, 'BCM', '2016847655']);
+assert.deepEqual([r.selectStatus, r.selectedCategory], ['', '']);                                        
+const sel = mapStudentRow({ ...row, Select_Status: 'Selected-Phase-1', Selected_category: 'BCM', Admit_status: '' }, 9).value;
+assert.deepEqual([sel.selectStatus, sel.selectedCategory, sel.admitStatus], ['', 'BCM', '']);                                                         
+const adm = mapStudentRow({ ...row, Select_Status: 'Selected-Phase-1', Selected_category: 'BCM', Admit_status: 'Admitted' }, 9).value;
+assert.deepEqual([adm.selectStatus, adm.admitStatus], ['Selected-Phase-1', '']);                                                    
+assert.equal(mapStudentRow({ ...row, Select_Status: 'Selected-Phase-1', Admit_status: 'Not Admitted' }, 9).value.admitStatus, 'Not Admitted');
+assert.equal(mapStudentRow({ ...row, Disability_status: 'Yes' }, 10).value.disability, true);
+assert.equal(mapStudentRow({ ...row, class: 10 }, 9).value.classLevel, 10);                                       
+assert(mapStudentRow({ ...row, TOTAL: '' }, 9).error.includes('total'));
+assert(mapStudentRow({ ...row, Gender: 'X' }, 9).error.includes('Gender'));
+assert(mapStudentRow({ ...row, regional_centre: ' erode ' }, 9).value.regionalCentre === 'ERODE');
+const v = mapVacancyRow({ Regional_centre: 'CUDDALORE', Gender: 'boy', Medium: 'english', Community: 'GT-PWD', Admitted: 0, Vacancies: 1, Filled: '', Status: 'OK' }, 10).value;
+assert.deepEqual([v.regionalCentre, v.gender, v.medium, v.community, v.vacancies, v.classLevel], ['CUDDALORE', 'Boy', 'English', 'GT-PWD', 1, 10]);
+assert(mapVacancyRow({ Regional_centre: 'X', Gender: 'Boy', Medium: 'Tamil', Community: 'OC', Vacancies: 1 }, 9).error.includes('Community'));
+console.log('Import mapping OK');
