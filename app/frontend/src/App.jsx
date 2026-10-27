@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { api, setToken, savedUser, saveUser, fileBlob, openFile, downloadFile } from './api.js';
+import { api, setToken, savedUser, saveUser, peekLogoutReason, clearLogoutReason, fileBlob, openFile, downloadFile } from './api.js';
 
 const badge = v => <span className={`badge ${String(v || '').replace(/\W/g, '')}`}>{v || '—'}</span>;
 
@@ -8,8 +8,13 @@ const EyeIcon = ({ off }) => <svg viewBox="0 0 24 24" aria-hidden="true">{off
   : <><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" /><circle cx="12" cy="12" r="3" /></>}</svg>;
 
 function Login({ onLogin }) {
-  const [f, setF] = useState({ username: '', password: '' }), [err, setErr] = useState(''), [show, setShow] = useState(false);
-  const go = async () => { try { const r = await api('/auth/login', { method: 'POST', body: f }); setToken(r.token); saveUser(r.user); onLogin(r.user); } catch (e) { setErr(e.message); } };
+  const [f, setF] = useState({ username: '', password: '' }), [err, setErr] = useState(peekLogoutReason), [show, setShow] = useState(false), [busy, setBusy] = useState(false);
+  useEffect(() => { clearLogoutReason(); }, []);
+  const go = async () => {
+    if (busy) return;
+    try { setBusy(true); const r = await api('/auth/login', { method: 'POST', body: f }); setToken(r.token); saveUser(r.user); onLogin(r.user); }
+    catch (e) { setErr(e.message); } finally { setBusy(false); }
+  };
   return <div className="login"><div className="panel">
    <div className="login-head"><img className="logo" src="/emblem.png" alt="Government of Tamil Nadu emblem" /><h2>Admission Portal</h2></div>
     
@@ -17,7 +22,7 @@ function Login({ onLogin }) {
     <div className="field"><label htmlFor="login-pass">Password</label><div className="pw">
       <input id="login-pass" type={show ? 'text' : 'password'} autoComplete="current-password" value={f.password} onChange={e => setF({ ...f, password: e.target.value })} onKeyDown={e => e.key === 'Enter' && go()} />
       <button type="button" className="eye" aria-label={show ? 'Hide password' : 'Show password'} aria-pressed={show} title={show ? 'Hide password' : 'Show password'} onClick={() => setShow(!show)}><EyeIcon off={show} /></button></div></div>
-    <button className="pri" style={{ width: '100%' }} onClick={go}>Sign in</button><br/> <span className="err">{err}</span></div></div>;
+    <button className="pri" style={{ width: '100%' }} disabled={busy} onClick={go}>Sign in</button><br/> <span className="err" role="alert">{err}</span></div></div>;
 }
 
 const IC = { users: 'M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75',
@@ -263,7 +268,7 @@ function ImportData() {
 
 IC.log = 'M4 6h16M4 12h16M4 18h10';
 const ts = d => { const t = new Date(d), p = (n, l = 2) => String(n).padStart(l, '0'); return `${t.getFullYear()}-${p(t.getMonth() + 1)}-${p(t.getDate())} ${p(t.getHours())}:${p(t.getMinutes())}:${p(t.getSeconds())}.${p(t.getMilliseconds(), 3)}`; };
-const ACTIONS = ['LOGIN', 'LOGOUT', 'VIEW', 'SELECT', 'NOT_WILLING', 'LOGIN_FAILED', 'IMPORT_STUDENTS', 'IMPORT_VACANCIES', 'SELECTION_RUN', 'ADMIT', 'NOT_ADMIT', 'UNWILLING', 'WILLING', 'VERIFY_ACCEPTED', 'VERIFY_REJECTED', 'REVERT', 'REVERT_TC', 'EXPORT_MASTER', 'EXPORT_VACANCIES', 'REVOKE_ADMISSION', 'DOC_UPLOAD', 'DOC_EDIT', 'DOC_RESUBMIT', 'DOC_VERIFIED', 'DOC_REJECTED', 'TC_RAISE', 'TC_APPROVED', 'TC_REJECTED', 'REVOKE'];
+const ACTIONS = ['FREEZE', 'UNFREEZE', 'LOGIN_BLOCKED', 'LOGIN', 'LOGOUT', 'VIEW', 'SELECT', 'NOT_WILLING', 'LOGIN_FAILED', 'IMPORT_STUDENTS', 'IMPORT_VACANCIES', 'SELECTION_RUN', 'ADMIT', 'NOT_ADMIT', 'UNWILLING', 'WILLING', 'VERIFY_ACCEPTED', 'VERIFY_REJECTED', 'REVERT', 'REVERT_TC', 'EXPORT_MASTER', 'EXPORT_VACANCIES', 'REVOKE_ADMISSION', 'DOC_UPLOAD', 'DOC_EDIT', 'DOC_RESUBMIT', 'DOC_VERIFIED', 'DOC_REJECTED', 'TC_RAISE', 'TC_APPROVED', 'TC_REJECTED', 'REVOKE'];
 const logLine = e => `${e.level === 'INFO' ? '.' : '!'} ${ts(e.at)} [${e.actor}] ${e.action.padEnd(16)} ${e.regno ? `reg ${e.regno} ` : ''}${e.message}${e.revokedAt ? '  [REVOKED]' : ''}`;
 
 function Logs() {
@@ -293,6 +298,27 @@ function Logs() {
       <h3>Revoke #{rv.id} · {rv.action}</h3><p>{rv.message}</p>
       <textarea rows="2" style={{ width: '100%' }} aria-label="Remarks (required)" value={rm} onChange={e => setRm(e.target.value)} />
       {err && <p className="err">{err}</p>}<div className="row2"><button className="bad" onClick={revoke}>Revoke</button><button onClick={() => setRv(null)}>Cancel</button></div></div></div>}</>;
+}
+
+function UsersPage({ me }) {
+  const [rows, setRows] = useState([]), [err, setErr] = useState(''), [q, setQ] = useState(''), [n, setN] = useState(0), [tg, setTg] = useState(null), [why, setWhy] = useState(''), [busy, setBusy] = useState(false);
+  useEffect(() => { let stale = false; api('/users').then(r => !stale && (setRows(r), setErr(''))).catch(e => !stale && setErr(e.message)); return () => { stale = true; }; }, [n]);
+  const term = q.trim().toLowerCase(), shown = rows.filter(u => !term || [u.username, u.role, u.region, u.district].some(v => String(v || '').toLowerCase().includes(term)));
+  const act = async (u, path, body) => { try { setBusy(true); await api(`/users/${u.id}/${path}`, { method: 'POST', body }); setTg(null); setWhy(''); setErr(''); setN(x => x + 1); } catch (e) { setErr(e.message); } finally { setBusy(false); } };
+  return <>
+    <div className="head"><h1>Users &amp; Access</h1></div>
+    <p><small>Freezing a user signs them out of every device immediately and blocks sign-in until you unfreeze them. Their data and history are kept.</small></p>
+    <div className="row2"><input aria-label="Search users" placeholder="Search user, role, district…" value={q} onChange={e => setQ(e.target.value)} /></div>
+    {err && !tg && <p className="err" role="alert">{err}</p>}
+    <div className="panel"><table><thead><tr><th>User</th><th>Role</th><th>Scope</th><th>Devices now</th><th>Access</th><th></th></tr></thead>
+      <tbody>{shown.map(u => <tr key={u.id}><td>{u.username}</td><td>{u.role.replace('_', ' ')}</td><td>{u.district || u.region || '—'}</td><td>{u.activeDevices}</td>
+        <td>{u.frozenAt ? <><span className="badge REJECTED">Frozen</span><br /><small>{u.frozenReason} · by {u.frozenBy}</small></> : <span className="badge APPROVED">Active</span>}</td>
+        <td>{u.id === me.id ? <small>(you)</small> : u.frozenAt ? <button disabled={busy} onClick={() => act(u, 'unfreeze')}>Unfreeze</button> : <button className="bad" onClick={() => { setTg(u); setWhy(''); setErr(''); }}>Freeze</button>}</td></tr>)}
+        {!shown.length && <tr><td colSpan="6">No users</td></tr>}</tbody></table></div>
+    {tg && <div className="modal" role="dialog" aria-modal="true" onClick={() => setTg(null)}><div className="panel" style={{ width: 420 }} onClick={e => e.stopPropagation()}>
+      <h3>Freeze {tg.username}</h3><p>They will be signed out on all devices right now and cannot sign in until you unfreeze them.</p>
+      <textarea rows="2" style={{ width: '100%' }} aria-label="Reason (required)" placeholder="Reason (required)" autoFocus value={why} onChange={e => setWhy(e.target.value)} />
+      {err && <p className="err" role="alert">{err}</p>}<div className="row2"><button className="bad" disabled={busy} onClick={() => act(tg, 'freeze', { reason: why })}>Freeze access</button><button onClick={() => setTg(null)}>Cancel</button></div></div></div>}</>;
 }
 
 const REQUIRED = ['Transfer Certificate', 'Birth Certificate', 'Application Form'], OPTIONAL = ['Community Certificate', 'Aadhaar Card'];
@@ -398,7 +424,7 @@ function ChangePassword({ onClose }) {
   const set = k => e => setF({ ...f, [k]: e.target.value });
   const submit = async () => {
     if (f.newPassword !== f.again) return setErr('The new passwords do not match');
-    try { setBusy(true); await api('/auth/change-password', { method: 'POST', body: { currentPassword: f.currentPassword, newPassword: f.newPassword } }); setErr(''); setDone(true); }
+    try { setBusy(true); const r = await api('/auth/change-password', { method: 'POST', body: { currentPassword: f.currentPassword, newPassword: f.newPassword } }); setErr(''); setDone(true); }
     catch (e) { setErr(e.message); } finally { setBusy(false); }
   };
   return <div className="modal" role="dialog" aria-modal="true" onClick={onClose}><div className="panel" style={{ width: 420 }} onClick={e => e.stopPropagation()}>
@@ -415,17 +441,28 @@ function ChangePassword({ onClose }) {
 export default function App() {
   const [user, setUser] = useState(savedUser), [page, setPage] = useState('dash'), [pw, setPw] = useState(false);
   useEffect(() => { const h = e => { if (e.key === 'Escape') document.querySelector('.modal')?.click(); }; window.addEventListener('keydown', h); return () => window.removeEventListener('keydown', h); }, []);
-  useEffect(() => { document.title = `${user ? ({ dash: 'Dashboard', students: 'Student Details', docs: 'Document Verification', tc: 'TC Requests', import: 'Import Data', logs: 'Logs' }[page] || 'Portal') : 'Sign in'} · School Admissions Portal`; }, [page, user]);
+  useEffect(() => { document.title = `${user ? ({ dash: 'Dashboard', students: 'Student Details', docs: 'Document Verification', tc: 'TC Requests', import: 'Import Data', logs: 'Logs', users: 'Users & Access' }[page] || 'Portal') : 'Sign in'} · School Admissions Portal`; }, [page, user]);
+  // Heartbeat: keeps this device's session alive while the page is open and notices at once if the account was
+  // signed in somewhere else (the api() helper returns to the login screen with an explanation on a 401).
+  useEffect(() => {
+    if (!user) return;
+    const ping = () => api('/auth/session').catch(() => {});
+    const t = setInterval(ping, 60_000);
+    const vis = () => document.visibilityState === 'visible' && ping();
+    const sync = e => { if (e.key === 'token') window.location.reload(); };      // another tab of this browser signed out / changed password
+    document.addEventListener('visibilitychange', vis); window.addEventListener('storage', sync);
+    return () => { clearInterval(t); document.removeEventListener('visibilitychange', vis); window.removeEventListener('storage', sync); };
+  }, [user]);
   if (!user) return <Login onLogin={setUser} />;
   const Nav = ({ k, icon, label }) => <button className={`nav ${page === k ? 'on' : ''}`} aria-current={page === k ? 'page' : undefined} onClick={() => setPage(k)}>
     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d={IC[icon]} /></svg>{label}</button>;
   return <div className="shell"><aside className="side">
     <div className="brand"><img src="/emblem.png" alt="Government of Tamil Nadu emblem" />Admissions</div>
     <Nav k="dash" icon="seat" label="Dashboard" /><Nav k="students" icon="users" label="Student Details" /><Nav k="docs" icon="ok" label="Document Verification" /><Nav k="tc" icon="doc" label="TC Requests" />
-    {user.role === 'SUPER_ADMIN' && <><Nav k="import" icon="up" label="Import Data" /><Nav k="logs" icon="log" label="Logs" /></>}
+    {user.role === 'SUPER_ADMIN' && <><Nav k="import" icon="up" label="Import Data" /><Nav k="logs" icon="log" label="Logs" /><Nav k="users" icon="users" label="Users & Access" /></>}
     <div className="sp" />
     <div className="me"><div className="av">{user.username[0]}</div><div>{user.username}<small>{user.role.replace('_', ' ')}</small></div>
       <button title="Change password" aria-label="Change password" onClick={() => setPw(true)}>🔑</button><button title="Logout" aria-label="Sign out" onClick={() => { api('/auth/logout', { method: 'POST' }).catch(() => {}).finally(() => { setToken(null); setUser(null); }); }}>⎋</button></div></aside>
     <main className="main">{page === 'dash' ? <Dashboard user={user} /> : page === 'docs' ? <DocVerification user={user} /> : page === 'tc' ? <TcRequests user={user} />
-      : page === 'import' && user.role === 'SUPER_ADMIN' ? <ImportData /> : page === 'logs' && user.role === 'SUPER_ADMIN' ? <Logs /> : <StudentDetails user={user} />}</main>{pw && <ChangePassword onClose={() => setPw(false)} />}</div>;
+      : page === 'import' && user.role === 'SUPER_ADMIN' ? <ImportData /> : page === 'logs' && user.role === 'SUPER_ADMIN' ? <Logs /> : page === 'users' && user.role === 'SUPER_ADMIN' ? <UsersPage me={user} /> : <StudentDetails user={user} />}</main>{pw && <ChangePassword onClose={() => setPw(false)} />}</div>;
 }

@@ -3,13 +3,20 @@ export const setToken = t => { token = t; t ? localStorage.setItem('token', t) :
 export const savedUser = () => { try { return token ? JSON.parse(localStorage.getItem('user')) : null; } catch { return null; } };
 export const saveUser = u => localStorage.setItem('user', JSON.stringify(u));
 
+// Why the user was signed out (shown on the login screen after the reload)
+export const peekLogoutReason = () => sessionStorage.getItem('logoutReason') || '';
+export const clearLogoutReason = () => sessionStorage.removeItem('logoutReason');
+
 export async function api(path, opts = {}) {
   const r = await fetch('/api' + path, { ...opts, headers: { 'Content-Type': 'application/json', ...(token && { Authorization: 'Bearer ' + token }) },
     body: opts.body && JSON.stringify(opts.body) });
   const data = await r.json().catch(() => ({}));
-                                                                                                                 
-  if (r.status === 401 && !path.startsWith('/auth/')) { setToken(null); window.location.reload(); }
-  if (!r.ok) throw new Error(data.error || 'Request failed');
+  // 401 anywhere except the sign-in / sign-out calls means the session is gone: signed in on another device, expired, or ended.
+  if (r.status === 401 && path !== '/auth/login' && path !== '/auth/logout') {
+    if (token) sessionStorage.setItem('logoutReason', data.error || 'Your session has ended. Please sign in again.');
+    setToken(null); window.location.reload();
+  }
+  if (!r.ok) { const e = new Error(data.error || 'Request failed'); e.code = data.code; e.data = data; throw e; }
   return data;
 }
 
