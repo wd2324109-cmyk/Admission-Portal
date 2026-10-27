@@ -2,7 +2,7 @@ export class HttpError extends Error {
   constructor(message, status = 400, extra = {}) { super(message); this.status = status; this.extra = extra; }
 }
 export const wrap = fn => (req, res, next) => Promise.resolve(fn(req, res, next)).catch(next);
-export const ctx = req => ({ user: req.user, params: req.params, query: req.query, body: req.body, ip: req.ip || 'unknown' });
+export const ctx = req => ({ user: req.user, params: req.params, query: req.query, body: req.body, ip: req.ip || 'unknown', agent: req.headers['user-agent'] || null });
 export const notFound = (req, res) => res.status(404).json({ error: 'Not found' });
 export const errorHandler = (err, req, res, next) => {
   if (err instanceof HttpError) return res.status(err.status).json({ error: err.message, ...err.extra });

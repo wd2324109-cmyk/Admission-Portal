@@ -10,7 +10,8 @@ import documents from './document.controller.js';
 import exporter from './export.controller.js';
 import importer from './import.controller.js';
 import log from './log.controller.js';
+import users from './user.controller.js';
 
 const api = Router();
-[auth, dashboard, student, verification, vacancy, selection, tc, importer, log, documents, exporter].forEach(r => api.use(r));
+[auth, dashboard, student, verification, vacancy, selection, tc, importer, log, documents, exporter, users].forEach(r => api.use(r));
 export default api;

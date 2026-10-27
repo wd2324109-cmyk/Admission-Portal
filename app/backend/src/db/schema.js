@@ -7,6 +7,10 @@ export const users = pgTable('users', {
   role: text('role').notNull(),                                              
   region: text('region'),                                                   
   district: text('district'),                                          
+  // access freeze: set => the user cannot sign in and every session is dead
+  frozenAt: timestamp('frozen_at', { withTimezone: true }),
+  frozenBy: text('frozen_by'),
+  frozenReason: text('frozen_reason'),
 });
 
                                                                                                           
@@ -74,3 +78,10 @@ export const auditLogs = pgTable('audit_logs', {
   message: text('message').notNull(), regno: integer('regno'), studentIds: jsonb('student_ids').notNull().default([]),
   undo: jsonb('undo'), revokedAt: timestamp('revoked_at'), revokedBy: text('revoked_by'), revokeRemarks: text('revoke_remarks'),
 }, t => ({ atIdx: index('audit_at_idx').on(t.at) }));
+
+
+export const userSessions = pgTable('user_sessions', {
+  id: text('id').primaryKey(), userId: integer('user_id').notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(), lastSeen: timestamp('last_seen', { withTimezone: true }).defaultNow().notNull(),
+  ip: text('ip'), userAgent: text('user_agent'),
+}, t => ({ byUser: index('user_sessions_user_idx').on(t.userId, t.lastSeen) }));

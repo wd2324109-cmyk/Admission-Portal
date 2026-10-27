@@ -4,6 +4,18 @@ const pool = new pg.Pool({ connectionString: process.env.DATABASE_URL, ssl: proc
 const once = sql => `DO $$ BEGIN ${sql}; EXCEPTION WHEN duplicate_object THEN NULL; END $$`;
 
 const required = [
+  `CREATE TABLE IF NOT EXISTS user_sessions (
+     id text PRIMARY KEY, user_id integer NOT NULL REFERENCES users (id) ON DELETE CASCADE,
+     created_at timestamptz NOT NULL DEFAULT now(), last_seen timestamptz NOT NULL DEFAULT now(), ip text, user_agent text)`,
+  `CREATE INDEX IF NOT EXISTS user_sessions_user_idx ON user_sessions (user_id, last_seen)`,
+  `ALTER TABLE users DROP COLUMN IF EXISTS session_id`,
+  `ALTER TABLE users DROP COLUMN IF EXISTS session_started_at`,
+  `ALTER TABLE users DROP COLUMN IF EXISTS session_last_seen`,
+  `ALTER TABLE users DROP COLUMN IF EXISTS session_ip`,
+  `ALTER TABLE users ADD COLUMN IF NOT EXISTS frozen_at timestamptz`,
+  `ALTER TABLE users ADD COLUMN IF NOT EXISTS frozen_by text`,
+  `ALTER TABLE users ADD COLUMN IF NOT EXISTS frozen_reason text`,
+  once(`ALTER TABLE vacancies ADD CONSTRAINT vacancies_nonneg_chk CHECK (admitted >= 0 AND vacancies >= 0) NOT VALID`),
   `ALTER TABLE students ADD COLUMN IF NOT EXISTS replaces_regno integer`,
   `ALTER TABLE students ADD COLUMN IF NOT EXISTS documents jsonb NOT NULL DEFAULT '{}'::jsonb`,
   `ALTER TABLE students ADD COLUMN IF NOT EXISTS tc jsonb`,

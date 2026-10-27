@@ -9,6 +9,8 @@ router.post('/auth/login', wrap(async (req, res) => res.json(await authService.l
 
 router.post('/auth/logout', auth, wrap(async (req, res) => res.json(await authService.logout(ctx(req)))));
 
+router.get('/auth/session', auth, wrap(async (req, res) => res.json(await authService.session(ctx(req)))));
+
 router.post('/auth/change-password', auth, wrap(async (req, res) => res.json(await authService.changePassword(ctx(req)))));
 
 export default router;

@@ -1,9 +1,10 @@
-import { and, eq, gt, ilike, or, sql, desc } from 'drizzle-orm';
+import { and, eq, gt, ilike, inArray, or, sql, desc } from 'drizzle-orm';
 import { students as S, vacancies as V, statusLogs, auditLogs as A } from '../../schema/index.js';
 import { db } from '../../db/index.js';
 import { audit } from '../../common/audit.js';
 import { HttpError } from '../../common/http.js';
 import { likeEsc } from '../../common/query.js';
+import { lockClass, lockStudents } from '../../common/locks.js';
 
 import { LogService } from '../log.service.js';
 
@@ -21,20 +22,30 @@ export class LogServiceImpl extends LogService {
   async revoke({ user, params, query, body }) {
     const remarks = String(body?.remarks || '').trim();
     if (!remarks) throw new HttpError('Remarks are required to revoke');
-    const [e] = await db.select().from(A).where(eq(A.id, +params.id || 0));
-    if (!e || !e.undo) throw new HttpError('This entry cannot be revoked');
-    if (e.revokedAt) throw new HttpError('Already revoked');
-    const later = await db.select({ id: A.id, ids: A.studentIds, action: A.action }).from(A).where(and(gt(A.id, e.id), sql`${A.undo} is not null`, sql`${A.revokedAt} is null`));
-    const hit = later.find(l => (l.ids || []).some(i => (e.studentIds || []).includes(i)));
-    if (hit) throw new HttpError(`Revoke #${hit.id} (${hit.action}) first: it changed the same student(s) later`, 409);
-    const u = e.undo;
+    const id = +params.id || 0;
+    const [pre] = await db.select().from(A).where(eq(A.id, id));
+    if (!pre || !pre.undo) throw new HttpError('This entry cannot be revoked', 400);
+    if (pre.revokedAt) throw new HttpError('Already revoked', 409);
+    // Which students / classes does this entry touch? (needed to take locks in the safe order)
+    const ids = [...new Set([...(pre.undo.students || []), ...(pre.undo.docs || [])].map(x => x.id))].sort((x, y) => x - y);
+    const classes = ids.length ? (await db.selectDistinct({ c: S.classLevel }).from(S).where(inArray(S.id, ids))).map(r => r.c).sort() : [];
     await db.transaction(async tx => {
+      for (const c of classes) await lockClass(tx, c);
+      // Lock the log entry itself: two people pressing Revoke on the same entry cannot both apply the undo.
+      const [e] = await tx.select().from(A).where(eq(A.id, id)).for('update');
+      if (!e || !e.undo) throw new HttpError('This entry cannot be revoked', 400);
+      if (e.revokedAt) throw new HttpError('Already revoked', 409);
+      await lockStudents(tx, ids);
+      const later = await tx.select({ id: A.id, ids: A.studentIds, action: A.action }).from(A).where(and(gt(A.id, e.id), sql`${A.undo} is not null`, sql`${A.revokedAt} is null`));
+      const hit = later.find(l => (l.ids || []).some(i => (e.studentIds || []).includes(i)));
+      if (hit) throw new HttpError(`Revoke #${hit.id} (${hit.action}) first: it changed the same student(s) later`, 409);
+      const u = e.undo;
       for (const x of u.students || []) {
         await tx.update(S).set(x.before).where(eq(S.id, x.id));
         await tx.insert(statusLogs).values({ studentId: x.id, field: 'revoke', oldValue: e.action, newValue: 'Revoked', remarks, changedBy: user.username });
       }
       for (const v of u.vac || []) await tx.update(V).set({ admitted: sql`greatest(${V.admitted} - ${v.dAdmitted ?? 0}, 0)`, vacancies: sql`greatest(${V.vacancies} - ${v.dVacancies ?? 0}, 0)` }).where(eq(V.id, v.id));
-      for (const x of u.docs || []) {                                                
+      for (const x of u.docs || []) {
         const [st] = await tx.select({ documents: S.documents }).from(S).where(eq(S.id, x.id));
         const docs = { ...(st?.documents || {}) }; if (x.before) docs[x.type] = x.before; else delete docs[x.type];
         await tx.update(S).set({ documents: docs }).where(eq(S.id, x.id));

@@ -22,3 +22,5 @@ import { DocumentServiceImpl } from './impl/document.service.impl.js';
 export const documentService = new DocumentServiceImpl();
 import { ExportServiceImpl } from './impl/export.service.impl.js';
 export const exportService = new ExportServiceImpl();
+import { UserServiceImpl } from './impl/user.service.impl.js';
+export const userService = new UserServiceImpl();

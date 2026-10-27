@@ -6,6 +6,7 @@ import { audit } from '../../common/audit.js';
 import { readSheet, chunks, slug, randPw } from '../../common/excel.js';
 import { HttpError } from '../../common/http.js';
 import { scope } from '../../common/query.js';
+import { lockClass } from '../../common/locks.js';
 import { mapStudentRow, mapVacancyRow } from '../domain/importMap.js';
 
 import { ImportService } from '../import.service.js';
@@ -26,6 +27,7 @@ export class ImportServiceImpl extends ImportService {
     if (!good.length) throw new HttpError('No valid rows found', 400, { rejected: rejected.slice(0, 20), rejectedCount: rejected.length });
     let inserted = 0; const newUsers = [];
     await db.transaction(async tx => {
+      await lockClass(tx, +classLevel, { exclusive: true });      // imports run alone; admissions in this class wait until it commits
       if (replace) {
         const ids = tx.select({ id: S.id }).from(S).where(eq(S.classLevel, +classLevel));
         await tx.delete(statusLogs).where(inArray(statusLogs.studentId, ids));
@@ -57,9 +59,13 @@ export class ImportServiceImpl extends ImportService {
       else { seen.add(k); good.push(m.value); }
     });
     if (!good.length) throw new HttpError('No valid rows found', 400, { rejected: rejected.slice(0, 20), rejectedCount: rejected.length });
-    const [{ n }] = await db.select({ n: sql`count(*)::int` }).from(S).where(and(eq(S.classLevel, +classLevel), sql`${S.admitStatus} <> ''`));
-    if (n) throw new HttpError('Admissions have already started for this class; vacancies can no longer be replaced');
-    await db.transaction(async tx => { await tx.delete(V).where(eq(V.classLevel, +classLevel)); for (const c of chunks(good)) await tx.insert(V).values(c); });
+    await db.transaction(async tx => {
+      await lockClass(tx, +classLevel, { exclusive: true });      // no admission can slip in between the check and the replace
+      const [{ n }] = await tx.select({ n: sql`count(*)::int` }).from(S).where(and(eq(S.classLevel, +classLevel), sql`${S.admitStatus} <> ''`));
+      if (n) throw new HttpError('Admissions have already started for this class; vacancies can no longer be replaced');
+      await tx.delete(V).where(eq(V.classLevel, +classLevel));
+      for (const c of chunks(good)) await tx.insert(V).values(c);
+    });
     await audit(db, { user }, { action: 'IMPORT_VACANCIES', message: `Class ${classLevel}: ${good.length} vacancy rows imported, ${rejected.length} rejected` });
     return ({ imported: good.length, rejectedCount: rejected.length, rejected: rejected.slice(0, 20), newUsers: [] });
   }

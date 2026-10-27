@@ -8,6 +8,7 @@ import { scope } from '../../common/query.js';
 import { audit } from '../../common/audit.js';
 import { UPLOADS } from '../../common/paths.js';
 import { saveUpload } from '../../common/upload.js';
+import { lockClass, lockStudent } from '../../common/locks.js';
 import { DocumentService, DOC_TYPES, REQUIRED_DOCS } from '../document.service.js';
 
                                                                                                                   
@@ -31,33 +32,58 @@ export class DocumentServiceImpl extends DocumentService {
       .filter(r => !query.status || r.status === query.status).sort((a, b) => String(b.uploadedAt).localeCompare(String(a.uploadedAt)));
   }
 
+  // Every write below re-reads the student row under a lock. The documents column is one JSON object,
+  // so without the lock two uploads (or an upload and a review) would overwrite each other's changes.
   async upload({ user, body }) {
     const { studentId, docType, fileName, fileData } = body || {};
-    const [s] = await db.select().from(S).where(and(eq(S.id, +studentId || 0), scope(user)));
-    if (!s) throw new HttpError('Student not found in your district', 404);
-    if (s.admitStatus !== 'Admitted') throw new HttpError('Documents can be uploaded only for admitted students');
-    if (!DOC_TYPES.includes(docType)) throw new HttpError('Choose a valid document type');
-    const old = s.documents[docType];
-    if (old && old.status !== 'REJECTED') throw new HttpError(`${docType} is already uploaded and pending or verified`, 409);
+    const [pre] = await db.select().from(S).where(and(eq(S.id, +studentId || 0), scope(user)));
+    if (!pre) throw new HttpError('Student not found in your district', 404);
+    const check = s => {
+      if (s.admitStatus !== 'Admitted') throw new HttpError('Documents can be uploaded only for admitted students');
+      if (!DOC_TYPES.includes(docType)) throw new HttpError('Choose a valid document type');
+      const old = s.documents[docType];
+      if (old && old.status !== 'REJECTED') throw new HttpError(`${docType} is already uploaded and pending or verified`, 409);
+      return old;
+    };
+    check(pre);
     const { stored, name } = await saveUpload(fileName, fileData);
-    await db.update(S).set({ documents: { ...s.documents, [docType]: entry(name, stored, user) } }).where(eq(S.id, s.id));
-    await audit(db, { user }, { action: old ? 'DOC_RESUBMIT' : 'DOC_UPLOAD', regno: s.regno, message: `${docType} ${old ? 'resubmitted' : 'uploaded'} for ${s.name}` });
+    try {
+      await db.transaction(async tx => {
+        await lockClass(tx, pre.classLevel);
+        const s = await lockStudent(tx, pre.id);
+        const old = check(s);
+        await tx.update(S).set({ documents: { ...s.documents, [docType]: entry(name, stored, user) } }).where(eq(S.id, s.id));
+        await audit(tx, { user }, { action: old ? 'DOC_RESUBMIT' : 'DOC_UPLOAD', regno: s.regno, message: `${docType} ${old ? 'resubmitted' : 'uploaded'} for ${s.name}` });
+      });
+    } catch (e) { await fs.unlink(path.join(UPLOADS, stored)).catch(() => {}); throw e; }
     return { ok: true };
   }
 
-                                                                                                                                                   
   async replace({ user, params, body }) {
     const [sid, type] = parse(params.id);
-    const [s] = await db.select().from(S).where(and(eq(S.id, sid), scope(user)));
-    const d = s?.documents[type];
-    if (!d) throw new HttpError('Document not found in your district', 404);
-    if (d.status === 'VERIFIED') throw new HttpError('A verified document cannot be edited', 409);
-    if (d.status === 'PENDING' && REQUIRED_DOCS.every(t => okDoc(s.documents, t))) throw new HttpError('All 5 documents are submitted and under verification, so editing is locked', 409);
+    const [pre] = await db.select().from(S).where(and(eq(S.id, sid), scope(user)));
+    if (!pre?.documents[type]) throw new HttpError('Document not found in your district', 404);
+    const check = s => {
+      const d = s?.documents[type];
+      if (!d) throw new HttpError('Document not found in your district', 404);
+      if (d.status === 'VERIFIED') throw new HttpError('A verified document cannot be edited', 409);
+      if (d.status === 'PENDING' && REQUIRED_DOCS.every(t => okDoc(s.documents, t))) throw new HttpError('All 5 documents are submitted and under verification, so editing is locked', 409);
+      return d;
+    };
+    check(pre);
     const { stored, name } = await saveUpload(body?.fileName, body?.fileData);
-    await db.update(S).set({ documents: { ...s.documents, [type]: entry(name, stored, user) } }).where(eq(S.id, s.id));
-    await fs.unlink(path.join(UPLOADS, d.filePath)).catch(() => {});
-    const edit = d.status === 'PENDING';
-    await audit(db, { user }, { action: edit ? 'DOC_EDIT' : 'DOC_RESUBMIT', regno: s.regno, message: `${type} ${edit ? 'replaced' : 'resubmitted after rejection'} for ${s.name}` });
+    let d;
+    try {
+      await db.transaction(async tx => {
+        await lockClass(tx, pre.classLevel);
+        const s = await lockStudent(tx, pre.id);
+        d = check(s);                                        // a reviewer may have verified it a moment ago
+        await tx.update(S).set({ documents: { ...s.documents, [type]: entry(name, stored, user) } }).where(eq(S.id, s.id));
+        const edit = d.status === 'PENDING';
+        await audit(tx, { user }, { action: edit ? 'DOC_EDIT' : 'DOC_RESUBMIT', regno: s.regno, message: `${type} ${edit ? 'replaced' : 'resubmitted after rejection'} for ${s.name}` });
+      });
+    } catch (e) { await fs.unlink(path.join(UPLOADS, stored)).catch(() => {}); throw e; }
+    await fs.unlink(path.join(UPLOADS, d.filePath)).catch(() => {});      // old file removed only after the new one is committed
     return { ok: true };
   }
 
@@ -75,15 +101,18 @@ export class DocumentServiceImpl extends DocumentService {
     const note = String(remarks).trim();
     if (decision === 'REJECTED' && !note) throw new HttpError('Remarks are required to reject a document');
     const [sid, type] = parse(params.id);
-    const [s] = await db.select().from(S).where(eq(S.id, sid));
-    const d = s?.documents[type];
-    if (!d) throw new HttpError('Not found', 404);
-    if (d.status !== 'PENDING') throw new HttpError('This document was already reviewed');
-    if (decision === 'VERIFIED') {                                                                      
-      const missing = REQUIRED_DOCS.filter(t => !okDoc(s.documents, t));
-      if (missing.length) throw new HttpError(`Cannot verify until all 5 required documents are submitted. Missing: ${missing.join(', ')}`, 409);
-    }
+    const [pre] = await db.select({ classLevel: S.classLevel }).from(S).where(eq(S.id, sid));
+    if (!pre) throw new HttpError('Not found', 404);
     await db.transaction(async tx => {
+      await lockClass(tx, pre.classLevel);
+      const s = await lockStudent(tx, sid);
+      const d = s?.documents[type];
+      if (!d) throw new HttpError('Not found', 404);
+      if (d.status !== 'PENDING') throw new HttpError('This document was already reviewed');
+      if (decision === 'VERIFIED') {
+        const missing = REQUIRED_DOCS.filter(t => !okDoc(s.documents, t));
+        if (missing.length) throw new HttpError(`Cannot verify until all 5 required documents are submitted. Missing: ${missing.join(', ')}`, 409);
+      }
       await tx.update(S).set({ documents: { ...s.documents, [type]: { ...d, status: decision, reviewedBy: user.username, reviewedAt: new Date().toISOString(), remarks: note || null } } }).where(eq(S.id, s.id));
       await audit(tx, { user }, { action: `DOC_${decision}`, regno: s.regno, message: `${type} of ${s.name}: ${decision.toLowerCase()}${note ? ' - ' + note : ''}`, undo: { docs: [{ id: s.id, type, before: d }] } });
     });

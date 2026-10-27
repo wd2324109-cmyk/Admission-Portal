@@ -8,5 +8,5 @@ export const SNAP = s => ({ selectStatus: s.selectStatus, selectedCategory: s.se
 export const before = (s, extra) => ({ id: s.id, before: { ...SNAP(s), ...(Array.isArray(extra) ? Object.fromEntries(extra.map(k => [k, s[k]])) : {}) } });                                                  
                                                                                                           
 export const audit = (x, req, o) => x.insert(A).values({ actor: req?.user?.username || o.actor || 'system', role: req?.user?.role || null, action: o.action, level: o.level || 'INFO',
-  message: o.message, regno: o.regno ?? null, studentIds: o.undo?.students?.length ? o.undo.students.map(t => t.id) : (o.studentId ? [o.studentId] : []), undo: o.undo ?? null });
+  message: o.message, regno: o.regno ?? null, studentIds: o.undo?.students?.length ? o.undo.students.map(t => t.id) : o.undo?.docs?.length ? o.undo.docs.map(t => t.id) : (o.studentId ? [o.studentId] : []), undo: o.undo ?? null });
 
