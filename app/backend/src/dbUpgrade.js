@@ -4,21 +4,18 @@ const pool = new pg.Pool({ connectionString: process.env.DATABASE_URL, ssl: proc
 const once = sql => `DO $$ BEGIN ${sql}; EXCEPTION WHEN duplicate_object THEN NULL; END $$`;
 
 const required = [
-  `CREATE TABLE IF NOT EXISTS user_sessions (
-     id text PRIMARY KEY, user_id integer NOT NULL REFERENCES users (id) ON DELETE CASCADE,
-     created_at timestamptz NOT NULL DEFAULT now(), last_seen timestamptz NOT NULL DEFAULT now(), ip text, user_agent text)`,
-  `CREATE INDEX IF NOT EXISTS user_sessions_user_idx ON user_sessions (user_id, last_seen)`,
   `ALTER TABLE users DROP COLUMN IF EXISTS session_id`,
   `ALTER TABLE users DROP COLUMN IF EXISTS session_started_at`,
   `ALTER TABLE users DROP COLUMN IF EXISTS session_last_seen`,
   `ALTER TABLE users DROP COLUMN IF EXISTS session_ip`,
-  `ALTER TABLE users ADD COLUMN IF NOT EXISTS frozen_at timestamptz`,
-  `ALTER TABLE users ADD COLUMN IF NOT EXISTS frozen_by text`,
-  `ALTER TABLE users ADD COLUMN IF NOT EXISTS frozen_reason text`,
   once(`ALTER TABLE vacancies ADD CONSTRAINT vacancies_nonneg_chk CHECK (admitted >= 0 AND vacancies >= 0) NOT VALID`),
   `ALTER TABLE students ADD COLUMN IF NOT EXISTS replaces_regno integer`,
-  `ALTER TABLE students ADD COLUMN IF NOT EXISTS documents jsonb NOT NULL DEFAULT '{}'::jsonb`,
-  `ALTER TABLE students ADD COLUMN IF NOT EXISTS tc jsonb`,
+  `CREATE TABLE IF NOT EXISTS tc_requests (
+     id serial PRIMARY KEY, student_id integer NOT NULL, reason text NOT NULL, letter_name text NOT NULL, letter_path text NOT NULL,
+     status text NOT NULL DEFAULT 'PENDING', requested_by text NOT NULL, requested_at timestamp NOT NULL DEFAULT now(),
+     reviewed_by text, reviewed_at timestamp, review_remarks text)`,
+  `CREATE INDEX IF NOT EXISTS tc_requests_student_idx ON tc_requests (student_id, id)`,
+  `CREATE INDEX IF NOT EXISTS audit_action_idx ON audit_logs (action)`,
   `CREATE TABLE IF NOT EXISTS audit_logs (
      id serial PRIMARY KEY, at timestamp NOT NULL DEFAULT now(), actor text NOT NULL, role text, action text NOT NULL,
      level text NOT NULL DEFAULT 'INFO', message text NOT NULL, regno integer, student_ids jsonb NOT NULL DEFAULT '[]'::jsonb,

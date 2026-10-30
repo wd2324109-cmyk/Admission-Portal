@@ -3,4 +3,4 @@ export * from './students.schema.js';
 export * from './vacancies.schema.js';
 export * from './statusLogs.schema.js';
 export * from './auditLogs.schema.js';
-export * from './sessions.schema.js';
+export * from './tcRequests.schema.js';

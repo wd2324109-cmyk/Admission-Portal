@@ -9,4 +9,4 @@ export const tcRequests = pgTable('tc_requests', {
   status: text('status').notNull().default('PENDING'),                                   
   requestedBy: text('requested_by').notNull(), requestedAt: timestamp('requested_at').defaultNow().notNull(),
   reviewedBy: text('reviewed_by'), reviewedAt: timestamp('reviewed_at'), reviewRemarks: text('review_remarks'),
-});
+}, t => ({ byStudent: index('tc_requests_student_idx').on(t.studentId, t.id) }));

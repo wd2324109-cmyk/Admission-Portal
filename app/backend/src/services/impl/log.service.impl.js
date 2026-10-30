@@ -1,5 +1,7 @@
 import { and, eq, gt, ilike, inArray, or, sql, desc } from 'drizzle-orm';
-import { students as S, vacancies as V, statusLogs, auditLogs as A } from '../../schema/index.js';
+import { students as S, vacancies as V, statusLogs, auditLogs as A, tcRequests as T } from '../../schema/index.js';
+import { tcRestore } from '../../common/tc.js';
+import { getDocs, putDocs } from '../../common/docstore.js';
 import { db } from '../../db/index.js';
 import { audit } from '../../common/audit.js';
 import { HttpError } from '../../common/http.js';
@@ -45,10 +47,10 @@ export class LogServiceImpl extends LogService {
         await tx.insert(statusLogs).values({ studentId: x.id, field: 'revoke', oldValue: e.action, newValue: 'Revoked', remarks, changedBy: user.username });
       }
       for (const v of u.vac || []) await tx.update(V).set({ admitted: sql`greatest(${V.admitted} - ${v.dAdmitted ?? 0}, 0)`, vacancies: sql`greatest(${V.vacancies} - ${v.dVacancies ?? 0}, 0)` }).where(eq(V.id, v.id));
-      for (const x of u.docs || []) {
-        const [st] = await tx.select({ documents: S.documents }).from(S).where(eq(S.id, x.id));
-        const docs = { ...(st?.documents || {}) }; if (x.before) docs[x.type] = x.before; else delete docs[x.type];
-        await tx.update(S).set({ documents: docs }).where(eq(S.id, x.id));
+      for (const x of u.tcs || []) await tx.update(T).set(tcRestore(x.before)).where(eq(T.id, x.id));
+      for (const x of u.docs || []) {                      // document records are kept outside the database (common/docstore.js)
+        const docs = { ...(await getDocs(x.id)) }; if (x.before) docs[x.type] = x.before; else delete docs[x.type];
+        await putDocs(x.id, docs);
       }
       await tx.update(A).set({ revokedAt: new Date(), revokedBy: user.username, revokeRemarks: remarks }).where(eq(A.id, e.id));
       await audit(tx, { user }, { action: 'REVOKE', level: 'WARN', regno: e.regno, message: `Revoked #${e.id} ${e.action}: ${remarks}` });

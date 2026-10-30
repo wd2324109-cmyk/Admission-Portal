@@ -424,7 +424,7 @@ function ChangePassword({ onClose }) {
   const set = k => e => setF({ ...f, [k]: e.target.value });
   const submit = async () => {
     if (f.newPassword !== f.again) return setErr('The new passwords do not match');
-    try { setBusy(true); const r = await api('/auth/change-password', { method: 'POST', body: { currentPassword: f.currentPassword, newPassword: f.newPassword } }); setErr(''); setDone(true); }
+    try { setBusy(true); const r = await api('/auth/change-password', { method: 'POST', body: { currentPassword: f.currentPassword, newPassword: f.newPassword } }); if (r.token) setToken(r.token); setErr(''); setDone(true); }
     catch (e) { setErr(e.message); } finally { setBusy(false); }
   };
   return <div className="modal" role="dialog" aria-modal="true" onClick={onClose}><div className="panel" style={{ width: 420 }} onClick={e => e.stopPropagation()}>

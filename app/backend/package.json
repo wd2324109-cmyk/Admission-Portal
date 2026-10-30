@@ -8,7 +8,8 @@
     "seed": "node src/seed.js",
     "test": "node src/services/domain/selection.test.js && node src/services/domain/importMap.test.js && node src/services/domain/revert.test.js && node src/common/security.test.js",
     "seed:sample": "node src/seed.js --sample",
-    "db:upgrade": "node src/dbUpgrade.js"
+    "db:upgrade": "node src/dbUpgrade.js",
+    "db:cleanup": "node src/dbCleanup.js"
   },
   "dependencies": {
     "bcryptjs": "^2.4.3",
@@ -21,6 +22,6 @@
     "xlsx": "^0.18.5"
   },
   "devDependencies": {
-    "drizzle-kit": "^0.28.0"
+    "drizzle-kit": "^0.31.11"
   }
 }

@@ -15,7 +15,6 @@ let pass = 0; const ok = (name) => console.log('  ok -', name, ++pass && '');
 
 const U = process.env.DISTRICT_USER, P = process.env.DISTRICT_PW, A = 'superadmin', AP = process.env.ADMIN_PW;
 console.log('Multi-device session tests');
-await pool.query('delete from user_sessions');
 
 // 1. The same account signs in on 10 devices at the same instant: ALL succeed, each with its own session.
 const burst = await Promise.all(Array.from({ length: 10 }, () => login(U, P)));
@@ -30,18 +29,22 @@ await call('/auth/logout', { token: toks[0], method: 'POST' });
 assert.equal((await call('/auth/session', { token: toks[0] })).status, 401); ok('logged-out device is rejected');
 assert((await Promise.all(toks.slice(1).map(t => call('/auth/session', { token: t })))).every(r => r.status === 200)); ok('the other 9 devices are unaffected');
 
-// 3. One idle device expires by itself; the others stay signed in.
-await pool.query(`update user_sessions set last_seen = now() - interval '2 hours' where id = (select id from user_sessions where user_id=(select id from users where username=$1) order by created_at limit 1)`, [U]);
-const states = await Promise.all(toks.slice(1).map(t => call('/auth/session', { token: t })));
+// 3. One idle device expires by itself; the others stay signed in. (The API and this test must both run with SESSION_IDLE_SECONDS set, for example 8.)
+const idle = +process.env.SESSION_IDLE_SECONDS || 0; assert(idle >= 2 && idle <= 10, 'run both the API and this test with SESSION_IDLE_SECONDS=8 (any value from 2 to 10)');
+const keep = toks.slice(2);                                  // toks[1] is left idle on purpose
+for (const t0 = Date.now(); Date.now() - t0 < (idle + 1) * 1000;) { await Promise.all(keep.map(t => call('/auth/session', { token: t }))); await new Promise(r => setTimeout(r, 700)); }
+const states = [await call('/auth/session', { token: toks[1] }), ...await Promise.all(keep.map(t => call('/auth/session', { token: t })))];
 assert.equal(states.filter(r => r.status === 401 && r.body.code === 'SESSION_EXPIRED').length, 1);
 assert.equal(states.filter(r => r.status === 200).length, 8); ok('one idle device expired, 8 others keep working');
+assert.equal((await call('/auth/session', { token: toks[1] })).status, 401); ok('an expired device stays refused (cannot come back with the same token)');
 
 // 4. Password change: this device stays, every other device is signed out.
 const live = toks.slice(1).filter((_, i) => states[i].status === 200);
 const NEWPW = P + 'x1!';
 const cp = await call('/auth/change-password', { token: live[0], method: 'POST', body: { currentPassword: P, newPassword: NEWPW } });
 assert.equal(cp.status, 200);
-assert.equal((await call('/auth/session', { token: live[0] })).status, 200); ok('device that changed the password stays signed in');
+assert(cp.body.token); assert.equal((await call('/auth/session', { token: cp.body.token })).status, 200); ok('device that changed the password stays signed in (with the fresh token)');
+assert.equal((await call('/auth/session', { token: live[0] })).status, 401); ok('the old token of that device no longer works');
 assert((await Promise.all(live.slice(1).map(t => call('/auth/session', { token: t })))).every(r => r.status === 401)); ok('all other devices signed out after password change');
 assert.equal((await login(U, P)).status, 401); assert.equal((await login(U, NEWPW)).status, 200); ok('new password works, old does not');
 await call('/auth/change-password', { token: (await login(U, NEWPW)).body.token, method: 'POST', body: { currentPassword: NEWPW, newPassword: P } });
@@ -54,7 +57,6 @@ const winner = race.findIndex(r => r.status === 200);
 const wp = 'Racing-pass-' + winner + '-xyz';
 assert.equal((await login(U, wp)).status, 200);
 await call('/auth/change-password', { token: (await login(U, wp)).body.token, method: 'POST', body: { currentPassword: wp, newPassword: P } });   // restore
-await pool.query('delete from user_sessions');
 
 console.log('Data race tests');
 // Super admin + district user (same district data), then hammer one student from many requests at once.
@@ -108,9 +110,10 @@ console.log('Freeze access tests');
   const tmp = (await call('/users', { token: adm })).body.find(x => x.username === 'tmp_admin'); const tadm = (await login('tmp_admin', 'Tmp-admin-pass-1')).body.token;
   const duel = await Promise.all([call(`/users/${tmp.id}/freeze`, { token: adm, method: 'POST', body: { reason: 'duel' } }), call(`/users/${me.id}/freeze`, { token: tadm, method: 'POST', body: { reason: 'duel' } })]);
   console.log('    statuses:', duel.map(r => r.status).join(','));
-  const active = (await pool.query(`select count(*)::int n from users where role='SUPER_ADMIN' and frozen_at is null`)).rows[0].n;
-  assert(active >= 1); ok('two admins freezing each other at once -> at least one admin always remains');
-  await pool.query(`update users set frozen_at=null, frozen_by=null, frozen_reason=null`);
+  const [la, lt] = [await call('/users', { token: adm }), await call('/users', { token: tadm })];
+  const boss = la.status === 200 ? adm : tadm, all = (la.status === 200 ? la : lt).body;
+  assert(all.filter(x => x.role === 'SUPER_ADMIN' && !x.frozenAt).length >= 1); ok('two admins freezing each other at once -> at least one admin always remains');
+  for (const x of all.filter(x => x.frozenAt)) await call(`/users/${x.id}/unfreeze`, { token: boss, method: 'POST' });
   await pool.query(`delete from users where username='tmp_admin'`);
   await call('/auth/logout', { token: adm, method: 'POST' });
 }

@@ -84,7 +84,7 @@ Pending for Selection, Selected, Joined, Not Joined, TC Issued, Not Joined (name
 
 ## Selected students, statuses and one table
 The super admin imports the students who are already selected (Excel); every imported student is shown under **Selected**. District users mark them **Admitted** or **Not Admitted** only (Unwilling is no longer used). Student Details has three tabs: Selected, Admitted, Not Admitted. The revert options (Not Admitted, revoke admission, revert TC) are unchanged.
-**Single table:** student details, the five documents and the TC request are all stored in the `students` table (columns `documents` and `tc`, both JSON). The History is `audit_logs` (plus the per-student `status_logs`). Run `npm run db:upgrade` to add the two columns. The old `tc_requests` and `student_documents` tables are no longer used; their data is not carried over. Remove them with `DROP TABLE IF EXISTS tc_requests, student_documents;` once you are sure nothing is needed.
+**Database design:** the database has exactly six tables: `users`, `students`, `vacancies`, `status_logs`, `tc_requests` and `audit_logs` (see "Database design" below). TC requests are rows in `tc_requests`; the five student documents are kept outside the database (see below).
 
 ## Student status flow (Class 9 and 10)
 Student Details has Class 9 / Class 10 tabs, each with **Pending, Selected, Joined, Not Joined, TC**. Imported students start in **Pending**; opening one offers **Selected** or **Not Joined**. In **Selected** the buttons are **Joined** or **Not Joined**. **Joined** lists joined students; **Not Joined** lists students marked Not Joined and those marked Not Joined; **TC** lists students whose TC was issued. Documents: five can be uploaded, three are compulsory (Transfer Certificate, Birth Certificate, Application Form); the admin marks them Verified or Not Verified. Logs record sign-in, sign-out, every change and what each user opens.
@@ -98,3 +98,16 @@ The Excel comes from the selection round, so its statuses are read one stage ear
 - Failed sign-ins are limited (8 per address and user, 30 per address, per 15 minutes). Behind nginx set `TRUST_PROXY=true`.
 - `npm run db:upgrade` also adds indexes, value checks and (if allowed) trigram search indexes.
 - Never share `.env` or `uploads/`. Full findings: `reviews/audit-plan-full.md`.
+
+## Database design (exactly six tables)
+`users`, `students`, `vacancies`, `status_logs`, `tc_requests`, `audit_logs`, with the columns listed in the agreed design document. Nothing else is created by `npm run db:push`.
+
+Features that used to need extra tables or columns now work like this:
+- **TC requests** are rows in `tc_requests`. A student can have several over time; the latest row is the current one. Undo (History > Revoke) restores the request together with the student and the seat.
+- **Frozen access** is the last `FREEZE` / `UNFREEZE` entry for the user in `audit_logs` (who, when, why). It is cached for 5 seconds and takes effect on the very next request, on every device of that user.
+- **Many devices per account**: every sign-in gets its own session inside the signed token. Logging out ends only that device, an idle device expires after `SESSION_IDLE_MINUTES` (default 30), and changing the password signs out all other devices (the token carries a stamp of the password hash; the device that changed it receives a fresh token). Idle times are kept in server memory, so after a restart the idle clock simply starts again.
+- **Student documents** (the 5 documents per student) have no table in the design. Their records are kept as one small JSON file per student in `backend/uploads/documents/`, next to the uploaded files. All access goes through `src/common/docstore.js`; to move documents to an S3 bucket, replace that file and `saveUpload` in `src/common/upload.js`.
+
+**Upgrading a database made by an older version** (it has `user_sessions`, `student_documents`, `students.documents`, `students.tc` or `users.frozen_*`): run `npm install`, then `npm run db:cleanup` once, BEFORE `npm run db:push` (drizzle-kit is now 0.31; version 0.28 fails on a repeated push with `column "id" is in a primary key`). It moves that data into the six tables / the document files and then removes the extras. On a clean database it does nothing.
+
+Tests (need a running API and database, see the first lines of each file): `test/concurrency.integration.js` (sessions, freeze, races; run API and test with `SESSION_IDLE_SECONDS=8`) and `test/tc_docs.integration.js` (TC requests, documents, undo, table list).

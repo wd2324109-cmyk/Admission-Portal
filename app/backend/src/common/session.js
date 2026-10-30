@@ -1,25 +1,30 @@
 import crypto from 'node:crypto';
-import { and, eq, sql } from 'drizzle-orm';
-import { users, userSessions as SS } from '../schema/index.js';
+import { eq } from 'drizzle-orm';
+import { users } from '../schema/index.js';
 import { db } from '../db/index.js';
+import { frozenUsers } from './freeze.js';
 
 /*
- * Many devices, one account.
+ * Many devices, one account - without a sessions table.
  *
- * Every sign-in creates its own row in user_sessions, so a user can be signed in on any number of
- * computers at the same time and each device is completely independent:
+ * Every sign-in gets its own random session id (sid) inside a signed token, so a user can be signed in on any
+ * number of computers at once and each device is independent:
  *   - logging out on one device ends only that device,
- *   - an idle device expires on its own (SESSION_IDLE_MINUTES, default 30) without affecting the others,
- *   - changing the password signs out all OTHER devices (security) and keeps the current one.
- * Safety of the data itself does not depend on who is signed in where: every write is locked and
- * re-validated in the database (see common/locks.js), so simultaneous users cannot corrupt each other.
+ *   - a device that is idle for SESSION_IDLE_MINUTES (default 30) expires on its own,
+ *   - changing the password signs out every other device: the token carries a stamp of the password hash,
+ *     and a token whose stamp no longer matches the users table is refused,
+ *   - freezing a user (see common/freeze.js) refuses every request of that user at once.
  *
- * All time comparisons use the database clock so several app servers agree.
+ * Idle time and "ended" devices are tracked in this server's memory. After a restart the idle clock simply starts
+ * again for devices that are still signed in. Nothing needs to be stored in the database.
  */
-export const IDLE_SECONDS = Math.max(1, +process.env.SESSION_IDLE_MINUTES || 30) * 60;
+export const IDLE_SECONDS = +process.env.SESSION_IDLE_SECONDS || Math.max(1, +process.env.SESSION_IDLE_MINUTES || 30) * 60;
 export const MAX_DEVICES = Math.max(1, +process.env.MAX_DEVICES_PER_USER || 20);   // runaway-protection only
-const TOUCH_SECONDS = 20;
-const secs = n => sql`(${n}::double precision * interval '1 second')`;
+const IDLE_MS = IDLE_SECONDS * 1000, TOKEN_MS = 8 * 3600 * 1000;
+
+const live = new Map();        // sid -> { userId, lastSeen }
+const ended = new Map();       // sid -> time after which the token has expired anyway
+const notBefore = new Map();   // userId -> tokens issued before this moment are refused
 
 export const SESSION_MSG = {
   ACCOUNT_FROZEN: 'Your access has been frozen by the administrator. Please contact them to restore it.',
@@ -29,34 +34,52 @@ export const SESSION_MSG = {
   UNAUTHORIZED: 'Unauthorized',
 };
 
-export async function startSession(userId, { ip = null, agent = null } = {}) {
-  const sid = crypto.randomUUID();
-  await db.transaction(async tx => {
-    await tx.insert(SS).values({ id: sid, userId, ip, userAgent: agent ? String(agent).slice(0, 300) : null });
-    // housekeeping: forget this user's dead sessions, and cap the number of live ones (oldest activity goes first)
-    await tx.delete(SS).where(and(eq(SS.userId, userId), sql`${SS.lastSeen} < now() - ${secs(IDLE_SECONDS)}`));
-    await tx.execute(sql`delete from user_sessions where user_id = ${userId} and id in
-      (select id from user_sessions where user_id = ${userId} order by last_seen desc offset ${MAX_DEVICES})`);
-  });
-  return { sid };
+/** Short stamp of a password hash; it is put in the token so a password change invalidates old tokens. */
+export const pwStamp = hash => crypto.createHash('sha256').update(String(hash)).digest('hex').slice(0, 16);
+
+const finish = sid => { live.delete(sid); ended.set(sid, Date.now() + TOKEN_MS); };
+const devicesOf = userId => [...live].filter(([, s]) => s.userId === userId);
+
+setInterval(() => {                                         // housekeeping: forget what can no longer matter
+  const now = Date.now();
+  for (const [sid, s] of live) if (now - s.lastSeen > TOKEN_MS) live.delete(sid);
+  for (const [sid, until] of ended) if (until < now) ended.delete(sid);
+}, 10 * 60 * 1000).unref();
+
+export function startSession(userId) {
+  const sid = crypto.randomUUID(), now = Date.now();
+  for (const [id, s] of devicesOf(userId)) if (now - s.lastSeen > IDLE_MS) finish(id);
+  const mine = devicesOf(userId).sort((a, b) => a[1].lastSeen - b[1].lastSeen);
+  while (mine.length >= MAX_DEVICES) finish(mine.shift()[0]);   // oldest activity goes first
+  live.set(sid, { userId, lastSeen: now });
+  return { sid, t: now };
 }
 
 /** Ends only the given device. */
-export const endSession = (userId, sid) => db.delete(SS).where(and(eq(SS.userId, userId), eq(SS.id, sid)));
+export const endSession = (userId, sid) => finish(sid);
 
 /** Ends every device except `keepSid`. */
-export const endOtherSessions = (userId, keepSid, tx = db) => tx.delete(SS).where(and(eq(SS.userId, userId), sql`${SS.id} <> ${keepSid}`));
+export const endOtherSessions = (userId, keepSid) => { for (const [id] of devicesOf(userId)) if (id !== keepSid) finish(id); };
+
+/** Ends every device of the user, including tokens that this server has not seen (used when freezing). */
+export const endAllSessions = userId => { for (const [id] of devicesOf(userId)) finish(id); notBefore.set(userId, Date.now()); };
+
+/** How many devices of each user are active right now: Map(userId -> count). */
+export function activeDevices() {
+  const now = Date.now(), out = new Map();
+  for (const s of live.values()) if (now - s.lastSeen <= IDLE_MS) out.set(s.userId, (out.get(s.userId) || 0) + 1);
+  return out;
+}
 
 export async function checkSession(claims) {
-  if (!claims?.id || !claims?.sid) return { ok: false, code: 'SESSION_ENDED' };       // tokens issued before sessions existed
-  const [r] = await db.select({ id: users.id, username: users.username, role: users.role, region: users.region, district: users.district,
-      frozenAt: users.frozenAt, sid: SS.id,
-      alive: sql`${SS.lastSeen} > now() - ${secs(IDLE_SECONDS)}`,
-      stale: sql`${SS.lastSeen} < now() - ${secs(TOUCH_SECONDS)}` })
-    .from(users).leftJoin(SS, and(eq(SS.id, claims.sid), eq(SS.userId, users.id))).where(eq(users.id, claims.id));
-  if (r?.frozenAt) return { ok: false, code: 'ACCOUNT_FROZEN' };      // takes effect on the very next request, on every device
-  if (!r || !r.sid) return { ok: false, code: 'SESSION_ENDED' };
-  if (!r.alive) return { ok: false, code: 'SESSION_EXPIRED' };
-  if (r.stale) await db.update(SS).set({ lastSeen: sql`now()` }).where(eq(SS.id, claims.sid));
+  if (!claims?.id || !claims?.sid || !claims?.pv) return { ok: false, code: 'SESSION_ENDED' };       // tokens issued before this version
+  const [r] = await db.select({ id: users.id, username: users.username, role: users.role, region: users.region, district: users.district, passwordHash: users.passwordHash })
+    .from(users).where(eq(users.id, claims.id));
+  if (r && (await frozenUsers()).has(r.username)) return { ok: false, code: 'ACCOUNT_FROZEN' };      // takes effect on the very next request, on every device
+  if (!r || claims.pv !== pwStamp(r.passwordHash)) return { ok: false, code: 'SESSION_ENDED' };
+  if (ended.has(claims.sid) || !(claims.t >= (notBefore.get(r.id) || 0))) return { ok: false, code: 'SESSION_ENDED' };
+  const now = Date.now(), s = live.get(claims.sid);
+  if (s && now - s.lastSeen > IDLE_MS) { finish(claims.sid); return { ok: false, code: 'SESSION_EXPIRED' }; }
+  if (s) s.lastSeen = now; else live.set(claims.sid, { userId: r.id, lastSeen: now });                   // unknown here = server restarted: accept and start the idle clock
   return { ok: true, user: { id: r.id, username: r.username, role: r.role, region: r.region, district: r.district, sid: claims.sid } };
 }

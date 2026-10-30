@@ -26,8 +26,6 @@ export const students = pgTable('students', {
   verificationStatus: text('verification_status').notNull().default('PENDING'),                             
   verificationRemarks: text('verification_remarks'),
   replacesRegno: integer('replaces_regno'),
-  documents: jsonb('documents').notNull().default({}),                                                                                                                  
-  tc: jsonb('tc'),                                                                                                                                                                                                                                          
 }, t => ({
   cell: index('cell_idx').on(t.regionalCentre, t.classLevel, t.gender, t.medium),
   classAdmit: index('students_class_admit_idx').on(t.classLevel, t.admitStatus),

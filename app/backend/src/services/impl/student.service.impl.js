@@ -1,15 +1,15 @@
-import { and, eq, ne, ilike, or, sql, desc, asc, getTableColumns } from 'drizzle-orm';
-import { students as S, vacancies as V, statusLogs, auditLogs as A } from '../../schema/index.js';
+import { and, eq, ne, ilike, or, sql, desc, asc, notInArray } from 'drizzle-orm';
+import { students as S, vacancies as V, statusLogs, auditLogs as A, tcRequests as T } from '../../schema/index.js';
 import { db } from '../../db/index.js';
 import { before, audit } from '../../common/audit.js';
 import { HttpError } from '../../common/http.js';
 import { scope, classFilter, page1, likeEsc, cellW, CLEAN } from '../../common/query.js';
 import { planRevert } from '../domain/revert.js';
 import { REQUIRED_DOCS } from '../document.service.js';
+import { idsAllVerified } from '../../common/docstore.js';
+import { latestTc, TC_SNAP } from '../../common/tc.js';
 import { lockClass, lockStudent, lockCell, lockVacancy } from '../../common/locks.js';
 import { StudentService } from '../student.service.js';
-
-const { documents: _documents, tc: _tc, ...listCols } = getTableColumns(S);
 
 export class StudentServiceImpl extends StudentService {
   async list({ user, query }) {
@@ -24,10 +24,12 @@ export class StudentServiceImpl extends StudentService {
     const viewW = VIEWS[view];
     const term = String(search).trim();
     const q = term ? or(ilike(S.name, `%${likeEsc(term)}%`), ilike(S.emisNo, `%${likeEsc(term)}%`)) : undefined;                                                                                                          
-    const docsOpen = query.docsOpen ? sql`(select count(*) from jsonb_each(${S.documents}) e where e.key in (${sql.join(REQUIRED_DOCS.map(t => sql`${t}`), sql`, `)}) and e.value->>'status' = 'VERIFIED') < ${REQUIRED_DOCS.length}` : undefined;
+    // Students whose 5 required documents are not all verified yet (the document records are kept outside the database, see common/docstore.js)
+    const done = query.docsOpen ? await idsAllVerified(REQUIRED_DOCS) : [];
+    const docsOpen = done.length ? notInArray(S.id, done) : undefined;
     const where = and(scope(user), classFilter(c), viewW, q, docsOpen);
     const [rows, [{ n }]] = await Promise.all([
-      db.select(listCols).from(S).where(where).orderBy(desc(S.total), asc(S.orank)).limit(size).offset((page - 1) * size),
+      db.select().from(S).where(where).orderBy(desc(S.total), asc(S.orank)).limit(size).offset((page - 1) * size),
       db.select({ n: sql`count(*)::int` }).from(S).where(where)]);
     return ({ rows, total: n, pages: Math.max(1, Math.ceil(n / size)) });
   }
@@ -138,11 +140,13 @@ export class StudentServiceImpl extends StudentService {
       const vac = await lockVacancy(tx, a);
       if ((vac?.vacancies ?? 0) - holders.length < 1)
         throw new HttpError(`No vacancy: the ${a.selectedCategory} seats for ${a.gender} / ${a.medium} in ${a.regionalCentre} (Class ${a.classLevel}) are full, so this TC cannot be reverted.`, 409);
-      await tx.update(S).set({ admitStatus: 'Admitted', ...(a.tc?.status === 'APPROVED' ? { tc: { ...a.tc, status: 'CANCELLED' } } : {}) }).where(eq(S.id, a.id));
+      const tc = await latestTc(tx, a.id, true);
+      await tx.update(S).set({ admitStatus: 'Admitted' }).where(eq(S.id, a.id));
+      if (tc?.status === 'APPROVED') await tx.update(T).set({ status: 'CANCELLED' }).where(eq(T.id, tc.id));
       await tx.update(V).set({ admitted: sql`${V.admitted} + 1`, vacancies: sql`greatest(${V.vacancies} - 1, 0)` }).where(eq(V.id, vac.id));
       await tx.insert(statusLogs).values({ studentId: a.id, field: 'admitStatus', oldValue: a.admitStatus, newValue: 'Admitted', remarks, changedBy: user.username });
       await audit(tx, { user }, { action: 'REVERT_TC', regno: a.regno, message: `${a.name}: TC reverted, admitted again - ${remarks}`,
-        undo: { students: [before(a, ['tc'])], vac: [{ id: vac.id, dAdmitted: 1, dVacancies: vac.vacancies > 0 ? -1 : 0 }] } });
+        undo: { students: [before(a)], tcs: tc?.status === 'APPROVED' ? [{ id: tc.id, before: TC_SNAP(tc) }] : [], vac: [{ id: vac.id, dAdmitted: 1, dVacancies: vac.vacancies > 0 ? -1 : 0 }] } });
       return { ok: true };
     });
   }
@@ -157,7 +161,7 @@ export class StudentServiceImpl extends StudentService {
       const s = await lockStudent(tx, id);
       if (!s) throw new HttpError('Not found', 404);
       if (s.admitStatus !== 'Admitted') throw new HttpError('Only admitted students can have their admission revoked', 400);
-      if (['PENDING', 'APPROVED'].includes(s.tc?.status)) throw new HttpError('This student has a pending or approved TC request', 409);
+      if (['PENDING', 'APPROVED'].includes((await latestTc(tx, s.id))?.status)) throw new HttpError('This student has a pending or approved TC request', 409);
       const vv = await lockVacancy(tx, s);
       await tx.update(S).set({ admitStatus: '' }).where(eq(S.id, s.id));
       if (vv) await tx.update(V).set({ admitted: sql`greatest(${V.admitted} - 1, 0)`, vacancies: sql`${V.vacancies} + 1` }).where(eq(V.id, vv.id));

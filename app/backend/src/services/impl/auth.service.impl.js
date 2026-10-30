@@ -4,7 +4,8 @@ import { users } from '../../schema/index.js';
 import { db } from '../../db/index.js';
 import { audit } from '../../common/audit.js';
 import { signToken } from '../../common/auth.js';
-import { startSession, endSession, endOtherSessions } from '../../common/session.js';
+import { startSession, endSession, endOtherSessions, pwStamp } from '../../common/session.js';
+import { frozenUsers } from '../../common/freeze.js';
 import { HttpError } from '../../common/http.js';
 import { makeLimiter } from '../../common/rateLimit.js';
 import { AuthService } from '../auth.service.js';
@@ -28,18 +29,18 @@ export class AuthServiceImpl extends AuthService {
     }
     byUser.clear(userKey);
     const profile = { id: u.id, username: u.username, role: u.role, region: u.region, district: u.district };
-    if (u.frozenAt) {
+    if ((await frozenUsers(db, { fresh: true })).has(u.username)) {
       await audit(db, { user: profile }, { action: 'LOGIN_BLOCKED', level: 'WARN', message: `Sign-in from ${ip} refused: access is frozen` });
       throw new HttpError('Your access has been frozen by the administrator. Please contact them to restore it.', 403, { code: 'ACCOUNT_FROZEN' });
     }
     // Every sign-in is its own independent device session; any number may be active at once.
-    const { sid } = await startSession(u.id, { ip, agent });
+    const { sid, t } = startSession(u.id);
     await audit(db, { user: profile }, { action: 'LOGIN', message: `Signed in from ${ip}` });
-    return { token: signToken({ ...profile, sid }), user: profile };
+    return { token: signToken({ ...profile, sid, t, pv: pwStamp(u.passwordHash) }), user: profile };
   }
 
   async logout({ user }) {
-    await endSession(user.id, user.sid);
+    endSession(user.id, user.sid);
     await audit(db, { user }, { action: 'LOGOUT', message: 'Signed out' });
     return { ok: true };
   }
@@ -63,13 +64,14 @@ export class AuthServiceImpl extends AuthService {
     }
     // Compare-and-set on the old hash: if two devices change the password at once, only one can win.
     // All OTHER devices are signed out (the old password may have been compromised); this one carries on.
-    await db.transaction(async tx => {
-      const [done] = await tx.update(users).set({ passwordHash: bcrypt.hashSync(String(newPassword), 12) })
-        .where(and(eq(users.id, u.id), eq(users.passwordHash, u.passwordHash))).returning({ id: users.id });
-      if (!done) throw new HttpError('The password was just changed from another device. Please sign in again.', 409);
-      await endOtherSessions(u.id, user.sid, tx);
-    });
+    const newHash = bcrypt.hashSync(String(newPassword), 12);
+    const [done] = await db.update(users).set({ passwordHash: newHash })
+      .where(and(eq(users.id, u.id), eq(users.passwordHash, u.passwordHash))).returning({ id: users.id });
+    if (!done) throw new HttpError('The password was just changed from another device. Please sign in again.', 409);
+    endOtherSessions(u.id, user.sid);
     await audit(db, { user }, { action: 'PASSWORD_CHANGED', message: 'Password changed; other devices signed out' });
-    return { ok: true };
+    // Old tokens carry a stamp of the old password, so every device is now refused. This device gets a fresh token and carries on.
+    const { sid, ...profile } = user;
+    return { ok: true, token: signToken({ ...profile, sid, t: Date.now(), pv: pwStamp(newHash) }) };
   }
 }
