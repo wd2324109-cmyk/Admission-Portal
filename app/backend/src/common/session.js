@@ -15,9 +15,12 @@ import { frozenUsers } from './freeze.js';
  *     and a token whose stamp no longer matches the users table is refused,
  *   - freezing a user (see common/freeze.js) refuses every request of that user at once.
  *
- * Idle time and "ended" devices are tracked in this server's memory. After a restart the idle clock simply starts
- * again for devices that are still signed in. Nothing needs to be stored in the database.
+ * Idle time and "ended" devices are tracked in this server's memory, so that memory is lost when the server restarts.
+ * HOSTING FIX: a token issued before this server started is therefore refused (BOOT below). Otherwise a token that
+ * was signed out (or had gone idle) would become valid again after every restart / redeploy / free-plan wake-up.
+ * Effect for users: after a restart everyone signs in once more. Nothing needs to be stored in the database.
  */
+const BOOT = Date.now();
 export const IDLE_SECONDS = +process.env.SESSION_IDLE_SECONDS || Math.max(1, +process.env.SESSION_IDLE_MINUTES || 30) * 60;
 export const MAX_DEVICES = Math.max(1, +process.env.MAX_DEVICES_PER_USER || 20);   // runaway-protection only
 const IDLE_MS = IDLE_SECONDS * 1000, TOKEN_MS = 8 * 3600 * 1000;
@@ -77,7 +80,7 @@ export async function checkSession(claims) {
     .from(users).where(eq(users.id, claims.id));
   if (r && (await frozenUsers()).has(r.username)) return { ok: false, code: 'ACCOUNT_FROZEN' };      // takes effect on the very next request, on every device
   if (!r || claims.pv !== pwStamp(r.passwordHash)) return { ok: false, code: 'SESSION_ENDED' };
-  if (ended.has(claims.sid) || !(claims.t >= (notBefore.get(r.id) || 0))) return { ok: false, code: 'SESSION_ENDED' };
+  if (ended.has(claims.sid) || !(claims.t >= Math.max(BOOT, notBefore.get(r.id) || 0))) return { ok: false, code: 'SESSION_ENDED' };
   const now = Date.now(), s = live.get(claims.sid);
   if (s && now - s.lastSeen > IDLE_MS) { finish(claims.sid); return { ok: false, code: 'SESSION_EXPIRED' }; }
   if (s) s.lastSeen = now; else live.set(claims.sid, { userId: r.id, lastSeen: now });                   // unknown here = server restarted: accept and start the idle clock

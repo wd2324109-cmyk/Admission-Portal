@@ -1,0 +1,45 @@
+# Render Blueprint - ONE web service (API + website on one address) + PostgreSQL + a persistent disk.
+# Place this file at the ROOT of the GitHub repository (next to the "app" folder), then in Render:
+# New > Blueprint > pick the repository. Check plan names/prices in Render before applying.
+# A persistent disk needs a paid instance type (not "free").
+databases:
+  - name: admissions-db
+    region: singapore
+    plan: basic-256mb            # paid; the free database is deleted after 30 days
+    postgresMajorVersion: "16"
+
+services:
+  - type: web
+    name: admissions-portal
+    runtime: node
+    region: singapore
+    plan: starter                # paid; needed for the disk, and it does not sleep
+    rootDir: app
+    buildCommand: cd frontend && npm ci && npm run build && cd ../backend && npm ci --include=dev
+    # db:deploy = one-time cleanup + table sync + indexes/checks + super admin. It runs here (not as a
+    # pre-deploy command) because the cleanup may write document records to the disk.
+    startCommand: cd backend && npm run db:deploy && node src/server.js
+    healthCheckPath: /api/health
+    disk:
+      name: uploads
+      mountPath: /var/data
+      sizeGB: 2
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: DATABASE_URL
+        fromDatabase:
+          name: admissions-db
+          property: connectionString   # internal address: no SSL needed
+      - key: DATABASE_SSL
+        value: "false"
+      - key: JWT_SECRET
+        generateValue: true
+      - key: SEED_ADMIN_PASSWORD
+        sync: false                    # you type it in the dashboard; it is never printed in the logs
+      - key: UPLOADS_DIR
+        value: /var/data/uploads
+      - key: TRUST_PROXY
+        value: "true"
+      - key: SESSION_IDLE_MINUTES
+        value: "30"

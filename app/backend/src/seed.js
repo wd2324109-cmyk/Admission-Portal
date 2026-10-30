@@ -22,5 +22,8 @@ if (sample) {
 }
 const adminPw = process.env.SEED_ADMIN_PASSWORD || random();
 const added = await db.insert(users).values({ username: 'superadmin', passwordHash: h(adminPw), role: 'SUPER_ADMIN' }).onConflictDoNothing({ target: users.username }).returning({ u: users.username });
-console.log(added.length ? `Super admin created: superadmin / ${adminPw}   (save it now; it is not shown again. Change it after the first sign-in.)` : 'Super admin already exists; password unchanged.');
+// HOSTING FIX: hosting logs are kept and visible to anyone with dashboard access, so a password chosen through
+// SEED_ADMIN_PASSWORD is never printed. Only a randomly generated one is shown (once).
+const shown = process.env.SEED_ADMIN_PASSWORD ? '(password from SEED_ADMIN_PASSWORD)' : adminPw;
+console.log(added.length ? `Super admin created: superadmin / ${shown}   (Change it after the first sign-in.)` : 'Super admin already exists; password unchanged.');
 await pool.end();
