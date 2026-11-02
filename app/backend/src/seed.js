@@ -26,4 +26,11 @@ const added = await db.insert(users).values({ username: 'superadmin', passwordHa
 // SEED_ADMIN_PASSWORD is never printed. Only a randomly generated one is shown (once).
 const shown = process.env.SEED_ADMIN_PASSWORD ? '(password from SEED_ADMIN_PASSWORD)' : adminPw;
 console.log(added.length ? `Super admin created: superadmin / ${shown}   (Change it after the first sign-in.)` : 'Super admin already exists; password unchanged.');
+
+// State coordinator: the middle step of the TC approval chain (regional coordinator -> STATE COORDINATOR -> super admin).
+// Created once; an existing account (and its password) is never touched. Same password rules as the super admin above.
+const statePw = process.env.SEED_STATE_PASSWORD || random();
+const stateAdded = await db.insert(users).values({ username: 'state_coordinator', passwordHash: h(statePw), role: 'STATE' }).onConflictDoNothing({ target: users.username }).returning({ u: users.username });
+const stateShown = process.env.SEED_STATE_PASSWORD ? '(password from SEED_STATE_PASSWORD)' : statePw;
+console.log(stateAdded.length ? `State coordinator created: state_coordinator / ${stateShown}   (Change it after the first sign-in.)` : 'State coordinator already exists; password unchanged.');
 await pool.end();

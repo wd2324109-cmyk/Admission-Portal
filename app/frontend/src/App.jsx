@@ -73,7 +73,7 @@ function Dashboard({ user }) {
   const tot = k => d.byClass.reduce((a, r) => a + r[k], 0);
   const split = k => d.byClass.map(r => `Class ${r.key}: ${r[k]}`).join('  ·  ');
   return <>
-    <div className="head"><h1>Dashboard</h1><span className="pill">{user.role === 'SUPER_ADMIN' ? 'All regions' : user.region || user.district}</span></div>
+    <div className="head"><h1>Dashboard</h1><span className="pill">{['SUPER_ADMIN', 'STATE'].includes(user.role) ? 'All regions' : user.region || user.district}</span></div>
     <div className="grid stats">{KEYS.map(([k, l]) => <Stat key={k} icon={ICON[k][0]} color={ICON[k][1]} label={l} value={tot(k)} note={split(k)} />)}</div>
     <div className="grid two">
       <div className="panel"><h3>Overall share</h3><Donut parts={KEYS.map(([k, l, c]) => ({ l, c, v: tot(k) }))} /></div>
@@ -188,33 +188,50 @@ function TcPopup({ s, onClose, onDone }) {
     <div className="row2"><button className="pri" disabled={busy} onClick={submit}>{busy ? 'Submitting…' : 'Submit request'}</button><button onClick={onClose}>Cancel</button></div></div></div>;
 }
 
+// TC approval chain: district raises -> RC (regional coordinator) -> SC (state coordinator) -> Super Admin.
+const TC_LEVEL = { REGION: 'RC', STATE: 'SC', ADMIN: 'Super Admin' };                       // stage / rejectedLevel -> short name
+const TC_MINE = { REGION: 'REGION', STATE: 'STATE', SUPER_ADMIN: 'ADMIN' };                  // my role -> the stage I decide
+const tcTag = r => r.status === 'APPROVED' ? ['TC APPROVED', 'APPROVED']
+  : r.status === 'REJECTED' ? [`NOT APPROVED BY ${TC_LEVEL[r.rejectedLevel || 'ADMIN'].toUpperCase()}`, 'REJECTED']
+  : r.status === 'CANCELLED' ? ['CANCELLED', '']
+  : r.stage === 'STATE' ? ['APPROVED BY RC', 'RCAPPROVED'] : r.stage === 'ADMIN' ? ['APPROVED BY SC', 'SCAPPROVED'] : ['AWAITING RC', 'PENDING'];
+const TcTag = ({ r }) => { const [t, c] = tcTag(r); return <span className={`badge ${c}`}>{t}</span>; };
+// who decided at each step, for the detail view
+const tcTrail = r => [['RC', 'Regional coordinator', r.rcBy, r.rcAt, r.rcRemarks, r.rejectedLevel === 'REGION'],
+  ['SC', 'State coordinator', r.scBy, r.scAt, r.scRemarks, r.rejectedLevel === 'STATE'],
+  ['Super Admin', 'Super admin', r.reviewedBy, r.reviewedAt, r.reviewRemarks, r.rejectedLevel === 'ADMIN']].filter(x => x[2]);
+
 function TcRequests({ user }) {
-  const [tab, setTab] = useState(user.role === 'DISTRICT' ? 'RAISE' : 'PENDING'), [rows, setRows] = useState([]), [err, setErr] = useState(''), [open, setOpen] = useState(null), [picked, setPicked] = useState(null), [n, setN] = useState(0), [rm, setRm] = useState(''), [pv, setPv] = useState(null);
+  const mine = TC_MINE[user.role], canDecide = !!mine;
+  const [tab, setTab] = useState(user.role === 'DISTRICT' ? 'RAISE' : canDecide ? 'TODO' : 'PENDING'), [rows, setRows] = useState([]), [err, setErr] = useState(''), [open, setOpen] = useState(null), [picked, setPicked] = useState(null), [n, setN] = useState(0), [rm, setRm] = useState(''), [pv, setPv] = useState(null);
   useEffect(() => {                                                                                   
     if (!open) return; let u;
     fileBlob(`/tc/${open.id}/letter`).then(b => { u = URL.createObjectURL(b); setPv({ url: u, type: b.type }); }).catch(e => setPv({ error: e.message }));
     return () => { setPv(null); u && URL.revokeObjectURL(u); };
   }, [open?.id]);
-  useEffect(() => { if (tab === 'RAISE') return; let stale = false; api(`/tc?status=${tab}`).then(r => !stale && (setRows(r), setErr(''))).catch(e => !stale && setErr(e.message)); return () => { stale = true; }; }, [tab, n]);
-  const review = async decision => { try { await api(`/tc/${open.id}/review`, { method: 'POST', body: { decision, remarks: rm } }); setOpen(null); setRm(''); setN(x => x + 1); } catch (e) { setErr(e.message); } };
+  useEffect(() => { if (tab === 'RAISE') return; let stale = false; api(tab === 'TODO' ? `/tc?status=PENDING&stage=${mine}` : `/tc?status=${tab}`).then(r => !stale && (setRows(r), setErr(''))).catch(e => !stale && setErr(e.message)); return () => { stale = true; }; }, [tab, n]);
+  const review = async decision => { try { await api(`/tc/${open.id}/review`, { method: 'POST', body: { decision, remarks: rm } }); setOpen(null); setRm(''); setErr(''); setN(x => x + 1); } catch (e) { setErr(e.message); } };
+  const myTurn = open && open.status === 'PENDING' && open.stage === mine;
   return <>
     <div className="head"><div><h1>TC Requests</h1></div>
 </div>
-    <div className="tabs">{[...(user.role === 'DISTRICT' ? [['RAISE', 'Raise TC request']] : []), ['PENDING', 'TC Requested'], ['APPROVED', 'TC Students'], ['REJECTED', 'Not Approved']].map(([k, l]) => <button key={k} className={tab === k ? 'on' : ''} onClick={() => setTab(k)}>{l}</button>)}</div>
+    <div className="tabs">{[...(user.role === 'DISTRICT' ? [['RAISE', 'Raise TC request']] : []), ...(canDecide ? [['TODO', 'Awaiting my decision']] : []), ['PENDING', 'TC Requested'], ['APPROVED', 'TC Students'], ['REJECTED', 'Not Approved']].map(([k, l]) => <button key={k} className={tab === k ? 'on' : ''} onClick={() => setTab(k)}>{l}</button>)}</div>
     {tab === 'RAISE' ? <AdmittedPicker onPick={setPicked} /> : <div className="panel">{err && <p className="err">{err}</p>}
       <table><thead><tr><th>Reg no</th><th>Name</th><th>Class</th><th>District</th><th>Reason</th><th>Requested</th><th>Status</th></tr></thead>
-        <tbody>{rows.map(r => <tr className="row" key={r.id} onClick={() => { setOpen(r); setRm(''); }}><td>{r.regno}</td><td>{r.name}</td><td>{r.classLevel}</td><td>{r.district}</td>
-          <td>{r.reason.slice(0, 40)}</td><td>{new Date(r.requestedAt).toLocaleDateString()}</td><td><span className={`badge ${r.status}`}>{r.status === 'REJECTED' ? 'NOT APPROVED' : r.status}</span></td></tr>)}</tbody></table>
-      {!rows.length && <p style={{ color: 'var(--mute)' }}>No records.</p>}</div>}
+        <tbody>{rows.map(r => <tr className="row" key={r.id} onClick={() => { setOpen(r); setRm(''); setErr(''); }}><td>{r.regno}</td><td>{r.name}</td><td>{r.classLevel}</td><td>{r.district}</td>
+          <td>{r.reason.slice(0, 40)}</td><td>{new Date(r.requestedAt).toLocaleDateString()}</td><td><TcTag r={r} /></td></tr>)}</tbody></table>
+      {!rows.length && <p style={{ color: 'var(--mute)' }}>{tab === 'TODO' ? 'Nothing is waiting for your decision.' : 'No records.'}</p>}</div>}
     {open && <div className="modal" role="dialog" aria-modal="true" onClick={() => setOpen(null)}><div className="panel" style={{ width: 960, maxWidth: '95vw' }} onClick={e => e.stopPropagation()}>
-      <h3>TC request · {open.name} <span className={`badge ${open.status}`}>{open.status === 'REJECTED' ? 'NOT APPROVED' : open.status}</span></h3>
+      <h3>TC request · {open.name} <TcTag r={open} /></h3>
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(320px,1fr))', gap: 18 }}>
-        <div><table><tbody>{[['Reg no', open.regno], ['Class', open.classLevel], ['Gender / Community', `${open.gender} / ${open.community}`], ['District', open.district], ['Reason', open.reason],
+        <div><table><tbody>{[['Reg no', open.regno], ['Class', open.classLevel], ['Gender / Community', `${open.gender} / ${open.community}`], ['District / Region', `${open.district} / ${open.regionalCentre}`], ['Reason', open.reason],
           ['Requested by', `${open.requestedBy} on ${new Date(open.requestedAt).toLocaleString()}`],
-          ...(open.reviewedBy ? [['Reviewed by', `${open.reviewedBy} on ${new Date(open.reviewedAt).toLocaleString()}`], ['Message', open.reviewRemarks || '—']] : [])].map(([k, v]) => <tr key={k}><th>{k}</th><td>{v}</td></tr>)}</tbody></table>
-          {user.role === 'SUPER_ADMIN' && open.status === 'PENDING' && <><h4>Your decision</h4>
-            <textarea rows="3" style={{ width: '100%' }} aria-label="Message to the district user (required)" value={rm} onChange={e => setRm(e.target.value)} />
-            <div className="row2"><button className="pri" onClick={() => review('APPROVED')}>Approve TC</button><button className="bad" onClick={() => review('REJECTED')}>Do not approve</button></div></>}
+          ...tcTrail(open).flatMap(([short, long, by, at, msg, no]) => [[long, <>{no ? 'Not approved' : 'Approved'} by {by} on {new Date(at).toLocaleString()}</>], [`${short} message`, msg || '—']]),
+          ...(open.status === 'PENDING' ? [['Now with', open.stage === 'REGION' ? 'Regional coordinator (RC)' : open.stage === 'STATE' ? 'State coordinator (SC)' : 'Super admin']] : [])].map(([k, v]) => <tr key={k}><th>{k}</th><td>{v}</td></tr>)}</tbody></table>
+          {myTurn && <><h4>Your decision ({TC_LEVEL[mine]})</h4>
+            <textarea rows="3" style={{ width: '100%' }} aria-label="Message (required)" value={rm} onChange={e => setRm(e.target.value)} />
+            <div className="row2"><button className="pri" onClick={() => review('APPROVED')}>Approve TC</button><button className="bad" onClick={() => review('REJECTED')}>Do not approve</button></div>
+            <p><small>{mine === 'ADMIN' ? 'Approving issues the TC and releases the seat.' : `Approving sends this request to the ${mine === 'REGION' ? 'state coordinator' : 'super admin'}. Not approving ends it here.`}</small></p></>}
           {user.role === 'SUPER_ADMIN' && open.status === 'APPROVED' && <><h4>Revert TC</h4>
             <textarea rows="2" style={{ width: '100%' }} aria-label="Remarks (required)" value={rm} onChange={e => setRm(e.target.value)} />
             <div className="row2"><button className="bad" onClick={async () => { try { await api(`/students/${open.studentId}/revert-tc`, { method: 'POST', body: { remarks: rm } }); setOpen(null); setRm(''); setErr(''); setN(x => x + 1); } catch (e) { setErr(e.message); } }}>Revert TC</button></div></>}
@@ -268,7 +285,7 @@ function ImportData() {
 
 IC.log = 'M4 6h16M4 12h16M4 18h10';
 const ts = d => { const t = new Date(d), p = (n, l = 2) => String(n).padStart(l, '0'); return `${t.getFullYear()}-${p(t.getMonth() + 1)}-${p(t.getDate())} ${p(t.getHours())}:${p(t.getMinutes())}:${p(t.getSeconds())}.${p(t.getMilliseconds(), 3)}`; };
-const ACTIONS = ['FREEZE', 'UNFREEZE', 'LOGIN_BLOCKED', 'LOGIN', 'LOGOUT', 'VIEW', 'SELECT', 'NOT_WILLING', 'LOGIN_FAILED', 'IMPORT_STUDENTS', 'IMPORT_VACANCIES', 'SELECTION_RUN', 'ADMIT', 'NOT_ADMIT', 'UNWILLING', 'WILLING', 'VERIFY_ACCEPTED', 'VERIFY_REJECTED', 'REVERT', 'REVERT_TC', 'EXPORT_MASTER', 'EXPORT_VACANCIES', 'REVOKE_ADMISSION', 'DOC_UPLOAD', 'DOC_EDIT', 'DOC_RESUBMIT', 'DOC_VERIFIED', 'DOC_REJECTED', 'TC_RAISE', 'TC_APPROVED', 'TC_REJECTED', 'REVOKE'];
+const ACTIONS = ['FREEZE', 'UNFREEZE', 'LOGIN_BLOCKED', 'LOGIN', 'LOGOUT', 'VIEW', 'SELECT', 'NOT_WILLING', 'LOGIN_FAILED', 'IMPORT_STUDENTS', 'IMPORT_VACANCIES', 'SELECTION_RUN', 'ADMIT', 'NOT_ADMIT', 'UNWILLING', 'WILLING', 'VERIFY_ACCEPTED', 'VERIFY_REJECTED', 'REVERT', 'REVERT_TC', 'EXPORT_MASTER', 'EXPORT_VACANCIES', 'REVOKE_ADMISSION', 'DOC_UPLOAD', 'DOC_EDIT', 'DOC_RESUBMIT', 'DOC_VERIFIED', 'DOC_REJECTED', 'TC_RAISE', 'TC_RC_APPROVED', 'TC_RC_REJECTED', 'TC_SC_APPROVED', 'TC_SC_REJECTED', 'TC_APPROVED', 'TC_REJECTED', 'REVOKE'];
 const logLine = e => `${e.level === 'INFO' ? '.' : '!'} ${ts(e.at)} [${e.actor}] ${e.action.padEnd(16)} ${e.regno ? `reg ${e.regno} ` : ''}${e.message}${e.revokedAt ? '  [REVOKED]' : ''}`;
 
 function Logs() {
@@ -311,7 +328,7 @@ function UsersPage({ me }) {
     <div className="row2"><input aria-label="Search users" placeholder="Search user, role, district…" value={q} onChange={e => setQ(e.target.value)} /></div>
     {err && !tg && <p className="err" role="alert">{err}</p>}
     <div className="panel"><table><thead><tr><th>User</th><th>Role</th><th>Scope</th><th>Devices now</th><th>Access</th><th></th></tr></thead>
-      <tbody>{shown.map(u => <tr key={u.id}><td>{u.username}</td><td>{u.role.replace('_', ' ')}</td><td>{u.district || u.region || '—'}</td><td>{u.activeDevices}</td>
+      <tbody>{shown.map(u => <tr key={u.id}><td>{u.username}</td><td>{u.role === 'STATE' ? 'STATE COORDINATOR' : u.role.replace('_', ' ')}</td><td>{u.district || u.region || '—'}</td><td>{u.activeDevices}</td>
         <td>{u.frozenAt ? <><span className="badge REJECTED">Frozen</span><br /><small>{u.frozenReason} · by {u.frozenBy}</small></> : <span className="badge APPROVED">Active</span>}</td>
         <td>{u.id === me.id ? <small>(you)</small> : u.frozenAt ? <button disabled={busy} onClick={() => act(u, 'unfreeze')}>Unfreeze</button> : <button className="bad" onClick={() => { setTg(u); setWhy(''); setErr(''); }}>Freeze</button>}</td></tr>)}
         {!shown.length && <tr><td colSpan="6">No users</td></tr>}</tbody></table></div>
@@ -421,7 +438,7 @@ function DocVerification({ user }) {
 
 function ChangePassword({ onClose }) {
   const [f, setF] = useState({ currentPassword: '', newPassword: '', again: '' }), [err, setErr] = useState(''), [done, setDone] = useState(false), [busy, setBusy] = useState(false);
-  const set = k => e => setF({ ...f, [k]: e.target.value });
+  const set = k => e => setF({ ...f, [k]: e.target.value })
   const submit = async () => {
     if (f.newPassword !== f.again) return setErr('The new passwords do not match');
     try { setBusy(true); const r = await api('/auth/change-password', { method: 'POST', body: { currentPassword: f.currentPassword, newPassword: f.newPassword } }); if (r.token) setToken(r.token); setErr(''); setDone(true); }
@@ -458,11 +475,12 @@ export default function App() {
     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d={IC[icon]} /></svg>{label}</button>;
   return <div className="shell"><aside className="side">
     <div className="brand"><img src="/emblem.png" alt="Government of Tamil Nadu emblem" />Admissions</div>
-    <Nav k="dash" icon="seat" label="Dashboard" /><Nav k="students" icon="users" label="Student Details" /><Nav k="docs" icon="ok" label="Document Verification" /><Nav k="tc" icon="doc" label="TC Requests" />
+    <Nav k="dash" icon="seat" label="Dashboard" /><Nav k="students" icon="users" label="Student Details" />{user.role !== 'STATE' && <Nav k="docs" icon="ok" label="Document Verification" />}<Nav k="tc" icon="doc" label="TC Requests" />
     {user.role === 'SUPER_ADMIN' && <><Nav k="import" icon="up" label="Import Data" /><Nav k="logs" icon="log" label="Logs" /><Nav k="users" icon="users" label="Users & Access" /></>}
     <div className="sp" />
-    <div className="me"><div className="av">{user.username[0]}</div><div>{user.username}<small>{user.role.replace('_', ' ')}</small></div>
-      <button title="Change password" aria-label="Change password" onClick={() => setPw(true)}>🔑</button><button title="Logout" aria-label="Sign out" onClick={() => { api('/auth/logout', { method: 'POST' }).catch(() => {}).finally(() => { setToken(null); setUser(null); }); }}>⎋</button></div></aside>
-    <main className="main">{page === 'dash' ? <Dashboard user={user} /> : page === 'docs' ? <DocVerification user={user} /> : page === 'tc' ? <TcRequests user={user} />
+    <div className="me"><div className="av">{user.username[0]}</div><div>{user.username}<small>{user.role === 'STATE' ? 'STATE COORDINATOR' : user.role.replace('_', ' ')}</small></div></div>
+    <div className="acct"><button className="acct-btn" onClick={() => setPw(true)}>🔑 Change password</button>
+      <button className="acct-btn out" onClick={() => { api('/auth/logout', { method: 'POST' }).catch(() => {}).finally(() => { setToken(null); setUser(null); }); }}>⎋ Log out</button></div></aside>
+    <main className="main">{page === 'dash' ? <Dashboard user={user} /> : page === 'docs' && user.role !== 'STATE' ? <DocVerification user={user} /> : page === 'tc' ? <TcRequests user={user} />
       : page === 'import' && user.role === 'SUPER_ADMIN' ? <ImportData /> : page === 'logs' && user.role === 'SUPER_ADMIN' ? <Logs /> : page === 'users' && user.role === 'SUPER_ADMIN' ? <UsersPage me={user} /> : <StudentDetails user={user} />}</main>{pw && <ChangePassword onClose={() => setPw(false)} />}</div>;
 }

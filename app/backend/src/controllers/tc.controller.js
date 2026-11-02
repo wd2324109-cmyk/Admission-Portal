@@ -11,6 +11,6 @@ router.get('/tc/:id/letter', auth, wrap(async (req, res) => {
   const f = await tcService.letter(ctx(req));
   res.download(f.file, f.name, e => e && !res.headersSent && res.status(404).json({ error: 'Letter file is missing' }));
 }));
-router.post('/tc/:id/review', auth, only('SUPER_ADMIN'), wrap(async (req, res) => res.json(await tcService.review(ctx(req)))));
+router.post('/tc/:id/review', auth, only('REGION', 'STATE', 'SUPER_ADMIN'), wrap(async (req, res) => res.json(await tcService.review(ctx(req)))));
 
 export default router;

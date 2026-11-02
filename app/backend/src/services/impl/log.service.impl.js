@@ -29,7 +29,7 @@ export class LogServiceImpl extends LogService {
     if (!pre || !pre.undo) throw new HttpError('This entry cannot be revoked', 400);
     if (pre.revokedAt) throw new HttpError('Already revoked', 409);
     // Which students / classes does this entry touch? (needed to take locks in the safe order)
-    const ids = [...new Set([...(pre.undo.students || []), ...(pre.undo.docs || [])].map(x => x.id))].sort((x, y) => x - y);
+    const ids = [...new Set([...(pre.undo.students || []), ...(pre.undo.docs || [])].map(x => x.id).concat(pre.undo.tcs?.length ? (pre.studentIds || []) : []))].sort((x, y) => x - y);   // a TC-only entry (regional / state step) names its student only in studentIds
     const classes = ids.length ? (await db.selectDistinct({ c: S.classLevel }).from(S).where(inArray(S.id, ids))).map(r => r.c).sort() : [];
     await db.transaction(async tx => {
       for (const c of classes) await lockClass(tx, c);

@@ -37,6 +37,8 @@ services:
         generateValue: true
       - key: SEED_ADMIN_PASSWORD
         sync: false                    # you type it in the dashboard; it is never printed in the logs
+      - key: SEED_STATE_PASSWORD
+        sync: false                    # password of the "state_coordinator" login (created on first start)
       - key: UPLOADS_DIR
         value: /var/data/uploads
       - key: TRUST_PROXY

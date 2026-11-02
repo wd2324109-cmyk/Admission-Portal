@@ -14,6 +14,17 @@ const required = [
      id serial PRIMARY KEY, student_id integer NOT NULL, reason text NOT NULL, letter_name text NOT NULL, letter_path text NOT NULL,
      status text NOT NULL DEFAULT 'PENDING', requested_by text NOT NULL, requested_at timestamp NOT NULL DEFAULT now(),
      reviewed_by text, reviewed_at timestamp, review_remarks text)`,
+  // TC approval chain (regional -> state -> super admin). New columns; requests already decided are marked finished.
+  `ALTER TABLE tc_requests ADD COLUMN IF NOT EXISTS stage text NOT NULL DEFAULT 'REGION'`,
+  `ALTER TABLE tc_requests ADD COLUMN IF NOT EXISTS rejected_level text`,
+  `ALTER TABLE tc_requests ADD COLUMN IF NOT EXISTS rc_by text`,
+  `ALTER TABLE tc_requests ADD COLUMN IF NOT EXISTS rc_at timestamp`,
+  `ALTER TABLE tc_requests ADD COLUMN IF NOT EXISTS rc_remarks text`,
+  `ALTER TABLE tc_requests ADD COLUMN IF NOT EXISTS sc_by text`,
+  `ALTER TABLE tc_requests ADD COLUMN IF NOT EXISTS sc_at timestamp`,
+  `ALTER TABLE tc_requests ADD COLUMN IF NOT EXISTS sc_remarks text`,
+  `UPDATE tc_requests SET stage = 'DONE' WHERE status <> 'PENDING' AND stage <> 'DONE'`,
+  `UPDATE tc_requests SET rejected_level = 'ADMIN' WHERE status = 'REJECTED' AND rejected_level IS NULL`,
   `CREATE INDEX IF NOT EXISTS tc_requests_student_idx ON tc_requests (student_id, id)`,
   `CREATE INDEX IF NOT EXISTS audit_action_idx ON audit_logs (action)`,
   `CREATE TABLE IF NOT EXISTS audit_logs (
@@ -28,7 +39,9 @@ const required = [
   `CREATE INDEX IF NOT EXISTS students_district_idx ON students (district, class_level)`,
   once(`ALTER TABLE students ADD CONSTRAINT students_class_chk CHECK (class_level IN (9, 10)) NOT VALID`),
   once(`ALTER TABLE students ADD CONSTRAINT students_gender_chk CHECK (gender IN ('Boy', 'Girl')) NOT VALID`),
-  once(`ALTER TABLE users ADD CONSTRAINT users_role_chk CHECK (role IN ('SUPER_ADMIN', 'REGION', 'DISTRICT')) NOT VALID`),
+  // the role list now includes STATE (state coordinator): the old constraint is replaced, not just added
+  `ALTER TABLE users DROP CONSTRAINT IF EXISTS users_role_chk`,
+  once(`ALTER TABLE users ADD CONSTRAINT users_role_chk CHECK (role IN ('SUPER_ADMIN', 'STATE', 'REGION', 'DISTRICT')) NOT VALID`),
 ];
 const optional = [
   `CREATE INDEX IF NOT EXISTS status_logs_student_idx ON status_logs (student_id, changed_at DESC)`,
