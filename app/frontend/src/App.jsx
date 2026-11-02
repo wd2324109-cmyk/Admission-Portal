@@ -188,15 +188,15 @@ function TcPopup({ s, onClose, onDone }) {
     <div className="row2"><button className="pri" disabled={busy} onClick={submit}>{busy ? 'Submitting…' : 'Submit request'}</button><button onClick={onClose}>Cancel</button></div></div></div>;
 }
 
-// TC approval chain: district raises -> RC (regional coordinator) -> SC (state coordinator) -> Super Admin.
-const TC_LEVEL = { REGION: 'RC', STATE: 'SC', ADMIN: 'Super Admin' };                       // stage / rejectedLevel -> short name
-const TC_MINE = { REGION: 'REGION', STATE: 'STATE', SUPER_ADMIN: 'ADMIN' };                  // my role -> the stage I decide
+
+const TC_LEVEL = { REGION: 'RC', STATE: 'SC', ADMIN: 'Super Admin' };
+const TC_MINE = { REGION: 'REGION', STATE: 'STATE', SUPER_ADMIN: 'ADMIN' };
 const tcTag = r => r.status === 'APPROVED' ? ['TC APPROVED', 'APPROVED']
   : r.status === 'REJECTED' ? [`NOT APPROVED BY ${TC_LEVEL[r.rejectedLevel || 'ADMIN'].toUpperCase()}`, 'REJECTED']
   : r.status === 'CANCELLED' ? ['CANCELLED', '']
   : r.stage === 'STATE' ? ['APPROVED BY RC', 'RCAPPROVED'] : r.stage === 'ADMIN' ? ['APPROVED BY SC', 'SCAPPROVED'] : ['AWAITING RC', 'PENDING'];
 const TcTag = ({ r }) => { const [t, c] = tcTag(r); return <span className={`badge ${c}`}>{t}</span>; };
-// who decided at each step, for the detail view
+
 const tcTrail = r => [['RC', 'Regional coordinator', r.rcBy, r.rcAt, r.rcRemarks, r.rejectedLevel === 'REGION'],
   ['SC', 'State coordinator', r.scBy, r.scAt, r.scRemarks, r.rejectedLevel === 'STATE'],
   ['Super Admin', 'Super admin', r.reviewedBy, r.reviewedAt, r.reviewRemarks, r.rejectedLevel === 'ADMIN']].filter(x => x[2]);
@@ -459,14 +459,14 @@ export default function App() {
   const [user, setUser] = useState(savedUser), [page, setPage] = useState('dash'), [pw, setPw] = useState(false);
   useEffect(() => { const h = e => { if (e.key === 'Escape') document.querySelector('.modal')?.click(); }; window.addEventListener('keydown', h); return () => window.removeEventListener('keydown', h); }, []);
   useEffect(() => { document.title = `${user ? ({ dash: 'Dashboard', students: 'Student Details', docs: 'Document Verification', tc: 'TC Requests', import: 'Import Data', logs: 'Logs', users: 'Users & Access' }[page] || 'Portal') : 'Sign in'} · School Admissions Portal`; }, [page, user]);
-  // Heartbeat: keeps this device's session alive while the page is open and notices at once if the account was
-  // signed in somewhere else (the api() helper returns to the login screen with an explanation on a 401).
+
+
   useEffect(() => {
     if (!user) return;
     const ping = () => api('/auth/session').catch(() => {});
     const t = setInterval(ping, 60_000);
     const vis = () => document.visibilityState === 'visible' && ping();
-    const sync = e => { if (e.key === 'token') window.location.reload(); };      // another tab of this browser signed out / changed password
+    const sync = e => { if (e.key === 'token') window.location.reload(); };
     document.addEventListener('visibilitychange', vis); window.addEventListener('storage', sync);
     return () => { clearInterval(t); document.removeEventListener('visibilitychange', vis); window.removeEventListener('storage', sync); };
   }, [user]);

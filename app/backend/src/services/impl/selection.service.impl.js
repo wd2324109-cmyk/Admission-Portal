@@ -13,8 +13,8 @@ export class SelectionServiceImpl extends SelectionService {
     const { classLevel, mode = 'initial' } = body || {};                                 
     if (![9, 10].includes(+classLevel)) throw new HttpError('classLevel must be 9 or 10');
     if (!['initial', 'replacement'].includes(mode)) throw new HttpError('Invalid mode');
-    // Runs alone: the exclusive class lock makes every other admission edit / import for this class wait,
-    // and makes a second "run selection" click (or a second user) wait and then see "already run".
+
+
     return db.transaction(async tx => {
       await lockClass(tx, +classLevel, { exclusive: true });
       const students = await tx.select().from(S).where(eq(S.classLevel, +classLevel)).orderBy(S.id).for('update');

@@ -1,5 +1,5 @@
-// Integration test. Needs a running API + database:
-//   API=http://localhost:4000 ADMIN_PW=... DISTRICT_USER=... DISTRICT_PW=... node test/concurrency.integration.js
+
+
 import assert from 'node:assert/strict';
 import pg from 'pg';
 import 'dotenv/config';
@@ -16,7 +16,7 @@ let pass = 0; const ok = (name) => console.log('  ok -', name, ++pass && '');
 const U = process.env.DISTRICT_USER, P = process.env.DISTRICT_PW, A = 'superadmin', AP = process.env.ADMIN_PW;
 console.log('Multi-device session tests');
 
-// 1. The same account signs in on 10 devices at the same instant: ALL succeed, each with its own session.
+
 const burst = await Promise.all(Array.from({ length: 10 }, () => login(U, P)));
 assert.equal(burst.filter(r => r.status === 200).length, 10);
 const toks = burst.map(r => r.body.token);
@@ -24,21 +24,21 @@ assert.equal(new Set(toks).size, 10); ok('10 simultaneous logins on one account 
 const used = await Promise.all(toks.map(t => call('/dashboard', { token: t })));
 assert(used.every(r => r.status === 200)); ok('all 10 devices can use the portal at the same time');
 
-// 2. Logging out one device leaves the others untouched.
+
 await call('/auth/logout', { token: toks[0], method: 'POST' });
 assert.equal((await call('/auth/session', { token: toks[0] })).status, 401); ok('logged-out device is rejected');
 assert((await Promise.all(toks.slice(1).map(t => call('/auth/session', { token: t })))).every(r => r.status === 200)); ok('the other 9 devices are unaffected');
 
-// 3. One idle device expires by itself; the others stay signed in. (The API and this test must both run with SESSION_IDLE_SECONDS set, for example 8.)
+
 const idle = +process.env.SESSION_IDLE_SECONDS || 0; assert(idle >= 2 && idle <= 10, 'run both the API and this test with SESSION_IDLE_SECONDS=8 (any value from 2 to 10)');
-const keep = toks.slice(2);                                  // toks[1] is left idle on purpose
+const keep = toks.slice(2);
 for (const t0 = Date.now(); Date.now() - t0 < (idle + 1) * 1000;) { await Promise.all(keep.map(t => call('/auth/session', { token: t }))); await new Promise(r => setTimeout(r, 700)); }
 const states = [await call('/auth/session', { token: toks[1] }), ...await Promise.all(keep.map(t => call('/auth/session', { token: t })))];
 assert.equal(states.filter(r => r.status === 401 && r.body.code === 'SESSION_EXPIRED').length, 1);
 assert.equal(states.filter(r => r.status === 200).length, 8); ok('one idle device expired, 8 others keep working');
 assert.equal((await call('/auth/session', { token: toks[1] })).status, 401); ok('an expired device stays refused (cannot come back with the same token)');
 
-// 4. Password change: this device stays, every other device is signed out.
+
 const live = toks.slice(1).filter((_, i) => states[i].status === 200);
 const NEWPW = P + 'x1!';
 const cp = await call('/auth/change-password', { token: live[0], method: 'POST', body: { currentPassword: P, newPassword: NEWPW } });
@@ -49,18 +49,18 @@ assert((await Promise.all(live.slice(1).map(t => call('/auth/session', { token: 
 assert.equal((await login(U, P)).status, 401); assert.equal((await login(U, NEWPW)).status, 200); ok('new password works, old does not');
 await call('/auth/change-password', { token: (await login(U, NEWPW)).body.token, method: 'POST', body: { currentPassword: NEWPW, newPassword: P } });
 
-// 5. Two devices change the password at the same time: one wins, no corruption.
+
 const [d1, d2] = [(await login(U, P)).body.token, (await login(U, P)).body.token];
 const race = await Promise.all([d1, d2].map((t, i) => call('/auth/change-password', { token: t, method: 'POST', body: { currentPassword: P, newPassword: 'Racing-pass-' + i + '-xyz' } })));
 assert.equal(race.filter(r => r.status === 200).length, 1); ok('simultaneous password changes from 2 devices -> exactly one applies');
 const winner = race.findIndex(r => r.status === 200);
 const wp = 'Racing-pass-' + winner + '-xyz';
 assert.equal((await login(U, wp)).status, 200);
-await call('/auth/change-password', { token: (await login(U, wp)).body.token, method: 'POST', body: { currentPassword: wp, newPassword: P } });   // restore
+await call('/auth/change-password', { token: (await login(U, wp)).body.token, method: 'POST', body: { currentPassword: wp, newPassword: P } });
 
 console.log('Data race tests');
-// Super admin + district user (same district data), then hammer one student from many requests at once.
-const admin = (await login(A, AP)).body.token, admin2 = (await login(A, AP)).body.token;   // same account, two devices
+
+const admin = (await login(A, AP)).body.token, admin2 = (await login(A, AP)).body.token;
 const { rows: [stu] } = await pool.query(`select id, class_level from students where select_status<>'' and admit_status='' and willing_status='WILLING' order by id limit 1`);
 assert(stu, 'need a selected student (run selection first)');
 const before = (await pool.query(`select sum(admitted)::int a, sum(vacancies)::int v from vacancies where class_level=$1`, [stu.class_level])).rows[0];
@@ -74,7 +74,7 @@ assert.equal(after.a - before.a, 1); assert.equal(before.v - after.v, 1); ok('se
 const logs = (await pool.query(`select count(*)::int n from audit_logs where id > $2 and action='ADMIT' and regno=(select regno from students where id=$1)`, [stu.id, base])).rows[0].n;
 assert.equal(logs, 1); ok('exactly one ADMIT audit entry');
 
-// Two simultaneous revokes of the same audit entry: only one may apply.
+
 const { rows: [ent] } = await pool.query(`select id from audit_logs where id > ${base} and action='ADMIT' and revoked_at is null order by id desc limit 1`);
 const rv = await Promise.all([1, 2, 3, 4].map(() => call('/logs/' + ent.id + '/revoke', { token: admin, method: 'POST', body: { remarks: 'test' } })));
 console.log('    statuses:', rv.map(r => r.status).join(','));
@@ -105,7 +105,7 @@ console.log('Freeze access tests');
   assert.equal((await call(`/users/${target.id}/unfreeze`, { token: adm, method: 'POST' })).status, 200);
   assert.equal((await login(U, P)).status, 200); ok('after unfreeze the user can sign in again');
   assert.equal((await call(`/users/${target.id}/unfreeze`, { token: adm, method: 'POST' })).status, 409);
-  // two super admins freezing each other at the same time must never lock everyone out
+
   await pool.query(`insert into users (username, password_hash, role) values ('tmp_admin', $1, 'SUPER_ADMIN') on conflict do nothing`, [bcrypt.hashSync('Tmp-admin-pass-1', 4)]);
   const tmp = (await call('/users', { token: adm })).body.find(x => x.username === 'tmp_admin'); const tadm = (await login('tmp_admin', 'Tmp-admin-pass-1')).body.token;
   const duel = await Promise.all([call(`/users/${tmp.id}/freeze`, { token: adm, method: 'POST', body: { reason: 'duel' } }), call(`/users/${me.id}/freeze`, { token: tadm, method: 'POST', body: { reason: 'duel' } })]);

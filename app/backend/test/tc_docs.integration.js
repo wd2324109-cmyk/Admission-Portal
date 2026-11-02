@@ -1,7 +1,7 @@
-// Integration test for TC requests (tc_requests table), student documents (document store), undo, and the table list.
-// Needs a running API + database, and a selection that has already been run:
-//   API=http://localhost:4000 ADMIN_PW=... DISTRICT_USER=... DISTRICT_PW=... node test/tc_docs.integration.js
-// Run it from the backend folder (it checks the files under ./uploads/documents).
+
+
+
+
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import pg from 'pg';
@@ -27,7 +27,7 @@ assert.deepEqual(tables, ['audit_logs', 'status_logs', 'students', 'tc_requests'
 const cols = async t => (await pool.query(`select column_name c from information_schema.columns where table_schema = current_schema() and table_name = $1 order by ordinal_position`, [t])).rows.map(r => r.c);
 assert(!(await cols('users')).some(c => c.startsWith('frozen')) && !(await cols('students')).some(c => ['documents', 'tc'].includes(c))); ok('no extra columns on users or students');
 
-// Admit three selected students of the district user's district.
+
 const { rows: pick } = await pool.query(`select id, regno, name, class_level from students where lower(district) = lower((select district from users where username = $1))
   and select_status <> '' and admit_status = '' and willing_status = 'WILLING' order by id limit 3`, [U]);
 assert.equal(pick.length, 3, 'need 3 selected, undecided students in the district (run selection first)');
@@ -58,7 +58,7 @@ const s1 = await seats(C); assert.equal(s0.a - s1.a, 1); assert.equal(s1.v - s0.
 assert.equal((await call('/tc', { token: dst })).body.find(r => r.studentId === S1.id).status, 'APPROVED'); ok('list shows APPROVED');
 assert.equal((await call(`/students/${S1.id}/revoke-admission`, { token: adm, method: 'POST', body: { remarks: 'x' } })).status, 400); ok('admission of a TC-issued student cannot be revoked');
 
-// Undo the approval from the audit log.
+
 const logs = async () => (await call('/logs?limit=200', { token: adm })).body;
 let e = (await logs()).filter(x => x.action === 'TC_APPROVED' && x.regno === S1.regno).pop();
 assert(e && e.canRevoke); assert.equal((await call(`/logs/${e.id}/revoke`, { token: adm, method: 'POST', body: { remarks: 'undo test' } })).status, 200);
@@ -66,7 +66,7 @@ assert.equal((await one(`select admit_status a from students where id=$1`, [S1.i
 assert.deepEqual(await seats(C), s0);
 assert.equal((await call('/tc', { token: adm })).body.find(r => r.studentId === S1.id).status, 'PENDING'); ok('revoking the approval puts the student, the seat and the request back');
 
-// Reject, then raise a new request (a student can have several over time).
+
 assert.equal((await call(`/tc/${S1.id}/review`, { token: adm, method: 'POST', body: { decision: 'REJECTED', remarks: 'Not allowed' } })).status, 200);
 assert.equal((await call('/tc', { token: dst })).body.find(r => r.studentId === S1.id).reviewRemarks, 'Not allowed'); ok('rejection message is saved');
 assert.equal((await call('/tc', { token: dst, method: 'POST', body: { studentId: S1.id, reason: 'Second try', ...file('b.pdf') } })).status, 200);
@@ -75,7 +75,7 @@ const cur = (await call('/tc', { token: dst })).body.filter(r => r.studentId ===
 assert.equal(cur.length, 1); assert.equal(cur[0].status, 'PENDING'); assert.equal(cur[0].reason, 'Second try'); ok('after a rejection a new request can be raised; the list shows the latest one');
 assert.equal((await call(`/students/${S1.id}/revoke-admission`, { token: adm, method: 'POST', body: { remarks: 'x' } })).status, 409); ok('admission cannot be revoked while a TC request is pending');
 
-// Approve again, then take the TC back (revert-tc) and undo that.
+
 assert.equal((await call(`/tc/${S1.id}/review`, { token: adm, method: 'POST', body: { decision: 'APPROVED', remarks: 'ok' } })).status, 200);
 assert.equal((await call(`/students/${S1.id}/revert-tc`, { token: adm, method: 'POST', body: { remarks: 'wrongly issued' } })).status, 200);
 assert.equal((await one(`select admit_status a from students where id=$1`, [S1.id])).a, 'Admitted');

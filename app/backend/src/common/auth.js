@@ -29,7 +29,7 @@ export const auth = async (req, res, next) => {
     return res.status(401).json({ error: SESSION_MSG[code], code });
   }
   try {
-    const r = await checkSession(claims);          // one-device-at-a-time + idle timeout, enforced in the database
+    const r = await checkSession(claims);
     if (!r.ok) return res.status(401).json({ error: SESSION_MSG[r.code], code: r.code });
     req.user = r.user;
     next();

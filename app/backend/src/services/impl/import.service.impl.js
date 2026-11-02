@@ -27,7 +27,7 @@ export class ImportServiceImpl extends ImportService {
     if (!good.length) throw new HttpError('No valid rows found', 400, { rejected: rejected.slice(0, 20), rejectedCount: rejected.length });
     let inserted = 0; const newUsers = [];
     await db.transaction(async tx => {
-      await lockClass(tx, +classLevel, { exclusive: true });      // imports run alone; admissions in this class wait until it commits
+      await lockClass(tx, +classLevel, { exclusive: true });
       if (replace) {
         const ids = tx.select({ id: S.id }).from(S).where(eq(S.classLevel, +classLevel));
         await tx.delete(statusLogs).where(inArray(statusLogs.studentId, ids));
@@ -60,7 +60,7 @@ export class ImportServiceImpl extends ImportService {
     });
     if (!good.length) throw new HttpError('No valid rows found', 400, { rejected: rejected.slice(0, 20), rejectedCount: rejected.length });
     await db.transaction(async tx => {
-      await lockClass(tx, +classLevel, { exclusive: true });      // no admission can slip in between the check and the replace
+      await lockClass(tx, +classLevel, { exclusive: true });
       const [{ n }] = await tx.select({ n: sql`count(*)::int` }).from(S).where(and(eq(S.classLevel, +classLevel), sql`${S.admitStatus} <> ''`));
       if (n) throw new HttpError('Admissions have already started for this class; vacancies can no longer be replaced');
       await tx.delete(V).where(eq(V.classLevel, +classLevel));

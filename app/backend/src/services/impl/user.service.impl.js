@@ -24,8 +24,8 @@ export class UserServiceImpl extends UserService {
     if (id === user.id) throw new HttpError('You cannot freeze your own access', 409);
     let target;
     await db.transaction(async tx => {
-      // Lock every super admin first so two admins freezing each other at the same time cannot lock everyone out:
-      // the second one waits here, then sees the first one's freeze when it reads the audit log below.
+
+
       const admins = await tx.select({ id: users.id, username: users.username }).from(users).where(eq(users.role, 'SUPER_ADMIN')).orderBy(users.id).for('update');
       const [t] = await tx.select().from(users).where(eq(users.id, id)).for('update');
       if (!t) throw new HttpError('User not found', 404);
@@ -35,7 +35,7 @@ export class UserServiceImpl extends UserService {
       await audit(tx, { user }, { action: 'FREEZE', level: 'WARN', message: frozenMessage(t.username, reason) });
       target = t;
     });
-    endAllSessions(target.id);                               // every device is signed out right now
+    endAllSessions(target.id);
     forgetFrozen();
     return { ok: true };
   }

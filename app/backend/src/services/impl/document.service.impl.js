@@ -12,7 +12,7 @@ import { lockClass, lockStudent } from '../../common/locks.js';
 import { getDocs, putDocs, listDocIds, getManyDocs } from '../../common/docstore.js';
 import { DocumentService, DOC_TYPES, REQUIRED_DOCS } from '../document.service.js';
 
-// A document id is "<studentId>-<index of the type in DOC_TYPES>".
+
 const did = (s, t) => `${s.id}-${DOC_TYPES.indexOf(t)}`;
 const parse = id => { const [a, b] = String(id).split('-'); return [+a || 0, DOC_TYPES[+b]]; };
 const okDoc = (docs, t) => docs[t] && docs[t].status !== 'REJECTED';
@@ -23,7 +23,7 @@ const summary = docs => {
 };
 const entry = (name, stored, user) => ({ fileName: name, filePath: stored, status: 'PENDING', uploadedBy: user.username, uploadedAt: new Date().toISOString() });
 
-// Students (visible to this user) that have at least one document, together with their document records.
+
 async function withDocs(user, extra) {
   const ids = await listDocIds(), rows = [];
   for (let i = 0; i < ids.length; i += 5000)
@@ -41,8 +41,8 @@ export class DocumentServiceImpl extends DocumentService {
       .filter(r => !query.status || r.status === query.status).sort((a, b) => String(b.uploadedAt).localeCompare(String(a.uploadedAt)));
   }
 
-  // Every write below re-reads the student's document record while holding that student's row lock,
-  // so two uploads (or an upload and a review) can never overwrite each other's changes.
+
+
   async upload({ user, body }) {
     const { studentId, docType, fileName, fileData } = body || {};
     const [pre] = await db.select().from(S).where(and(eq(S.id, +studentId || 0), scope(user)));
@@ -63,7 +63,7 @@ export class DocumentServiceImpl extends DocumentService {
         const docs = await getDocs(s.id);
         const old = check(s, docs);
         await audit(tx, { user }, { action: old ? 'DOC_RESUBMIT' : 'DOC_UPLOAD', regno: s.regno, message: `${docType} ${old ? 'resubmitted' : 'uploaded'} for ${s.name}` });
-        await putDocs(s.id, { ...docs, [docType]: entry(name, stored, user) });          // last step: if anything above failed, nothing was written
+        await putDocs(s.id, { ...docs, [docType]: entry(name, stored, user) });
       });
     } catch (e) { await fs.unlink(path.join(UPLOADS, stored)).catch(() => {}); throw e; }
     return { ok: true };
@@ -89,13 +89,13 @@ export class DocumentServiceImpl extends DocumentService {
         await lockClass(tx, pre.classLevel);
         const s = await lockStudent(tx, pre.id);
         const docs = await getDocs(s.id);
-        d = check(docs);                                      // a reviewer may have verified it a moment ago
+        d = check(docs);
         const edit = d.status === 'PENDING';
         await audit(tx, { user }, { action: edit ? 'DOC_EDIT' : 'DOC_RESUBMIT', regno: s.regno, message: `${type} ${edit ? 'replaced' : 'resubmitted after rejection'} for ${s.name}` });
         await putDocs(s.id, { ...docs, [type]: entry(name, stored, user) });
       });
     } catch (e) { await fs.unlink(path.join(UPLOADS, stored)).catch(() => {}); throw e; }
-    await fs.unlink(path.join(UPLOADS, d.filePath)).catch(() => {});      // old file removed only after the new one is committed
+    await fs.unlink(path.join(UPLOADS, d.filePath)).catch(() => {});
     return { ok: true };
   }
 

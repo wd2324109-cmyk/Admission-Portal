@@ -28,12 +28,12 @@ export class LogServiceImpl extends LogService {
     const [pre] = await db.select().from(A).where(eq(A.id, id));
     if (!pre || !pre.undo) throw new HttpError('This entry cannot be revoked', 400);
     if (pre.revokedAt) throw new HttpError('Already revoked', 409);
-    // Which students / classes does this entry touch? (needed to take locks in the safe order)
-    const ids = [...new Set([...(pre.undo.students || []), ...(pre.undo.docs || [])].map(x => x.id).concat(pre.undo.tcs?.length ? (pre.studentIds || []) : []))].sort((x, y) => x - y);   // a TC-only entry (regional / state step) names its student only in studentIds
+
+    const ids = [...new Set([...(pre.undo.students || []), ...(pre.undo.docs || [])].map(x => x.id).concat(pre.undo.tcs?.length ? (pre.studentIds || []) : []))].sort((x, y) => x - y);
     const classes = ids.length ? (await db.selectDistinct({ c: S.classLevel }).from(S).where(inArray(S.id, ids))).map(r => r.c).sort() : [];
     await db.transaction(async tx => {
       for (const c of classes) await lockClass(tx, c);
-      // Lock the log entry itself: two people pressing Revoke on the same entry cannot both apply the undo.
+
       const [e] = await tx.select().from(A).where(eq(A.id, id)).for('update');
       if (!e || !e.undo) throw new HttpError('This entry cannot be revoked', 400);
       if (e.revokedAt) throw new HttpError('Already revoked', 409);
@@ -48,7 +48,7 @@ export class LogServiceImpl extends LogService {
       }
       for (const v of u.vac || []) await tx.update(V).set({ admitted: sql`greatest(${V.admitted} - ${v.dAdmitted ?? 0}, 0)`, vacancies: sql`greatest(${V.vacancies} - ${v.dVacancies ?? 0}, 0)` }).where(eq(V.id, v.id));
       for (const x of u.tcs || []) await tx.update(T).set(tcRestore(x.before)).where(eq(T.id, x.id));
-      for (const x of u.docs || []) {                      // document records are kept outside the database (common/docstore.js)
+      for (const x of u.docs || []) {
         const docs = { ...(await getDocs(x.id)) }; if (x.before) docs[x.type] = x.before; else delete docs[x.type];
         await putDocs(x.id, docs);
       }

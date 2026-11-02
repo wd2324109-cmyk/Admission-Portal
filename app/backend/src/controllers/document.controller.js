@@ -4,7 +4,7 @@ import { wrap, ctx } from '../common/http.js';
 import { documentService } from '../services/index.js';
 
 const router = Router();
-// The state coordinator has no access to student documents.
+
 const noState = (req, res, next) => req.user.role === 'STATE' ? res.status(403).json({ error: 'Forbidden' }) : next();
 
 router.get('/documents', auth, noState, wrap(async (req, res) => res.json(await documentService.list(ctx(req)))));

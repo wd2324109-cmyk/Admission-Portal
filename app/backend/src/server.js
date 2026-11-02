@@ -50,9 +50,9 @@ app.use('/api', (req, res, next) => {
 app.use('/api', api);
 app.use('/api', notFound);
 
-// HOSTING FIX (single-service mode): when the frontend has been built (frontend/dist), this server also serves it,
-// so the site and the API share one address. No rewrite rules, no CORS, no second service are needed.
-// Set FRONTEND_DIST to point elsewhere; if the folder is missing the API runs alone as before.
+
+
+
 const WEB = path.resolve(process.env.FRONTEND_DIST || path.join(process.cwd(), '..', 'frontend', 'dist'));
 if (fs.existsSync(path.join(WEB, 'index.html'))) {
   const CSP = "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; frame-src blob:; "

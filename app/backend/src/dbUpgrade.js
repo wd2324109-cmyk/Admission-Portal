@@ -14,7 +14,7 @@ const required = [
      id serial PRIMARY KEY, student_id integer NOT NULL, reason text NOT NULL, letter_name text NOT NULL, letter_path text NOT NULL,
      status text NOT NULL DEFAULT 'PENDING', requested_by text NOT NULL, requested_at timestamp NOT NULL DEFAULT now(),
      reviewed_by text, reviewed_at timestamp, review_remarks text)`,
-  // TC approval chain (regional -> state -> super admin). New columns; requests already decided are marked finished.
+
   `ALTER TABLE tc_requests ADD COLUMN IF NOT EXISTS stage text NOT NULL DEFAULT 'REGION'`,
   `ALTER TABLE tc_requests ADD COLUMN IF NOT EXISTS rejected_level text`,
   `ALTER TABLE tc_requests ADD COLUMN IF NOT EXISTS rc_by text`,
@@ -39,7 +39,7 @@ const required = [
   `CREATE INDEX IF NOT EXISTS students_district_idx ON students (district, class_level)`,
   once(`ALTER TABLE students ADD CONSTRAINT students_class_chk CHECK (class_level IN (9, 10)) NOT VALID`),
   once(`ALTER TABLE students ADD CONSTRAINT students_gender_chk CHECK (gender IN ('Boy', 'Girl')) NOT VALID`),
-  // the role list now includes STATE (state coordinator): the old constraint is replaced, not just added
+
   `ALTER TABLE users DROP CONSTRAINT IF EXISTS users_role_chk`,
   once(`ALTER TABLE users ADD CONSTRAINT users_role_chk CHECK (role IN ('SUPER_ADMIN', 'STATE', 'REGION', 'DISTRICT')) NOT VALID`),
 ];

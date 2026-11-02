@@ -24,7 +24,7 @@ export class VerificationServiceImpl extends VerificationService {
     if (!pre) throw new HttpError('Not found', 404);
     await db.transaction(async tx => {
       await lockClass(tx, pre.classLevel);
-      const s = await lockStudent(tx, id);                  // two reviewers clicking at once: the second waits, then sees "Decision is final"
+      const s = await lockStudent(tx, id);
       if (!s) throw new HttpError('Not found', 404);
       if (s.willingStatus !== 'UNWILLING' || !s.unwillingLetter) throw new HttpError('Student must be unwilling with a letter on file');
       if (s.verificationStatus !== 'PENDING') throw new HttpError('Decision is final');

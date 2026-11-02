@@ -33,7 +33,7 @@ export class AuthServiceImpl extends AuthService {
       await audit(db, { user: profile }, { action: 'LOGIN_BLOCKED', level: 'WARN', message: `Sign-in from ${ip} refused: access is frozen` });
       throw new HttpError('Your access has been frozen by the administrator. Please contact them to restore it.', 403, { code: 'ACCOUNT_FROZEN' });
     }
-    // Every sign-in is its own independent device session; any number may be active at once.
+
     const { sid, t } = startSession(u.id);
     await audit(db, { user: profile }, { action: 'LOGIN', message: `Signed in from ${ip}` });
     return { token: signToken({ ...profile, sid, t, pv: pwStamp(u.passwordHash) }), user: profile };
@@ -45,7 +45,7 @@ export class AuthServiceImpl extends AuthService {
     return { ok: true };
   }
 
-  // Heartbeat: the auth middleware has already validated and refreshed the session by the time this runs.
+
   async session({ user }) {
     const { sid, ...profile } = user;
     return { ok: true, user: profile };
@@ -62,15 +62,15 @@ export class AuthServiceImpl extends AuthService {
       await audit(db, { user }, { action: 'PASSWORD_CHANGE_FAILED', level: 'WARN', message: 'Wrong current password' });
       throw new HttpError('Current password is wrong');
     }
-    // Compare-and-set on the old hash: if two devices change the password at once, only one can win.
-    // All OTHER devices are signed out (the old password may have been compromised); this one carries on.
+
+
     const newHash = bcrypt.hashSync(String(newPassword), 12);
     const [done] = await db.update(users).set({ passwordHash: newHash })
       .where(and(eq(users.id, u.id), eq(users.passwordHash, u.passwordHash))).returning({ id: users.id });
     if (!done) throw new HttpError('The password was just changed from another device. Please sign in again.', 409);
     endOtherSessions(u.id, user.sid);
     await audit(db, { user }, { action: 'PASSWORD_CHANGED', message: 'Password changed; other devices signed out' });
-    // Old tokens carry a stamp of the old password, so every device is now refused. This device gets a fresh token and carries on.
+
     const { sid, ...profile } = user;
     return { ok: true, token: signToken({ ...profile, sid, t: Date.now(), pv: pwStamp(newHash) }) };
   }

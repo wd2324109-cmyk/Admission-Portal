@@ -24,7 +24,7 @@ export class StudentServiceImpl extends StudentService {
     const viewW = VIEWS[view];
     const term = String(search).trim();
     const q = term ? or(ilike(S.name, `%${likeEsc(term)}%`), ilike(S.emisNo, `%${likeEsc(term)}%`)) : undefined;                                                                                                          
-    // Students whose 5 required documents are not all verified yet (the document records are kept outside the database, see common/docstore.js)
+
     const done = query.docsOpen ? await idsAllVerified(REQUIRED_DOCS) : [];
     const docsOpen = done.length ? notInArray(S.id, done) : undefined;
     const where = and(scope(user), classFilter(c), viewW, q, docsOpen);
@@ -45,7 +45,7 @@ export class StudentServiceImpl extends StudentService {
     if (!pre) throw new HttpError('Not found', 404);
     return db.transaction(async tx => {
       await lockClass(tx, pre.classLevel);
-      const s = await lockStudent(tx, id);                       // authoritative copy; concurrent editors wait here
+      const s = await lockStudent(tx, id);
       if (!s) throw new HttpError('Not found', 404);
       const act = body?.action;
       if (act === 'SELECT') {
@@ -78,7 +78,7 @@ export class StudentServiceImpl extends StudentService {
         patch.admitStatus = admitStatus;
       }
       if (!Object.keys(patch).length) throw new HttpError('Nothing to update');
-      const vv = patch.admitStatus === 'Admitted' ? await lockVacancy(tx, s) : undefined;   // seat counter is locked before it is changed
+      const vv = patch.admitStatus === 'Admitted' ? await lockVacancy(tx, s) : undefined;
       await tx.update(S).set(patch).where(eq(S.id, s.id));
       if (patch.admitStatus === 'Admitted' && vv)
         await tx.update(V).set({ admitted: sql`${V.admitted} + 1`, vacancies: sql`greatest(${V.vacancies} - 1, 0)` }).where(eq(V.id, vv.id));
@@ -98,7 +98,7 @@ export class StudentServiceImpl extends StudentService {
     if (!pre) throw new HttpError('Not found', 404);
     return db.transaction(async tx => {
       await lockClass(tx, pre.classLevel);
-      // Lock the student AND everyone competing for the same seats in one ordered statement, then the vacancy row.
+
       const cell = await lockCell(tx, pre);
       const a = cell.find(x => x.id === id);
       if (!a) throw new HttpError('Not found', 404);
