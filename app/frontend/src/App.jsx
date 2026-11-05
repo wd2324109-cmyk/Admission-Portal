@@ -157,6 +157,41 @@ function StudentDetails({ user }) {
     {open && <StudentModal id={open} user={user} onClose={() => setOpen(null)} onChange={load} />}</>;
 }
 
+// Vacancies, seat by seat: every seat says who it is reserved for (or taken by), or that it is vacant.
+const SEAT_TAG = { RESERVED: ['Reserved', 'RESERVED'], ADMITTED: ['Joined', 'Admitted'], VACANT: ['Vacant', 'VACANT'] };
+const SEAT_TABS = [['', 'All seats'], ['RESERVED', 'Reserved'], ['ADMITTED', 'Joined'], ['VACANT', 'Vacant']];
+const seatHolder = r => r.hidden ? (r.status === 'ADMITTED' ? 'Taken by a student of another district' : 'Reserved for a student of another district')
+  : r.studentName ? <><b>{r.studentName}</b> · Reg no {r.regno}</>
+  : r.status === 'ADMITTED' ? 'Filled earlier (before this portal)' : r.status === 'VACANT' ? 'Not reserved yet' : '—';
+
+function SeatList({ user }) {
+  const [cls, setCls] = useState(9), [tab, setTab] = useState(''), [search, setSearch] = useState(''), [q, setQ] = useState(''), [page, setPage] = useState(1);
+  const [d, setD] = useState({ rows: [], pages: 1, counts: {} }), [err, setErr] = useState(''), [open, setOpen] = useState(null), [reload, setReload] = useState(0);
+  useEffect(() => { const t = setTimeout(() => setQ(search), 350); return () => clearTimeout(t); }, [search]);
+  useEffect(() => { setPage(1); }, [cls, tab, q]);
+  useEffect(() => {
+    let stale = false;
+    api(`/seats?class=${cls}&status=${tab}&search=${encodeURIComponent(q)}&page=${page}`).then(r => { if (!stale) { setD(r); setErr(''); } }).catch(e => !stale && setErr(e.message));
+    return () => { stale = true; };
+  }, [cls, tab, q, page, reload]);
+  const c = d.counts || {}, all = (c.RESERVED || 0) + (c.ADMITTED || 0) + (c.VACANT || 0);
+  return <>
+    <div className="head"><h1>Vacancies</h1></div>
+    <div className="tabs">{[9, 10].map(k => <button key={k} className={cls === k ? 'on' : ''} onClick={() => setCls(k)}>Class {k}</button>)}</div>
+    <div className="tabs">{SEAT_TABS.map(([k, l]) => <button key={k} className={tab === k ? 'on' : ''} onClick={() => setTab(k)}>{l} ({k ? c[k] || 0 : all})</button>)}</div>
+    <div className="panel">
+      <div className="row2"><input aria-label="Search by student name or reg no" placeholder="Search student name / reg no" value={search} onChange={e => setSearch(e.target.value)} /></div>
+      {err && <p className="err">{err}</p>}
+      <table><thead><tr><th>Seat</th><th>Regional centre</th><th>Gender</th><th>Medium</th><th>Community</th><th>Status</th><th>Reserved for</th></tr></thead>
+        <tbody>{d.rows.map(r => <tr className={r.studentId ? 'row' : ''} key={r.seatCode} onClick={() => r.studentId && setOpen(r.studentId)}>
+          <td>{r.seatCode}</td><td>{r.regionalCentre}</td><td>{r.gender}</td><td>{r.medium}</td><td>{r.community}</td>
+          <td><span className={`badge ${SEAT_TAG[r.status][1]}`}>{SEAT_TAG[r.status][0]}</span></td><td>{seatHolder(r)}</td></tr>)}</tbody></table>
+      {!d.rows.length && !err && <p style={{ color: 'var(--mute)' }}>No seats in this view.</p>}
+      {d.pages > 1 && <div className="row2"><button disabled={page <= 1} onClick={() => setPage(page - 1)}>Prev</button>Page {page} / {d.pages}<button disabled={page >= d.pages} onClick={() => setPage(page + 1)}>Next</button></div>}
+    </div>
+    {open && <StudentModal id={open} user={user} onClose={() => setOpen(null)} onChange={() => setReload(n => n + 1)} />}</>;
+}
+
 IC.doc = 'M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8zM14 2v6h6M16 13H8M16 17H8';
 const b64 = f => new Promise((ok, no) => { const r = new FileReader(); r.onload = () => ok(r.result.split(',')[1]); r.onerror = no; r.readAsDataURL(f); });
 
@@ -217,14 +252,14 @@ function TcRequests({ user }) {
 </div>
     <div className="tabs">{[...(user.role === 'DISTRICT' ? [['RAISE', 'Raise TC request']] : []), ...(canDecide ? [['TODO', 'Awaiting my decision']] : []), ['PENDING', 'TC Requested'], ['APPROVED', 'TC Students'], ['REJECTED', 'Not Approved']].map(([k, l]) => <button key={k} className={tab === k ? 'on' : ''} onClick={() => setTab(k)}>{l}</button>)}</div>
     {tab === 'RAISE' ? <AdmittedPicker onPick={setPicked} /> : <div className="panel">{err && <p className="err">{err}</p>}
-      <table><thead><tr><th>Reg no</th><th>Name</th><th>Class</th><th>District</th><th>Reason</th><th>Requested</th><th>Status</th></tr></thead>
+      <table><thead><tr><th>Reg no</th><th>Name</th><th>Class</th><th>District</th><th>Reason</th><th>Requested</th><th>Admit status</th><th>TC status</th></tr></thead>
         <tbody>{rows.map(r => <tr className="row" key={r.id} onClick={() => { setOpen(r); setRm(''); setErr(''); }}><td>{r.regno}</td><td>{r.name}</td><td>{r.classLevel}</td><td>{r.district}</td>
-          <td>{r.reason.slice(0, 40)}</td><td>{new Date(r.requestedAt).toLocaleDateString()}</td><td><TcTag r={r} /></td></tr>)}</tbody></table>
+          <td>{r.reason.slice(0, 40)}</td><td>{new Date(r.requestedAt).toLocaleDateString()}</td><td><StatusBadge r={r} /></td><td><TcTag r={r} /></td></tr>)}</tbody></table>
       {!rows.length && <p style={{ color: 'var(--mute)' }}>{tab === 'TODO' ? 'Nothing is waiting for your decision.' : 'No records.'}</p>}</div>}
     {open && <div className="modal" role="dialog" aria-modal="true" onClick={() => setOpen(null)}><div className="panel" style={{ width: 960, maxWidth: '95vw' }} onClick={e => e.stopPropagation()}>
       <h3>TC request · {open.name} <TcTag r={open} /></h3>
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(320px,1fr))', gap: 18 }}>
-        <div><table><tbody>{[['Reg no', open.regno], ['Class', open.classLevel], ['Gender / Community', `${open.gender} / ${open.community}`], ['District / Region', `${open.district} / ${open.regionalCentre}`], ['Reason', open.reason],
+        <div><table><tbody>{[['Reg no', open.regno], ['Class', open.classLevel], ['Gender / Community', `${open.gender} / ${open.community}`], ['District / Region', `${open.district} / ${open.regionalCentre}`], ['Admit status', <StatusBadge r={open} />], ['Reason', open.reason],
           ['Requested by', `${open.requestedBy} on ${new Date(open.requestedAt).toLocaleString()}`],
           ...tcTrail(open).flatMap(([short, long, by, at, msg, no]) => [[long, <>{no ? 'Not approved' : 'Approved'} by {by} on {new Date(at).toLocaleString()}</>], [`${short} message`, msg || '—']]),
           ...(open.status === 'PENDING' ? [['Now with', open.stage === 'REGION' ? 'Regional coordinator (RC)' : open.stage === 'STATE' ? 'State coordinator (SC)' : 'Super admin']] : [])].map(([k, v]) => <tr key={k}><th>{k}</th><td>{v}</td></tr>)}</tbody></table>
@@ -475,12 +510,12 @@ export default function App() {
     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d={IC[icon]} /></svg>{label}</button>;
   return <div className="shell"><aside className="side">
     <div className="brand"><img src="/emblem.png" alt="Government of Tamil Nadu emblem" />Admissions</div>
-    <Nav k="dash" icon="seat" label="Dashboard" /><Nav k="students" icon="users" label="Student Details" />{user.role !== 'STATE' && <Nav k="docs" icon="ok" label="Document Verification" />}<Nav k="tc" icon="doc" label="TC Requests" />
+    <Nav k="dash" icon="seat" label="Dashboard" /><Nav k="students" icon="users" label="Student Details" />{user.role !== 'STATE' && <Nav k="seats" icon="seat" label="Vacancies" />}{user.role !== 'STATE' && <Nav k="docs" icon="ok" label="Document Verification" />}<Nav k="tc" icon="doc" label="TC Requests" />
     {user.role === 'SUPER_ADMIN' && <><Nav k="import" icon="up" label="Import Data" /><Nav k="logs" icon="log" label="Logs" /><Nav k="users" icon="users" label="Users & Access" /></>}
     <div className="sp" />
     <div className="me"><div className="av">{user.username[0]}</div><div>{user.username}<small>{user.role === 'STATE' ? 'STATE COORDINATOR' : user.role.replace('_', ' ')}</small></div></div>
     <div className="acct"><button className="acct-btn" onClick={() => setPw(true)}>🔑 Change password</button>
       <button className="acct-btn out" onClick={() => { api('/auth/logout', { method: 'POST' }).catch(() => {}).finally(() => { setToken(null); setUser(null); }); }}>⎋ Log out</button></div></aside>
-    <main className="main">{page === 'dash' ? <Dashboard user={user} /> : page === 'docs' && user.role !== 'STATE' ? <DocVerification user={user} /> : page === 'tc' ? <TcRequests user={user} />
+    <main className="main">{page === 'dash' ? <Dashboard user={user} /> : page === 'docs' && user.role !== 'STATE' ? <DocVerification user={user} /> : page === 'seats' && user.role !== 'STATE' ? <SeatList user={user} /> : page === 'tc' ? <TcRequests user={user} />
       : page === 'import' && user.role === 'SUPER_ADMIN' ? <ImportData /> : page === 'logs' && user.role === 'SUPER_ADMIN' ? <Logs /> : page === 'users' && user.role === 'SUPER_ADMIN' ? <UsersPage me={user} /> : <StudentDetails user={user} />}</main>{pw && <ChangePassword onClose={() => setPw(false)} />}</div>;
 }

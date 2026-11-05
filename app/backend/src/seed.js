@@ -1,6 +1,7 @@
 import bcrypt from 'bcryptjs';
 import crypto from 'node:crypto';
-import { db, pool, users, students, vacancies, statusLogs, auditLogs } from './db/index.js';
+import { db, pool, users, students, vacancies9th, vacancies10th, vacancies11th, vacancyLogs, statusLogs, auditLogs } from './db/index.js';
+import { seatTable, seatRowsOf } from './common/seats.js';
 import { buildSample } from './sampleData.js';
 
 const sample = process.argv.includes('--sample');
@@ -11,13 +12,13 @@ const chunk = (a, n) => Array.from({ length: Math.ceil(a.length / n) }, (_, i) =
 if (sample) {
   if (process.env.NODE_ENV === 'production') { console.error('Refusing to load sample data in production.'); process.exit(1); }
   const { sts, vacs } = buildSample(), regionPw = random(), districtPw = random();
-  for (const t of [auditLogs, statusLogs, students, vacancies, users]) await db.delete(t);
+  for (const t of [auditLogs, statusLogs, vacancyLogs, students, vacancies9th, vacancies10th, vacancies11th, users]) await db.delete(t);
   await db.insert(users).values([
     { username: 'region_cuddalore', passwordHash: h(regionPw), role: 'REGION', region: 'CUDDALORE' },
     { username: 'district_cuddalore', passwordHash: h(districtPw), role: 'DISTRICT', district: 'CUDDALORE' }]);
   for (const c of chunk(sts, 500)) await db.insert(students).values(c);
-  for (const c of chunk(vacs, 500)) await db.insert(vacancies).values(c);
-  console.log(`Sample data: ${sts.length} students, ${vacs.length} vacancy cells`);
+  for (const cls of [9, 10]) for (const c of chunk(vacs.filter(v => v.classLevel === cls).flatMap(seatRowsOf), 500)) await db.insert(seatTable(cls)).values(c);   // one row per seat
+  console.log(`Sample data: ${sts.length} students, ${vacs.length} vacancy cells = ${vacs.reduce((n, v) => n + v.vacancies, 0)} seats`);
   console.log(`Sample logins: region_cuddalore / ${regionPw}   district_cuddalore / ${districtPw}`);
 }
 const adminPw = process.env.SEED_ADMIN_PASSWORD || random();

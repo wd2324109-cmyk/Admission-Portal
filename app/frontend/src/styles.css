@@ -92,3 +92,5 @@ button.bad{background:var(--bad);box-shadow:none}button.bad:hover:not(:disabled)
 @media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important;scroll-behavior:auto!important}}
 
 .acct{display:flex;flex-direction:column;gap:8px;padding:4px 6px 6px}.acct-btn{width:100%;padding:10px 12px;border-radius:10px;border:1px solid #ffffff40;background:#ffffff1a;color:#fff;font:inherit;font-weight:600;font-size:13.5px;cursor:pointer;text-align:center}.acct-btn:hover{background:#ffffff33}.acct-btn.out{background:#e5484d;border-color:#e5484d}.acct-btn.out:hover{background:#c0282d}.acct-btn:focus-visible{outline:2px solid #fff;outline-offset:2px}
+
+.badge.RESERVED{background:#e8ecff;color:var(--pri)}.badge.VACANT{background:#fff;color:#5b6786;box-shadow:inset 0 0 0 1px #c9d1e8}

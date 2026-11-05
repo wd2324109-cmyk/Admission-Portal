@@ -1,5 +1,5 @@
 import { and, eq, sql } from 'drizzle-orm';
-import { students as S, vacancies as V } from '../../schema/index.js';
+import { students as S } from '../../schema/index.js';
 import { db } from '../../db/index.js';
 import { scope, userRegion } from '../../common/query.js';
 
@@ -18,9 +18,11 @@ export class DashboardServiceImpl extends DashboardService {
     const [byClass, byDistrict, byCommunity, pv, vac] = await Promise.all([
       grp(S.classLevel), grp(S.district), grp(S.community),
       db.select({ n: sql`count(*)::int` }).from(S).where(and(w, eq(S.willingStatus, 'UNWILLING'), eq(S.verificationStatus, 'PENDING'))),
-      db.select({ seats: sql`coalesce(sum(${V.vacancies}),0)::int`, admitted: sql`coalesce(sum(${V.admitted}),0)::int`,
-        shortfall: sql`count(*) filter (where ${V.status}='SHORTFALL')::int` }).from(V).where(rc ? eq(V.regionalCentre, rc) : undefined),
+      db.execute(sql`select count(*) filter (where "Vacancy_status" <> 'JOINED')::int as seats, count(*) filter (where "Vacancy_status" = 'JOINED')::int as admitted,
+          count(distinct ("New_district", class_level, gender, medium, community)) filter (where "Vacancy_status" = 'SHORTFALL')::int as shortfall
+        from (select * from "Vacancies_9th" union all select * from "Vacancies_10th" union all select * from "Vacancies_11th") v
+        ${rc ? sql`where "New_district" = ${rc}` : sql``}`),
     ]);
-    return ({ byClass, byDistrict, byCommunity, pendingVerification: pv[0].n, vacancy: vac[0] });
+    return ({ byClass, byDistrict, byCommunity, pendingVerification: pv[0].n, vacancy: vac.rows[0] });
   }
 }

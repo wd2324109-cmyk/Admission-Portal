@@ -1,5 +1,7 @@
 import 'dotenv/config';
 import pg from 'pg';
+import { SEATS_VIEW_SQL } from './seatsView.js';
+import { migrateVacancies } from './vacancyMigration.js';
 const pool = new pg.Pool({ connectionString: process.env.DATABASE_URL, ssl: process.env.DATABASE_SSL === 'true' ? { rejectUnauthorized: process.env.DATABASE_SSL_INSECURE !== 'true' } : undefined });
 const once = sql => `DO $$ BEGIN ${sql}; EXCEPTION WHEN duplicate_object THEN NULL; END $$`;
 
@@ -8,7 +10,9 @@ const required = [
   `ALTER TABLE users DROP COLUMN IF EXISTS session_started_at`,
   `ALTER TABLE users DROP COLUMN IF EXISTS session_last_seen`,
   `ALTER TABLE users DROP COLUMN IF EXISTS session_ip`,
-  once(`ALTER TABLE vacancies ADD CONSTRAINT vacancies_nonneg_chk CHECK (admitted >= 0 AND vacancies >= 0) NOT VALID`),
+  // sessions are kept in memory and documents on disk: these two tables are never used
+  `DROP TABLE IF EXISTS user_sessions`,
+  `DROP TABLE IF EXISTS student_documents`,
   `ALTER TABLE students ADD COLUMN IF NOT EXISTS replaces_regno integer`,
   `CREATE TABLE IF NOT EXISTS tc_requests (
      id serial PRIMARY KEY, student_id integer NOT NULL, reason text NOT NULL, letter_name text NOT NULL, letter_path text NOT NULL,
@@ -42,6 +46,9 @@ const required = [
 
   `ALTER TABLE users DROP CONSTRAINT IF EXISTS users_role_chk`,
   once(`ALTER TABLE users ADD CONSTRAINT users_role_chk CHECK (role IN ('SUPER_ADMIN', 'STATE', 'REGION', 'DISTRICT')) NOT VALID`),
+
+  // The seat list ("this seat is reserved for this person"): a view over the vacancy rows + students. Rebuilt on every upgrade.
+  `DROP VIEW IF EXISTS seats; ${SEATS_VIEW_SQL}`,
 ];
 const optional = [
   `CREATE INDEX IF NOT EXISTS status_logs_student_idx ON status_logs (student_id, changed_at DESC)`,
@@ -52,6 +59,8 @@ const optional = [
   `CREATE INDEX IF NOT EXISTS students_emis_trgm ON students USING gin (emis_no gin_trgm_ops)`,
 ];
 try {
+  const m = await migrateVacancies(pool);                                  // vacancy tables of the document; converts an old `vacancies` table if there is one
+  if (m.seats) console.log(`Vacancies converted: ${m.cells} rows became ${m.seats} seats (one row per seat).`);
   for (const q of required) await pool.query(q);
   for (const q of optional) { try { await pool.query(q); } catch (e) { console.warn('Skipped (optional):', q.slice(0, 60).replace(/\s+/g, ' '), '-', e.message); } }
   console.log('Database is up to date.');

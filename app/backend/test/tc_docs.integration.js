@@ -18,12 +18,16 @@ let pass = 0; const ok = name => console.log('  ok -', name, ++pass && '');
 const file = name => ({ fileName: name, fileData: Buffer.from('%PDF-1.4\n' + name + Math.random()).toString('base64') });
 const U = process.env.DISTRICT_USER, P = process.env.DISTRICT_PW, A = 'superadmin', AP = process.env.ADMIN_PW;
 const adm = (await login(A, AP)).body.token, dst = (await login(U, P)).body.token;
+// A TC is approved in three steps: the regional coordinator, then the state coordinator, then the super admin.
+const rcTok = (await login(process.env.REGION_USER || 'region_cuddalore', process.env.REGION_PW)).body.token, scTok = (await login('state_coordinator', process.env.STATE_PW)).body.token;
+const viaRcAndSc = async id => { for (const t of [rcTok, scTok]) assert.equal((await call(`/tc/${id}/review`, { token: t, method: 'POST', body: { decision: 'APPROVED', remarks: 'ok' } })).status, 200); };
 const one = async (sql, args) => (await pool.query(sql, args)).rows[0];
-const seats = async c => one(`select sum(admitted)::int a, sum(vacancies)::int v from vacancies where class_level=$1`, [c]);
+// seats are rows (one per seat): admitted = JOINED seats, vacancies = open seats
+const seats = async c => one(`select count(*) filter (where "Vacancy_status" = 'JOINED')::int a, count(*) filter (where "Vacancy_status" <> 'JOINED')::int v from "Vacancies_${+c}th"`);
 
 console.log('Database design');
-const tables = (await pool.query(`select table_name t from information_schema.tables where table_schema = current_schema() order by 1`)).rows.map(r => r.t);
-assert.deepEqual(tables, ['audit_logs', 'status_logs', 'students', 'tc_requests', 'users', 'vacancies']); ok('the database has exactly the 6 tables of the design');
+const tables = (await pool.query(`select table_name t from information_schema.tables where table_schema = current_schema() and table_type = 'BASE TABLE'`)).rows.map(r => r.t).sort();
+assert.deepEqual(tables, ['VACANCY_logs', 'Vacancies_10th', 'Vacancies_11th', 'Vacancies_9th', 'audit_logs', 'status_logs', 'students', 'tc_requests', 'users'].sort()); ok('the database has exactly the tables of the design (vacancies are one row per seat)');
 const cols = async t => (await pool.query(`select column_name c from information_schema.columns where table_schema = current_schema() and table_name = $1 order by ordinal_position`, [t])).rows.map(r => r.c);
 assert(!(await cols('users')).some(c => c.startsWith('frozen')) && !(await cols('students')).some(c => ['documents', 'tc'].includes(c))); ok('no extra columns on users or students');
 
@@ -50,6 +54,7 @@ const lt = await fetch(`${API}/api/tc/${S1.id}/letter`, { headers: { Authorizati
 assert.equal((await call(`/tc/${S1.id}/review`, { token: adm, method: 'POST', body: { decision: 'APPROVED' } })).status, 400); ok('a message is required to review');
 assert.equal((await call(`/tc/${S1.id}/review`, { token: dst, method: 'POST', body: { decision: 'APPROVED', remarks: 'x' } })).status, 403); ok('district user cannot review');
 
+await viaRcAndSc(S1.id);
 const s0 = await seats(C);
 const rv = await Promise.all([1, 2, 3, 4].map(() => call(`/tc/${S1.id}/review`, { token: adm, method: 'POST', body: { decision: 'APPROVED', remarks: 'Approved' } })));
 assert.equal(rv.filter(r => r.status === 200).length, 1); ok('4 simultaneous approvals -> applied once');
@@ -76,6 +81,7 @@ assert.equal(cur.length, 1); assert.equal(cur[0].status, 'PENDING'); assert.equa
 assert.equal((await call(`/students/${S1.id}/revoke-admission`, { token: adm, method: 'POST', body: { remarks: 'x' } })).status, 409); ok('admission cannot be revoked while a TC request is pending');
 
 
+await viaRcAndSc(S1.id);
 assert.equal((await call(`/tc/${S1.id}/review`, { token: adm, method: 'POST', body: { decision: 'APPROVED', remarks: 'ok' } })).status, 200);
 assert.equal((await call(`/students/${S1.id}/revert-tc`, { token: adm, method: 'POST', body: { remarks: 'wrongly issued' } })).status, 200);
 assert.equal((await one(`select admit_status a from students where id=$1`, [S1.id])).a, 'Admitted');

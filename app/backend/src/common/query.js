@@ -1,5 +1,5 @@
 import { and, eq } from 'drizzle-orm';
-import { users, students as S, vacancies as V } from '../schema/index.js';
+import { users, students as S } from '../schema/index.js';
 import { db } from '../db/index.js';
 
                                                                                             
@@ -19,5 +19,4 @@ export async function userRegion(u) {
 }
 
 
-export const cellW = st => and(eq(V.regionalCentre, st.regionalCentre), eq(V.classLevel, st.classLevel), eq(V.gender, st.gender), eq(V.medium, st.medium), eq(V.community, st.selectedCategory));
 export const CLEAN = { selectStatus: '', selectedCategory: '', admitStatus: '', replacesRegno: null, willingStatus: 'WILLING', unwillingLetter: null, verificationStatus: 'PENDING', verificationRemarks: null };

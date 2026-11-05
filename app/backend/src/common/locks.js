@@ -1,6 +1,5 @@
 import { and, eq, inArray, or, sql } from 'drizzle-orm';
-import { students as S, vacancies as V } from '../schema/index.js';
-import { cellW } from './query.js';
+import { students as S } from '../schema/index.js';
 
 
 
@@ -30,7 +29,6 @@ export const lockStudent = async (tx, id) => (await tx.select().from(S).where(eq
 export const lockStudents = (tx, ids) => ids.length ? tx.select().from(S).where(inArray(S.id, ids)).orderBy(S.id).for('update') : Promise.resolve([]);
 
 
-export const lockVacancy = async (tx, st) => (await tx.select().from(V).where(cellW(st)).for('update'))[0];
 
 
 export const lockCell = (tx, a) => tx.select().from(S).where(and(

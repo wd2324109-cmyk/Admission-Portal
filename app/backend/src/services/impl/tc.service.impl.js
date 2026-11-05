@@ -1,14 +1,15 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { and, eq, sql, desc } from 'drizzle-orm';
-import { students as S, vacancies as V, statusLogs, tcRequests as T } from '../../schema/index.js';
+import { students as S, statusLogs, tcRequests as T } from '../../schema/index.js';
+import { releaseSeat } from '../../common/seats.js';
 import { db } from '../../db/index.js';
 import { HttpError } from '../../common/http.js';
 import { scope } from '../../common/query.js';
 import { audit, before } from '../../common/audit.js';
 import { UPLOADS } from '../../common/paths.js';
 import { saveUpload } from '../../common/upload.js';
-import { lockClass, lockStudent, lockVacancy } from '../../common/locks.js';
+import { lockClass, lockStudent } from '../../common/locks.js';
 import { latestTc, TC_SNAP, TC_STAGES, stageOfRole, rejectedBy, visibleTo } from '../../common/tc.js';
 import { TcService } from '../tc.service.js';
 
@@ -18,6 +19,7 @@ const view = (t, s) => ({ id: s.id, studentId: s.id, reason: t.reason, letterNam
   stage: t.stage, rejectedLevel: rejectedBy(t),
   rcBy: t.rcBy ?? null, rcAt: t.rcAt ?? null, rcRemarks: t.rcRemarks ?? null, scBy: t.scBy ?? null, scAt: t.scAt ?? null, scRemarks: t.scRemarks ?? null,
   reviewedBy: t.reviewedBy ?? null, reviewedAt: t.reviewedAt ?? null, reviewRemarks: t.reviewRemarks ?? null,
+  admitStatus: s.admitStatus, selectStatus: s.selectStatus, willingStatus: s.willingStatus,
   regno: s.regno, name: s.name, classLevel: s.classLevel, district: s.district, regionalCentre: s.regionalCentre, gender: s.gender, community: s.community });
 
 export class TcServiceImpl extends TcService {
@@ -85,7 +87,7 @@ export class TcServiceImpl extends TcService {
       if (t.status !== 'PENDING') throw new HttpError('This request was already decided', 409);
       if (t.stage !== mine) throw new HttpError(t.stage === 'DONE' ? 'This request was already decided'
         : `This request is not waiting for your decision (it is with the ${TC_STAGES[t.stage]?.label ?? t.stage} now)`, 409);
-      const now = new Date(), snap = { students: [], tcs: [{ id: t.id, before: TC_SNAP(t) }], vac: [] };
+      const now = new Date(), snap = { students: [], tcs: [{ id: t.id, before: TC_SNAP(t) }], seats: [] };
 
       if (mine !== 'ADMIN') {
         const cols = mine === 'REGION' ? { by: 'rcBy', at: 'rcAt', rm: 'rcRemarks' } : { by: 'scBy', at: 'scAt', rm: 'scRemarks' };
@@ -100,15 +102,15 @@ export class TcServiceImpl extends TcService {
 
 
       if (ok && s.admitStatus !== 'Admitted') throw new HttpError('The student is no longer in Admitted status, so the TC cannot be approved');
-      const vt = ok ? await lockVacancy(tx, s) : undefined;
+      let seats = [];
       await tx.update(T).set({ status: decision, stage: 'DONE', rejectedLevel: ok ? null : 'ADMIN', reviewedBy: user.username, reviewedAt: now, reviewRemarks: note }).where(eq(T.id, t.id));
       if (ok) await tx.update(S).set({ admitStatus: 'TC Issued' }).where(eq(S.id, s.id));
       if (ok) {
-        if (vt) await tx.update(V).set({ admitted: sql`greatest(${V.admitted} - 1, 0)`, vacancies: sql`${V.vacancies} + 1` }).where(eq(V.id, vt.id));
+        seats = await releaseSeat(tx, s, user);                                                  // the student's EMIS leaves the seat; the seat is open again
         await tx.insert(statusLogs).values({ studentId: s.id, field: 'admitStatus', oldValue: 'Admitted', newValue: 'TC Issued', remarks: note, changedBy: user.username });
       }
       await audit(tx, { user }, { action: `TC_${decision}`, regno: s.regno, message: `TC ${ok ? 'approved' : 'not approved'} by ${who} for ${s.name}: ${note.slice(0, 80)}`,
-        undo: { students: [before(s)], tcs: snap.tcs, vac: ok && vt ? [{ id: vt.id, dAdmitted: vt.admitted > 0 ? -1 : 0, dVacancies: 1 }] : [] } });
+        undo: { students: [before(s)], tcs: snap.tcs, seats } });
     });
     return { ok: true };
   }

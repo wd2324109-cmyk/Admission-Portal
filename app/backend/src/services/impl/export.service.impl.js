@@ -1,6 +1,7 @@
 import * as XLSX from 'xlsx';
 import { and, eq, asc } from 'drizzle-orm';
-import { students as S, vacancies as V } from '../../schema/index.js';
+import { students as S } from '../../schema/index.js';
+import { VacancyServiceImpl } from './vacancy.service.impl.js';
 import { db } from '../../db/index.js';
 import { HttpError } from '../../common/http.js';
 import { scope, userRegion } from '../../common/query.js';
@@ -24,9 +25,8 @@ export class ExportServiceImpl extends ExportService {
   }
 
   async vacancies({ user, query }) {
-    const c = classOf(query), rc = await userRegion(user);
-    const rows = await db.select().from(V).where(and(c ? eq(V.classLevel, c) : undefined, rc ? eq(V.regionalCentre, rc) : undefined))
-      .orderBy(asc(V.regionalCentre), asc(V.classLevel), asc(V.gender), asc(V.medium), asc(V.community));
+    const c = classOf(query);
+    const rows = await new VacancyServiceImpl().list({ user, query: c ? { class: c } : {} });
     const data = rows.map(v => ({ Regional_centre: v.regionalCentre, Class: v.classLevel, Gender: v.gender, Medium: v.medium, Community: v.community, Admitted: v.admitted, Vacancies: v.vacancies, Filled: v.filled, Balance: v.balance, Status: v.status }));
     await audit(db, { user }, { action: 'EXPORT_VACANCIES', message: `Vacancy sheet downloaded (${c ? 'Class ' + c : 'all classes'}, ${data.length} rows)` });
     return { buffer: toBuffer(data, 'Vacancies'), filename: `Vacancies_${c ? 'Class' + c + '_' : ''}${day()}.xlsx` };

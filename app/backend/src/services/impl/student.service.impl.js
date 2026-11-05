@@ -1,14 +1,15 @@
 import { and, eq, ne, ilike, or, sql, desc, asc, notInArray } from 'drizzle-orm';
-import { students as S, vacancies as V, statusLogs, auditLogs as A, tcRequests as T } from '../../schema/index.js';
+import { students as S, statusLogs, auditLogs as A, tcRequests as T } from '../../schema/index.js';
+import { joinSeat, releaseSeat, lockCellSeats, setShortfall } from '../../common/seats.js';
 import { db } from '../../db/index.js';
 import { before, audit } from '../../common/audit.js';
 import { HttpError } from '../../common/http.js';
-import { scope, classFilter, page1, likeEsc, cellW, CLEAN } from '../../common/query.js';
+import { scope, classFilter, page1, likeEsc, CLEAN } from '../../common/query.js';
 import { planRevert } from '../domain/revert.js';
 import { REQUIRED_DOCS } from '../document.service.js';
 import { idsAllVerified } from '../../common/docstore.js';
 import { latestTc, TC_SNAP } from '../../common/tc.js';
-import { lockClass, lockStudent, lockCell, lockVacancy } from '../../common/locks.js';
+import { lockClass, lockStudent, lockCell } from '../../common/locks.js';
 import { StudentService } from '../student.service.js';
 
 export class StudentServiceImpl extends StudentService {
@@ -78,15 +79,13 @@ export class StudentServiceImpl extends StudentService {
         patch.admitStatus = admitStatus;
       }
       if (!Object.keys(patch).length) throw new HttpError('Nothing to update');
-      const vv = patch.admitStatus === 'Admitted' ? await lockVacancy(tx, s) : undefined;
       await tx.update(S).set(patch).where(eq(S.id, s.id));
-      if (patch.admitStatus === 'Admitted' && vv)
-        await tx.update(V).set({ admitted: sql`${V.admitted} + 1`, vacancies: sql`greatest(${V.vacancies} - 1, 0)` }).where(eq(V.id, vv.id));
+      const seats = patch.admitStatus === 'Admitted' ? await joinSeat(tx, s, user) : [];       // the student's EMIS goes on a seat of their cell
       for (const f of ['admitStatus', 'willingStatus']) if (patch[f] !== undefined && patch[f] !== s[f])
         await tx.insert(statusLogs).values({ studentId: s.id, field: f, oldValue: s[f], newValue: patch[f], changedBy: user.username });
       const action = patch.admitStatus === 'Admitted' ? 'ADMIT' : patch.admitStatus === 'Not Admitted' ? 'NOT_ADMIT' : patch.willingStatus === 'UNWILLING' ? 'UNWILLING' : 'WILLING';
       await audit(tx, { user }, { action, regno: s.regno, message: `${s.name} (Class ${s.classLevel}, ${s.selectedCategory || '-'}): ${patch.admitStatus ?? patch.willingStatus}`,
-        undo: { students: [before(s)], vac: vv && patch.admitStatus === 'Admitted' ? [{ id: vv.id, dAdmitted: 1, dVacancies: vv.vacancies > 0 ? -1 : 0 }] : [] } });
+        undo: { students: [before(s)], seats } });
       return { ok: true };
     });
   }
@@ -105,7 +104,7 @@ export class StudentServiceImpl extends StudentService {
       if (!a.admitStatus.startsWith('Not Admitted')) throw new HttpError('Only "Not Admitted" students can be reverted', 409);
       if (a.selectedCategory !== pre.selectedCategory) throw new HttpError('This student was changed by someone else. Reload and try again.', 409);
       const holders = cell.filter(x => x.id !== id);
-      const vac = await lockVacancy(tx, a);
+      const vac = await lockCellSeats(tx, a);
       const plan = planRevert(a, vac, holders);
       if (plan.action === 'none') throw new HttpError(`No vacancy: the ${a.selectedCategory} seats for ${a.gender} / ${a.medium} in ${a.regionalCentre} (Class ${a.classLevel}) are full, and no lower-ranked student without admission can make room.`, 409);
       const log = (st, field, oldValue, newValue, note) => tx.insert(statusLogs).values({ studentId: st.id, field, oldValue, newValue, remarks: note, changedBy: user.username });
@@ -118,7 +117,7 @@ export class StudentServiceImpl extends StudentService {
       await log(a, 'admitStatus', a.admitStatus, '(selected, pending)', remarks);
       if (vac) {
         const pending = holders.length - (plan.bump ? 1 : 0) + 1, balance = Math.max(0, vac.vacancies - pending);
-        await tx.update(V).set({ filled: vac.admitted + pending, balance, status: balance > 0 ? 'SHORTFALL' : 'OK' }).where(eq(V.id, vac.id));
+        await setShortfall(tx, a.classLevel, vac, balance, user);
       }
       await audit(tx, { user }, { action: 'REVERT', regno: a.regno, message: `${a.name} taken back for admission` + (plan.bump ? `; seat taken from ${plan.bump.name} (${plan.bump.regno})` : ' (free seat)'), undo: { students: [a, plan.bump].filter(Boolean).map(before) } });
       return { ok: true, restored: a.regno, removed: plan.bump?.regno ?? null, removedName: plan.bump?.name ?? null };
@@ -137,16 +136,16 @@ export class StudentServiceImpl extends StudentService {
       if (!a) throw new HttpError('Not found', 404);
       if (!a.admitStatus.startsWith('TC Issued')) throw new HttpError('Only students with a TC issued can be reverted', 400);
       const holders = cell.filter(x => x.id !== id);
-      const vac = await lockVacancy(tx, a);
+      const vac = await lockCellSeats(tx, a);
       if ((vac?.vacancies ?? 0) - holders.length < 1)
         throw new HttpError(`No vacancy: the ${a.selectedCategory} seats for ${a.gender} / ${a.medium} in ${a.regionalCentre} (Class ${a.classLevel}) are full, so this TC cannot be reverted.`, 409);
       const tc = await latestTc(tx, a.id, true);
       await tx.update(S).set({ admitStatus: 'Admitted' }).where(eq(S.id, a.id));
       if (tc?.status === 'APPROVED') await tx.update(T).set({ status: 'CANCELLED' }).where(eq(T.id, tc.id));
-      await tx.update(V).set({ admitted: sql`${V.admitted} + 1`, vacancies: sql`greatest(${V.vacancies} - 1, 0)` }).where(eq(V.id, vac.id));
+      const seats = await joinSeat(tx, a, user);
       await tx.insert(statusLogs).values({ studentId: a.id, field: 'admitStatus', oldValue: a.admitStatus, newValue: 'Admitted', remarks, changedBy: user.username });
       await audit(tx, { user }, { action: 'REVERT_TC', regno: a.regno, message: `${a.name}: TC reverted, admitted again - ${remarks}`,
-        undo: { students: [before(a)], tcs: tc?.status === 'APPROVED' ? [{ id: tc.id, before: TC_SNAP(tc) }] : [], vac: [{ id: vac.id, dAdmitted: 1, dVacancies: vac.vacancies > 0 ? -1 : 0 }] } });
+        undo: { students: [before(a)], tcs: tc?.status === 'APPROVED' ? [{ id: tc.id, before: TC_SNAP(tc) }] : [], seats } });
       return { ok: true };
     });
   }
@@ -162,12 +161,11 @@ export class StudentServiceImpl extends StudentService {
       if (!s) throw new HttpError('Not found', 404);
       if (s.admitStatus !== 'Admitted') throw new HttpError('Only admitted students can have their admission revoked', 400);
       if (['PENDING', 'APPROVED'].includes((await latestTc(tx, s.id))?.status)) throw new HttpError('This student has a pending or approved TC request', 409);
-      const vv = await lockVacancy(tx, s);
       await tx.update(S).set({ admitStatus: '' }).where(eq(S.id, s.id));
-      if (vv) await tx.update(V).set({ admitted: sql`greatest(${V.admitted} - 1, 0)`, vacancies: sql`${V.vacancies} + 1` }).where(eq(V.id, vv.id));
+      const seats = await releaseSeat(tx, s, user);                                            // the seat is open again
       await tx.insert(statusLogs).values({ studentId: s.id, field: 'admitStatus', oldValue: 'Admitted', newValue: '(selected, pending)', remarks, changedBy: user.username });
       await audit(tx, { user }, { action: 'REVOKE_ADMISSION', regno: s.regno, message: `${s.name}: admission revoked, vacancy restored - ${remarks}`,
-        undo: { students: [before(s)], vac: vv ? [{ id: vv.id, dAdmitted: vv.admitted > 0 ? -1 : 0, dVacancies: 1 }] : [] } });
+        undo: { students: [before(s)], seats } });
       return { ok: true };
     });
   }

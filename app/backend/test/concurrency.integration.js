@@ -61,13 +61,15 @@ await call('/auth/change-password', { token: (await login(U, wp)).body.token, me
 console.log('Data race tests');
 
 const admin = (await login(A, AP)).body.token, admin2 = (await login(A, AP)).body.token;
+// seats are rows (one per seat): admitted = JOINED seats, vacancies = open seats
+const seatCounts = async c => (await pool.query(`select count(*) filter (where "Vacancy_status" = 'JOINED')::int a, count(*) filter (where "Vacancy_status" <> 'JOINED')::int v from "Vacancies_${+c}th"`)).rows[0];
 const { rows: [stu] } = await pool.query(`select id, class_level from students where select_status<>'' and admit_status='' and willing_status='WILLING' order by id limit 1`);
 assert(stu, 'need a selected student (run selection first)');
-const before = (await pool.query(`select sum(admitted)::int a, sum(vacancies)::int v from vacancies where class_level=$1`, [stu.class_level])).rows[0];
+const before = (await seatCounts(stu.class_level));
 const base = (await pool.query('select coalesce(max(id),0)::int m from audit_logs')).rows[0].m;
 const res = await Promise.all(Array.from({ length: 12 }, (_, i) => call('/students/' + stu.id, { token: i % 2 ? admin : admin2, method: 'PATCH', body: { admitStatus: 'Admitted' } })));
 const wins = res.filter(r => r.status === 200).length;
-const after = (await pool.query(`select sum(admitted)::int a, sum(vacancies)::int v from vacancies where class_level=$1`, [stu.class_level])).rows[0];
+const after = (await seatCounts(stu.class_level));
 console.log('    statuses:', res.map(r => r.status).join(','));
 assert.equal(wins, 1); ok('12 simultaneous "Admit" clicks from 2 devices of the same account -> exactly one succeeds');
 assert.equal(after.a - before.a, 1); assert.equal(before.v - after.v, 1); ok('seat counted exactly once (admitted +1, vacancies -1)');
@@ -79,7 +81,7 @@ const { rows: [ent] } = await pool.query(`select id from audit_logs where id > $
 const rv = await Promise.all([1, 2, 3, 4].map(() => call('/logs/' + ent.id + '/revoke', { token: admin, method: 'POST', body: { remarks: 'test' } })));
 console.log('    statuses:', rv.map(r => r.status).join(','));
 assert.equal(rv.filter(r => r.status === 200).length, 1);
-const fin = (await pool.query(`select sum(admitted)::int a, sum(vacancies)::int v from vacancies where class_level=$1`, [stu.class_level])).rows[0];
+const fin = (await seatCounts(stu.class_level));
 assert.deepEqual(fin, before); ok('4 simultaneous revokes -> applied once, seat counts back to original');
 
 await call('/auth/logout', { token: admin, method: 'POST' });

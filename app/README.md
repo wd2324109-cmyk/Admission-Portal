@@ -84,7 +84,7 @@ Pending for Selection, Selected, Joined, Not Joined, TC Issued, Not Joined (name
 
 ## Selected students, statuses and one table
 The super admin imports the students who are already selected (Excel); every imported student is shown under **Selected**. District users mark them **Admitted** or **Not Admitted** only (Unwilling is no longer used). Student Details has three tabs: Selected, Admitted, Not Admitted. The revert options (Not Admitted, revoke admission, revert TC) are unchanged.
-**Database design:** the database has exactly six tables: `users`, `students`, `vacancies`, `status_logs`, `tc_requests` and `audit_logs` (see "Database design" below). TC requests are rows in `tc_requests`; the five student documents are kept outside the database (see below).
+**Database design:** the database has these tables: `users`, `students`, `status_logs`, `tc_requests`, `audit_logs` and, for vacancies, `Vacancies_9th`, `Vacancies_10th`, `Vacancies_11th` and `VACANCY_logs` (see "Database design" below). TC requests are rows in `tc_requests`; the five student documents are kept outside the database (see below).
 
 ## Student status flow (Class 9 and 10)
 Student Details has Class 9 / Class 10 tabs, each with **Pending, Selected, Joined, Not Joined, TC**. Imported students start in **Pending**; opening one offers **Selected** or **Not Joined**. In **Selected** the buttons are **Joined** or **Not Joined**. **Joined** lists joined students; **Not Joined** lists students marked Not Joined and those marked Not Joined; **TC** lists students whose TC was issued. Documents: five can be uploaded, three are compulsory (Transfer Certificate, Birth Certificate, Application Form); the admin marks them Verified or Not Verified. Logs record sign-in, sign-out, every change and what each user opens.
@@ -99,8 +99,10 @@ The Excel comes from the selection round, so its statuses are read one stage ear
 - `npm run db:upgrade` also adds indexes, value checks and (if allowed) trigram search indexes.
 - Never share `.env` or `uploads/`. Full findings: `reviews/audit-plan-full.md`.
 
-## Database design (exactly six tables)
-`users`, `students`, `vacancies`, `status_logs`, `tc_requests`, `audit_logs`, with the columns listed in the agreed design document. Nothing else is created by `npm run db:push`.
+## Database design
+`users`, `students`, `status_logs`, `tc_requests`, `audit_logs`, `Vacancies_9th`, `Vacancies_10th`, `Vacancies_11th` and `VACANCY_logs`. The vacancy tables and their columns are exactly those of the database document ("Admission Portal - Database Tables"). Nothing else is created by `npm run db:push` (the `seats` view that the Vacancies page reads is created by `npm run db:upgrade`).
+
+**Vacancies are stored one row per seat.** A community with 5 vacancies is 5 rows in `Vacancies_9th` / `Vacancies_10th`. `New_district` holds the regional centre. A seat a student has joined has `Vacancy_status` `JOINED` and that student's **EMIS in `Vacancy_Ref_no`**; an open seat has `VACANT` (or `SHORTFALL` when the last selection found no student for it) and no reference. Seats already filled before the portal was used (the "Admitted" count of the vacancies sheet) are `JOINED` rows without an EMIS and the remark "Admitted before this portal". Every change to a seat is written to `VACANCY_logs` (status before / after, the EMIS, who, when) and can be undone from History. `Vacancy_Ref_no` is an INTEGER, so an EMIS longer than 10 digits cannot be stored there: that seat keeps the EMIS in `remarks` instead. `Vacancies_11th` exists as in the document but class 11 is not processed by the app yet. An old `vacancies` table is converted automatically (`npm run db:upgrade`).
 
 Features that used to need extra tables or columns now work like this:
 - **TC requests** are rows in `tc_requests`. A student can have several over time; the latest row is the current one. Undo (History > Revoke) restores the request together with the student and the seat.

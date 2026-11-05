@@ -13,6 +13,7 @@ const VIEW = [
   [/^\/students\/\d+$/, () => 'Opened a student record'],
   [/^\/documents\/students$/, q => `Viewed document verification: ${q.status || 'all'}`],
   [/^\/documents\/\d+-\d+\/file$/, () => 'Opened a student document'],
+  [/^\/seats$/, q => (!q.search && (+q.page || 1) === 1 ? `Viewed seats: Class ${q.class || 'all'}, ${q.status || 'all'}` : null)],
   [/^\/tc$/, q => `Viewed TC requests: ${q.status || 'all'}`],
   [/^\/tc\/\d+\/letter$/, () => 'Opened a TC letter'],
 ];

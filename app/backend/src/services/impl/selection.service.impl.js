@@ -1,5 +1,6 @@
 import { eq, or } from 'drizzle-orm';
-import { students as S, vacancies as V } from '../../schema/index.js';
+import { students as S } from '../../schema/index.js';
+import { listCells, setShortfall } from '../../common/seats.js';
 import { db } from '../../db/index.js';
 import { before, audit } from '../../common/audit.js';
 import { HttpError } from '../../common/http.js';
@@ -18,7 +19,7 @@ export class SelectionServiceImpl extends SelectionService {
     return db.transaction(async tx => {
       await lockClass(tx, +classLevel, { exclusive: true });
       const students = await tx.select().from(S).where(eq(S.classLevel, +classLevel)).orderBy(S.id).for('update');
-      const vacs = await tx.select().from(V).where(eq(V.classLevel, +classLevel)).orderBy(V.id).for('update');
+      const vacs = await listCells(tx, +classLevel);                                         // the seats of this class, counted per cell
       const already = students.some(s => s.selectStatus);
       if (mode === 'initial' && already) throw new HttpError('First selection was already run for this class. Use "Fill declined seats" for replacements.');
       if (mode === 'replacement' && !already) throw new HttpError('Run the first selection before filling declined seats.');
@@ -28,7 +29,7 @@ export class SelectionServiceImpl extends SelectionService {
       const prev = new Map(students.map(x => [x.regno, x.admitStatus]));
       for (const regno of r.replacedRegnos) await tx.update(S).set({ admitStatus: prev.get(regno) === 'TC Issued' ? 'TC Issued (Replaced)' : 'Not Admitted (Replaced)' }).where(eq(S.regno, regno));
       const byKey = new Map(vacs.map(v => [cellKey(v, v.community), v]));
-      for (const u of r.vacancyUpdates) await tx.update(V).set({ filled: u.filled, balance: u.balance, status: u.status }).where(eq(V.id, byKey.get(u.key).id));
+      for (const u of r.vacancyUpdates) await setShortfall(tx, +classLevel, byKey.get(u.key), u.balance, user);   // seats nobody could be found for are marked SHORTFALL
       const byReg = new Map(students.map(x => [x.regno, x]));
       const touched = [...r.selections.map(x => x.regno), ...r.replacedRegnos].map(n => byReg.get(n)).filter(Boolean);
       await audit(tx, { user }, { action: 'SELECTION_RUN', message: `Class ${classLevel} ${mode}: ${r.selections.length} selected, ${r.replacedRegnos.length} replaced, ${r.vacancyUpdates.filter(u => u.status === 'SHORTFALL').length} shortfall cells`, undo: { students: touched.map(before) } });

@@ -1,6 +1,7 @@
 import bcrypt from 'bcryptjs';
 import { and, eq, or, sql, inArray } from 'drizzle-orm';
-import { users, students as S, vacancies as V, statusLogs } from '../../schema/index.js';
+import { users, students as S, statusLogs } from '../../schema/index.js';
+import { seatTable, seatRowsOf } from '../../common/seats.js';
 import { db } from '../../db/index.js';
 import { audit } from '../../common/audit.js';
 import { readSheet, chunks, slug, randPw } from '../../common/excel.js';
@@ -63,10 +64,13 @@ export class ImportServiceImpl extends ImportService {
       await lockClass(tx, +classLevel, { exclusive: true });
       const [{ n }] = await tx.select({ n: sql`count(*)::int` }).from(S).where(and(eq(S.classLevel, +classLevel), sql`${S.admitStatus} <> ''`));
       if (n) throw new HttpError('Admissions have already started for this class; vacancies can no longer be replaced');
-      await tx.delete(V).where(eq(V.classLevel, +classLevel));
-      for (const c of chunks(good)) await tx.insert(V).values(c);
+      const T = seatTable(+classLevel);
+      await tx.delete(T);
+      // one row per seat: a community with 5 vacancies becomes 5 rows
+      for (const c of chunks(good.flatMap(seatRowsOf), 500)) await tx.insert(T).values(c);
     });
-    await audit(db, { user }, { action: 'IMPORT_VACANCIES', message: `Class ${classLevel}: ${good.length} vacancy rows imported, ${rejected.length} rejected` });
-    return ({ imported: good.length, rejectedCount: rejected.length, rejected: rejected.slice(0, 20), newUsers: [] });
+    const seatCount = good.reduce((n, c) => n + c.admitted + c.vacancies, 0);
+    await audit(db, { user }, { action: 'IMPORT_VACANCIES', message: `Class ${classLevel}: ${good.length} vacancy rows imported as ${seatCount} seats, ${rejected.length} rejected` });
+    return ({ imported: good.length, seats: seatCount, rejectedCount: rejected.length, rejected: rejected.slice(0, 20), newUsers: [] });
   }
 }

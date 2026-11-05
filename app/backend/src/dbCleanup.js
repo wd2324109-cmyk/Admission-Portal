@@ -2,6 +2,7 @@ import 'dotenv/config';
 import pg from 'pg';
 import { putDocs } from './common/docstore.js';
 import { frozenMessage } from './common/freeze.js';
+import { migrateVacancies } from './vacancyMigration.js';
 
 
 
@@ -23,6 +24,9 @@ const hasTable = async t => (await pool.query(`select 1 from information_schema.
 try {
   if (!(await hasTable('users'))) { console.log('Nothing to clean: the database has no tables yet.'); process.exit(0); }
   const notes = [];
+
+  const m = await migrateVacancies(pool);          // convert the old vacancies table (one row per community) before anything can drop it
+  if (m.seats) notes.push(`${m.cells} vacancy row(s) converted to ${m.seats} seats`);
 
 
   if (await hasCol('students', 'documents')) {

@@ -1,5 +1,6 @@
 import { and, eq, gt, ilike, inArray, or, sql, desc } from 'drizzle-orm';
-import { students as S, vacancies as V, statusLogs, auditLogs as A, tcRequests as T } from '../../schema/index.js';
+import { students as S, statusLogs, auditLogs as A, tcRequests as T } from '../../schema/index.js';
+import { restoreSeats } from '../../common/seats.js';
 import { tcRestore } from '../../common/tc.js';
 import { getDocs, putDocs } from '../../common/docstore.js';
 import { db } from '../../db/index.js';
@@ -42,11 +43,12 @@ export class LogServiceImpl extends LogService {
       const hit = later.find(l => (l.ids || []).some(i => (e.studentIds || []).includes(i)));
       if (hit) throw new HttpError(`Revoke #${hit.id} (${hit.action}) first: it changed the same student(s) later`, 409);
       const u = e.undo;
+      if (u.vac?.length) throw new HttpError('This entry was made before vacancies were stored seat by seat and can no longer be revoked', 409);
       for (const x of u.students || []) {
         await tx.update(S).set(x.before).where(eq(S.id, x.id));
         await tx.insert(statusLogs).values({ studentId: x.id, field: 'revoke', oldValue: e.action, newValue: 'Revoked', remarks, changedBy: user.username });
       }
-      for (const v of u.vac || []) await tx.update(V).set({ admitted: sql`greatest(${V.admitted} - ${v.dAdmitted ?? 0}, 0)`, vacancies: sql`greatest(${V.vacancies} - ${v.dVacancies ?? 0}, 0)` }).where(eq(V.id, v.id));
+      await restoreSeats(tx, u.seats, user);
       for (const x of u.tcs || []) await tx.update(T).set(tcRestore(x.before)).where(eq(T.id, x.id));
       for (const x of u.docs || []) {
         const docs = { ...(await getDocs(x.id)) }; if (x.before) docs[x.type] = x.before; else delete docs[x.type];
