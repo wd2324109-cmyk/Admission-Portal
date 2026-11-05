@@ -3,4 +3,5 @@ export class AuthService {
   async logout(ctx) { throw new Error('AuthService.logout is not implemented'); }
   async session(ctx) { throw new Error('AuthService.session is not implemented'); }
   async changePassword(ctx) { throw new Error('AuthService.changePassword is not implemented'); }
+  async testResetPassword(ctx) { throw new Error('AuthService.testResetPassword is not implemented'); }
 }

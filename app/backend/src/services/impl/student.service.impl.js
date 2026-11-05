@@ -15,8 +15,8 @@ import { StudentService } from '../student.service.js';
 export class StudentServiceImpl extends StudentService {
   async list({ user, query }) {
     const { class: c, view = 'all', search = '' } = query, size = 25, page = page1(query.page);                                                                 
-    if (view === 'pending') throw new HttpError('The Pending view has been removed', 400);
     const VIEWS = {
+      pending: sql`${S.selectStatus} = '' and ${S.admitStatus} = '' and ${S.willingStatus} is distinct from 'UNWILLING'`,
       selected: sql`${S.selectStatus} <> '' and ${S.admitStatus} = ''`,                                                                                           
       joined: eq(S.admitStatus, 'Admitted'), admitted: eq(S.admitStatus, 'Admitted'),
       notjoined: sql`((${S.selectStatus} = '' and ${S.admitStatus} = '' and ${S.willingStatus} = 'UNWILLING') or ${S.admitStatus} like 'Not Admitted%')`,                                                              

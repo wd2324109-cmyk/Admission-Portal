@@ -4,13 +4,15 @@ import { users } from '../../schema/index.js';
 import { db } from '../../db/index.js';
 import { audit } from '../../common/audit.js';
 import { signToken } from '../../common/auth.js';
-import { startSession, endSession, endOtherSessions, pwStamp } from '../../common/session.js';
+import { startSession, endSession, endOtherSessions, endAllSessions, pwStamp } from '../../common/session.js';
 import { frozenUsers } from '../../common/freeze.js';
 import { HttpError } from '../../common/http.js';
 import { makeLimiter } from '../../common/rateLimit.js';
+import { TEST_RESET } from '../../common/testReset.js';
 import { AuthService } from '../auth.service.js';
 
 const byUser = makeLimiter({ max: 8 }), byIp = makeLimiter({ max: 30 });
+const resetByIp = makeLimiter({ max: 20 });
 const DUMMY = bcrypt.hashSync('not-a-real-password', 10);
 
 export class AuthServiceImpl extends AuthService {
@@ -73,5 +75,24 @@ export class AuthServiceImpl extends AuthService {
 
     const { sid, ...profile } = user;
     return { ok: true, token: signToken({ ...profile, sid, t: Date.now(), pv: pwStamp(newHash) }) };
+  }
+
+  // TEST ONLY: set a new password by username, no email/OTP. Disabled unless ENABLE_TEST_PASSWORD_RESET=true and NODE_ENV != production.
+  async testResetPassword({ body, ip }) {
+    if (!TEST_RESET) throw new HttpError('Not found', 404);
+    const key = `reset|${ip}`;
+    if (resetByIp.blocked(key)) throw new HttpError('Too many attempts. Try again later.', 429);
+    resetByIp.fail(key);
+    const { username, newPassword } = body || {};
+    if (!username || !newPassword) throw new HttpError('Username and new password are required');
+    if (String(newPassword).length < 10) throw new HttpError('New password must be at least 10 characters');
+    if (String(newPassword).length > 200) throw new HttpError('New password is too long');
+    const name = String(username).slice(0, 100);
+    const [u] = await db.select().from(users).where(eq(users.username, name));
+    if (!u) throw new HttpError('No user with that username', 404);
+    await db.update(users).set({ passwordHash: bcrypt.hashSync(String(newPassword), 12) }).where(eq(users.id, u.id));
+    endAllSessions(u.id);
+    await audit(db, { user: { username: u.username, role: u.role } }, { action: 'PASSWORD_RESET_TEST', level: 'WARN', message: `TEST-ONLY password reset from ${ip}; all sessions signed out` });
+    return { ok: true };
   }
 }

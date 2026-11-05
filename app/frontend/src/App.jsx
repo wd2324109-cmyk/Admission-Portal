@@ -9,20 +9,39 @@ const EyeIcon = ({ off }) => <svg viewBox="0 0 24 24" aria-hidden="true">{off
 
 function Login({ onLogin }) {
   const [f, setF] = useState({ username: '', password: '' }), [err, setErr] = useState(peekLogoutReason), [show, setShow] = useState(false), [busy, setBusy] = useState(false);
-  useEffect(() => { clearLogoutReason(); }, []);
+  const [canReset, setCanReset] = useState(false), [mode, setMode] = useState('login'), [r, setR] = useState({ username: '', newPassword: '', again: '' }), [msg, setMsg] = useState('');
+  useEffect(() => { clearLogoutReason(); api('/auth/test-reset-status').then(d => setCanReset(!!d.enabled)).catch(() => {}); }, []);
   const go = async () => {
     if (busy) return;
     try { setBusy(true); const r = await api('/auth/login', { method: 'POST', body: f }); setToken(r.token); saveUser(r.user); onLogin(r.user); }
     catch (e) { setErr(e.message); } finally { setBusy(false); }
   };
+  const reset = async () => {
+    if (busy) return;
+    if (r.newPassword !== r.again) return setErr('The new passwords do not match');
+    try { setBusy(true); await api('/auth/test-reset-password', { method: 'POST', body: { username: r.username, newPassword: r.newPassword } });
+      setErr(''); setMsg('Password reset. You can sign in now.'); setF({ username: r.username, password: '' }); setR({ username: '', newPassword: '', again: '' }); setMode('login'); }
+    catch (e) { setErr(e.message); } finally { setBusy(false); }
+  };
+  const head = <div className="login-head"><img className="logo" src="/emblem.png" alt="Government of Tamil Nadu emblem" /><h2>Admission Portal</h2></div>;
+  if (mode === 'reset') return <div className="login"><div className="panel">{head}
+    <p className="err"><small>TEST ONLY: this lets anyone reset a password with just the username. It is not available in production.</small></p>
+    <div className="field"><label htmlFor="rs-user">Username</label><input id="rs-user" autoFocus value={r.username} onChange={e => setR({ ...r, username: e.target.value })} /></div>
+    <div className="field"><label htmlFor="rs-new">New password (at least 10 characters)</label><input id="rs-new" type="password" autoComplete="new-password" value={r.newPassword} onChange={e => setR({ ...r, newPassword: e.target.value })} /></div>
+    <div className="field"><label htmlFor="rs-again">Repeat new password</label><input id="rs-again" type="password" autoComplete="new-password" value={r.again} onChange={e => setR({ ...r, again: e.target.value })} onKeyDown={e => e.key === 'Enter' && reset()} /></div>
+    <button className="pri" style={{ width: '100%' }} disabled={busy} onClick={reset}>Reset password</button>
+    <p><button type="button" className="linkbtn" onClick={() => { setMode('login'); setErr(''); }}>Back to sign in</button></p>
+    <span className="err" role="alert">{err}</span></div></div>;
   return <div className="login"><div className="panel">
-   <div className="login-head"><img className="logo" src="/emblem.png" alt="Government of Tamil Nadu emblem" /><h2>Admission Portal</h2></div>
-    
+   {head}
+    {msg && <p role="status">{msg}</p>}
     <div className="field"><label htmlFor="login-user">Username</label><input id="login-user" autoComplete="username" autoFocus value={f.username} onChange={e => setF({ ...f, username: e.target.value })} /></div>
     <div className="field"><label htmlFor="login-pass">Password</label><div className="pw">
       <input id="login-pass" type={show ? 'text' : 'password'} autoComplete="current-password" value={f.password} onChange={e => setF({ ...f, password: e.target.value })} onKeyDown={e => e.key === 'Enter' && go()} />
       <button type="button" className="eye" aria-label={show ? 'Hide password' : 'Show password'} aria-pressed={show} title={show ? 'Hide password' : 'Show password'} onClick={() => setShow(!show)}><EyeIcon off={show} /></button></div></div>
-    <button className="pri" style={{ width: '100%' }} disabled={busy} onClick={go}>Sign in</button><br/> <span className="err" role="alert">{err}</span></div></div>;
+    <button className="pri" style={{ width: '100%' }} disabled={busy} onClick={go}>Sign in</button>
+    {canReset && <p><button type="button" className="linkbtn" onClick={() => { setMode('reset'); setErr(''); setMsg(''); }}>Forgot password? (test only)</button></p>}
+    <br/> <span className="err" role="alert">{err}</span></div></div>;
 }
 
 const IC = { users: 'M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75',
@@ -121,7 +140,7 @@ function StudentModal({ id, user, onClose, onChange }) {
     <div className="row2"><button onClick={onClose}>Close</button></div></div></div>;
 }
 
-const TABS = [['selected', 'Selected'], ['joined', 'Joined'], ['notjoined', 'Not Joined'], ['tc', 'TC']];
+const TABS = [['pending', 'Pending'], ['selected', 'Selected'], ['joined', 'Joined'], ['notjoined', 'Not Joined'], ['tc', 'TC']];
 const StatusBadge = ({ r }) => {
   const raw = r.admitStatus || r.selectStatus;
   const [text, cls] = /^TC Issued/.test(raw) ? ['TC', 'TCIssued'] : /^Not Admitted/.test(raw) ? ['Not Joined', 'NotAdmitted'] : raw === 'Admitted' ? ['Joined', 'Admitted'] : raw ? ['Selected', 'Selected']
@@ -320,7 +339,7 @@ function ImportData() {
 
 IC.log = 'M4 6h16M4 12h16M4 18h10';
 const ts = d => { const t = new Date(d), p = (n, l = 2) => String(n).padStart(l, '0'); return `${t.getFullYear()}-${p(t.getMonth() + 1)}-${p(t.getDate())} ${p(t.getHours())}:${p(t.getMinutes())}:${p(t.getSeconds())}.${p(t.getMilliseconds(), 3)}`; };
-const ACTIONS = ['FREEZE', 'UNFREEZE', 'LOGIN_BLOCKED', 'LOGIN', 'LOGOUT', 'VIEW', 'SELECT', 'NOT_WILLING', 'LOGIN_FAILED', 'IMPORT_STUDENTS', 'IMPORT_VACANCIES', 'SELECTION_RUN', 'ADMIT', 'NOT_ADMIT', 'UNWILLING', 'WILLING', 'VERIFY_ACCEPTED', 'VERIFY_REJECTED', 'REVERT', 'REVERT_TC', 'EXPORT_MASTER', 'EXPORT_VACANCIES', 'REVOKE_ADMISSION', 'DOC_UPLOAD', 'DOC_EDIT', 'DOC_RESUBMIT', 'DOC_VERIFIED', 'DOC_REJECTED', 'TC_RAISE', 'TC_RC_APPROVED', 'TC_RC_REJECTED', 'TC_SC_APPROVED', 'TC_SC_REJECTED', 'TC_APPROVED', 'TC_REJECTED', 'REVOKE'];
+const ACTIONS = ['FREEZE', 'UNFREEZE', 'LOGIN_BLOCKED', 'LOGIN', 'LOGOUT', 'VIEW', 'SELECT', 'NOT_WILLING', 'LOGIN_FAILED', 'IMPORT_STUDENTS', 'IMPORT_VACANCIES', 'SELECTION_RUN', 'ADMIT', 'NOT_ADMIT', 'UNWILLING', 'WILLING', 'VERIFY_ACCEPTED', 'VERIFY_REJECTED', 'REVERT', 'REVERT_TC', 'EXPORT_MASTER', 'EXPORT_VACANCIES', 'REVOKE_ADMISSION', 'DOC_UPLOAD', 'DOC_EDIT', 'DOC_RESUBMIT', 'DOC_VERIFIED', 'DOC_REJECTED', 'TC_RAISE', 'TC_RC_APPROVED', 'TC_RC_REJECTED', 'TC_SC_APPROVED', 'TC_SC_REJECTED', 'TC_APPROVED', 'TC_REJECTED', 'REVOKE', 'PASSWORD_RESET_TEST'];
 const logLine = e => `${e.level === 'INFO' ? '.' : '!'} ${ts(e.at)} [${e.actor}] ${e.action.padEnd(16)} ${e.regno ? `reg ${e.regno} ` : ''}${e.message}${e.revokedAt ? '  [REVOKED]' : ''}`;
 
 function Logs() {
