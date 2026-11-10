@@ -24,16 +24,20 @@ export async function api(path, opts = {}) {
   return data;
 }
 
+// A blob: URL runs with this site's own origin, so only ever open real documents (PDF or image), never HTML or script.
+const SAFE_TYPES = ['application/pdf', 'image/png', 'image/jpeg'];
+const safeBlob = b => { if (!SAFE_TYPES.includes(b.type)) throw new Error('This file type cannot be opened here.'); return b; };
+
 export async function openFile(path) {                                                               
   const r = await fetch(API + path, { headers: { Authorization: 'Bearer ' + token } });
   if (!r.ok) throw new Error((await r.json().catch(() => ({}))).error || 'Could not open file');
-  window.open(URL.createObjectURL(await r.blob()), '_blank');
+  window.open(URL.createObjectURL(safeBlob(await r.blob())), '_blank');
 }
 
 export async function fileBlob(path) {                                                          
   const r = await fetch(API + path, { headers: { Authorization: 'Bearer ' + token } });
   if (!r.ok) throw new Error((await r.json().catch(() => ({}))).error || 'Could not load file');
-  return r.blob();
+  return safeBlob(await r.blob());
 }
 
 export async function downloadFile(path) {                                                                                     

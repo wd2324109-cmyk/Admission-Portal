@@ -3,7 +3,9 @@ import fs from 'node:fs'; import path from 'node:path';
 import express from 'express'; import cors from 'cors';
 import { notFound, errorHandler } from './common/http.js';
 import api from './controllers/index.js';
-import { verifyToken } from './common/auth.js';
+import { verifyToken, auth } from './common/auth.js';
+import { securityHeaders, apiHeaders, corsMiddleware } from './common/hardening.js';
+import { rateLimit } from './common/rateLimit.js';
 import { db, pool } from './db/index.js';
 import { audit } from './common/audit.js';
 
@@ -22,17 +24,29 @@ const app = express();
 app.disable('x-powered-by');
 if (process.env.TRUST_PROXY) app.set('trust proxy', process.env.TRUST_PROXY === 'true' ? 1 : process.env.TRUST_PROXY);
 
-app.use((req, res, next) => {
-  res.set({ 'X-Content-Type-Options': 'nosniff', 'X-Frame-Options': 'DENY', 'Referrer-Policy': 'no-referrer', 'Cross-Origin-Resource-Policy': 'same-origin',
-    'Permissions-Policy': 'camera=(), microphone=(), geolocation=()' });
-  if (process.env.NODE_ENV === 'production') res.set('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
-  next();
-});
-const origins = (process.env.CORS_ORIGIN || '').split(',').map(s => s.trim()).filter(Boolean);
-if (origins.length) app.use(cors({ origin: origins }));
-app.use(['/api/import', '/api/documents', '/api/tc'], express.json({ limit: '25mb' }));
+app.use(securityHeaders());
+const corsMw = corsMiddleware();
+if (corsMw) app.use(corsMw);
+if (process.env.NODE_ENV === 'production' && !process.env.TRUST_PROXY)
+  console.warn('WARNING: TRUST_PROXY is not set. Behind nginx/Render every visitor looks like the proxy, so the sign-in and rate limits would apply to everyone together. Set TRUST_PROXY=true.');
+
+// Rate limits (per client IP, in memory). The overall limit is only a safety net against floods, so it is generous:
+// a whole office can share one IP. Expensive endpoints (Excel import/export, selection run, uploads) get a smaller budget.
+const WINDOW = 60 * 1000;
+app.use('/api', rateLimit({ max: +process.env.API_RATE_LIMIT_PER_MIN || 2000, windowMs: WINDOW }));
+const heavy = rateLimit({ max: +process.env.HEAVY_RATE_LIMIT_PER_MIN || 60, windowMs: WINDOW, message: 'Too many import, export or upload requests. Please wait a minute and try again.' });
+const writesOnly = mw => (req, res, next) => (req.method === 'GET' || req.method === 'HEAD' || req.method === 'OPTIONS' ? next() : mw(req, res, next));
+app.use(['/api/export', '/api/import', '/api/selection'], heavy);
+app.use(['/api/documents', '/api/tc'], writesOnly(heavy));
+
+// Request size limits. The large bodies (an Excel import, an uploaded letter or document) are read ONLY for a signed-in
+// user, so a stranger cannot make the server buffer megabytes before being turned away. Uploaded files are at most 3 MB
+// (about 4 MB as base64), so 6 MB is plenty for them; only the Excel import needs the big limit.
+const signedIn = writesOnly(auth);
+app.use('/api/import', signedIn, express.json({ limit: '25mb' }));
+app.use(['/api/documents', '/api/tc'], signedIn, express.json({ limit: '6mb' }));
 app.use(express.json({ limit: '100kb' }));
-app.use('/api', (req, res, next) => { res.set('Cache-Control', 'no-store'); next(); });
+app.use('/api', apiHeaders);
 
 app.get('/api/health', async (req, res) => {
   try { await pool.query('select 1'); res.json({ ok: true }); } catch { res.status(503).json({ ok: false }); }

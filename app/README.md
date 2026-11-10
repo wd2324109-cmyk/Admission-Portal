@@ -9,7 +9,7 @@ npm install && npm run db:push && npm run seed && npm run dev     # seed creates
 cd ../frontend && npm install && npm run dev      # http://localhost:5173
 npm test --prefix backend                          # selection logic test, no DB needed
 ```
-Logins (seeded): superadmin / Admin@12345 · region_cuddalore / Region@12345 · district_cuddalore / District@12345
+Logins: `superadmin` and `state_coordinator` are created by `npm run seed` using `SEED_ADMIN_PASSWORD` / `SEED_STATE_PASSWORD` (or a random password printed once). There are no default passwords; change yours after first sign-in.
 
 ## Selection rules (src/services/selection.js)
 - Cell = Regional_centre / Class / Gender / Medium / Community. Rank = TOTAL desc, ORANK asc.

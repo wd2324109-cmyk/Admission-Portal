@@ -22,7 +22,7 @@ export class StudentServiceImpl extends StudentService {
       notjoined: sql`((${S.selectStatus} = '' and ${S.admitStatus} = '' and ${S.willingStatus} = 'UNWILLING') or ${S.admitStatus} like 'Not Admitted%')`,                                                              
       tc: sql`${S.admitStatus} like 'TC Issued%'`,
     };
-    const viewW = VIEWS[view];
+    const viewW = Object.hasOwn(VIEWS, view) ? VIEWS[view] : undefined;      // own keys only: '__proto__' / 'constructor' are not views
     const term = String(search).trim();
     const q = term ? or(ilike(S.name, `%${likeEsc(term)}%`), ilike(S.emisNo, `%${likeEsc(term)}%`)) : undefined;                                                                                                          
 
