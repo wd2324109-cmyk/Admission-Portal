@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
-import { api, setToken, savedUser, saveUser, peekLogoutReason, clearLogoutReason, fileBlob, openFile, downloadFile } from './api.js';
+import { api, setToken, savedUser, saveUser, peekLogoutReason, clearLogoutReason, setLogoutReason, fileBlob, openFile, downloadFile } from './api.js';
+import { IdleGuard, OfflineBanner, PasswordMeter, passwordAcceptable, useCapsLock, CapsHint, IDLE_MINUTES } from './security.jsx';
 
 const badge = v => <span className={`badge ${String(v || '').replace(/\W/g, '')}`}>{v || '—'}</span>;
 
@@ -8,13 +9,16 @@ const EyeIcon = ({ off }) => <svg viewBox="0 0 24 24" aria-hidden="true">{off
   : <><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" /><circle cx="12" cy="12" r="3" /></>}</svg>;
 
 function Login({ onLogin }) {
-  const [f, setF] = useState({ username: '', password: '' }), [err, setErr] = useState(peekLogoutReason), [show, setShow] = useState(false), [busy, setBusy] = useState(false);
+  const [f, setF] = useState({ username: '', password: '' }), [err, setErr] = useState(peekLogoutReason), [show, setShow] = useState(false), [busy, setBusy] = useState(false), [caps, capsOn] = useCapsLock();
+  const [fu, setFu] = useState(''), [sent, setSent] = useState(''), [c, setC] = useState({ username: '', code: '', newPassword: '', again: '' });
   const [canReset, setCanReset] = useState(false), [mode, setMode] = useState('login'), [r, setR] = useState({ username: '', newPassword: '', again: '' }), [msg, setMsg] = useState('');
   useEffect(() => { clearLogoutReason(); api('/auth/test-reset-status').then(d => setCanReset(!!d.enabled)).catch(() => {}); }, []);
   const go = async () => {
     if (busy) return;
-    try { setBusy(true); const r = await api('/auth/login', { method: 'POST', body: f }); setToken(r.token); saveUser(r.user); onLogin(r.user); }
-    catch (e) { setErr(e.message); } finally { setBusy(false); }
+    const username = f.username.trim();
+    if (!username || !f.password) return setErr('Enter your username and password.');
+    try { setBusy(true); setErr(''); const r = await api('/auth/login', { method: 'POST', body: { username, password: f.password } }); setToken(r.token); saveUser(r.user); setF({ username: '', password: '' }); onLogin(r.user); }
+    catch (e) { setErr(e.message); setF(x => ({ ...x, password: '' })); } finally { setBusy(false); }
   };
   const reset = async () => {
     if (busy) return;
@@ -23,7 +27,45 @@ function Login({ onLogin }) {
       setErr(''); setMsg('Password reset. You can sign in now.'); setF({ username: r.username, password: '' }); setR({ username: '', newPassword: '', again: '' }); setMode('login'); }
     catch (e) { setErr(e.message); } finally { setBusy(false); }
   };
+  const askReset = async () => {
+    if (busy) return;
+    const username = fu.trim(); if (!username) return setErr('Enter your username.');
+    try { setBusy(true); setErr(''); const d = await api('/auth/password-reset/request', { method: 'POST', body: { username } }); setSent(d.message || 'Request sent.'); }
+    catch (e) { setErr(e.message); } finally { setBusy(false); }
+  };
+  const submitCode = async () => {
+    if (busy) return;
+    const username = c.username.trim();
+    if (!username || !c.code.trim()) return setErr('Enter your username and the reset code.');
+    if (c.newPassword !== c.again) return setErr('The new passwords do not match');
+    if (!passwordAcceptable(c.newPassword, username)) return setErr('The new password does not meet the requirements listed below.');
+    try { setBusy(true); setErr(''); await api('/auth/password-reset/complete', { method: 'POST', body: { username, code: c.code.trim(), newPassword: c.newPassword } });
+      setMsg('Your password has been changed. You can sign in now.'); setF({ username, password: '' }); setC({ username: '', code: '', newPassword: '', again: '' }); setMode('login'); }
+    catch (e) { setErr(e.message); setC(x => ({ ...x, newPassword: '', again: '' })); } finally { setBusy(false); }
+  };
+  const go2 = (m) => { setMode(m); setErr(''); setMsg(''); setSent(''); };
   const head = <div className="login-head"><img className="logo" src="/emblem.png" alt="Government of Tamil Nadu emblem" /><h2>Admission Portal</h2></div>;
+  if (mode === 'forgot') return <div className="login"><div className="panel">{head}
+    <h3 className="login-sub">Forgot password</h3>
+    {sent ? <><p role="status">{sent}</p>
+      <p className="login-notice" style={{ border: 0, margin: '0 0 12px', padding: 0 }}>When it is approved, the super admin will give you a one-time code (for example by phone). Then choose “I have a reset code” to set a new password.</p>
+      <button className="pri" style={{ width: '100%' }} onClick={() => { setC(x => ({ ...x, username: fu.trim() })); go2('code'); }}>I have a reset code</button></>
+    : <><p>Enter your username. A request is sent to the super admin, and you can set a new password only after they approve it.</p>
+      <div className="field"><label htmlFor="fp-user">Username</label><input id="fp-user" autoComplete="username" autoCapitalize="none" spellCheck={false} maxLength={100} autoFocus value={fu} onChange={e => setFu(e.target.value)} onKeyDown={e => e.key === 'Enter' && askReset()} /></div>
+      <button className="pri" style={{ width: '100%' }} disabled={busy} onClick={askReset}>{busy ? 'Sending…' : 'Send request to super admin'}</button>
+      <p className="login-notice">Super admin accounts cannot be reset here. The system owner recovers them from the server.</p></>}
+    <p><button type="button" className="linkbtn" onClick={() => go2('login')}>Back to sign in</button></p>
+    <span className="err" role="alert">{err}</span></div></div>;
+  if (mode === 'code') return <div className="login"><div className="panel">{head}
+    <h3 className="login-sub">Set a new password</h3>
+    <p>Enter the one-time code the super admin gave you after approving your request.</p>
+    <div className="field"><label htmlFor="rc-user">Username</label><input id="rc-user" autoComplete="username" autoCapitalize="none" spellCheck={false} maxLength={100} autoFocus={!c.username} value={c.username} onChange={e => setC({ ...c, username: e.target.value })} /></div>
+    <div className="field"><label htmlFor="rc-code">Reset code</label><input id="rc-code" className="code-input" autoComplete="one-time-code" autoCapitalize="characters" spellCheck={false} maxLength={20} autoFocus={!!c.username} placeholder="XXXXX-XXXXX" value={c.code} onChange={e => setC({ ...c, code: e.target.value })} /></div>
+    <div className="field"><label htmlFor="rc-new">New password (at least 10 characters)</label><input id="rc-new" type="password" autoComplete="new-password" maxLength={200} value={c.newPassword} onChange={e => setC({ ...c, newPassword: e.target.value })} /><PasswordMeter value={c.newPassword} username={c.username.trim()} /></div>
+    <div className="field"><label htmlFor="rc-again">Repeat new password</label><input id="rc-again" type="password" autoComplete="new-password" maxLength={200} value={c.again} onChange={e => setC({ ...c, again: e.target.value })} onKeyDown={e => e.key === 'Enter' && submitCode()} /></div>
+    <button className="pri" style={{ width: '100%' }} disabled={busy} onClick={submitCode}>{busy ? 'Saving…' : 'Change password'}</button>
+    <p><button type="button" className="linkbtn" onClick={() => go2('forgot')}>I do not have a code yet</button> · <button type="button" className="linkbtn" onClick={() => go2('login')}>Back to sign in</button></p>
+    <span className="err" role="alert">{err}</span></div></div>;
   if (mode === 'reset') return <div className="login"><div className="panel">{head}
     <p className="err"><small>TEST ONLY: this lets anyone reset a password with just the username. It is not available in production.</small></p>
     <div className="field"><label htmlFor="rs-user">Username</label><input id="rs-user" autoFocus value={r.username} onChange={e => setR({ ...r, username: e.target.value })} /></div>
@@ -35,19 +77,22 @@ function Login({ onLogin }) {
   return <div className="login"><div className="panel">
    {head}
     {msg && <p role="status">{msg}</p>}
-    <div className="field"><label htmlFor="login-user">Username</label><input id="login-user" autoComplete="username" autoFocus value={f.username} onChange={e => setF({ ...f, username: e.target.value })} /></div>
+    <div className="field"><label htmlFor="login-user">Username</label><input id="login-user" autoComplete="username" autoCapitalize="none" spellCheck={false} maxLength={100} autoFocus value={f.username} onChange={e => setF({ ...f, username: e.target.value })} /></div>
     <div className="field"><label htmlFor="login-pass">Password</label><div className="pw">
-      <input id="login-pass" type={show ? 'text' : 'password'} autoComplete="current-password" value={f.password} onChange={e => setF({ ...f, password: e.target.value })} onKeyDown={e => e.key === 'Enter' && go()} />
-      <button type="button" className="eye" aria-label={show ? 'Hide password' : 'Show password'} aria-pressed={show} title={show ? 'Hide password' : 'Show password'} onClick={() => setShow(!show)}><EyeIcon off={show} /></button></div></div>
-    <button className="pri" style={{ width: '100%' }} disabled={busy} onClick={go}>Sign in</button>
-    {canReset && <p><button type="button" className="linkbtn" onClick={() => { setMode('reset'); setErr(''); setMsg(''); }}>Forgot password? (test only)</button></p>}
-    <br/> <span className="err" role="alert">{err}</span></div></div>;
+      <input id="login-pass" type={show ? 'text' : 'password'} autoComplete="current-password" maxLength={200} value={f.password} onChange={e => setF({ ...f, password: e.target.value })} {...capsOn} onKeyDown={e => { capsOn.onKeyDown(e); if (e.key === 'Enter') go(); }} />
+      <button type="button" className="eye" aria-label={show ? 'Hide password' : 'Show password'} aria-pressed={show} title={show ? 'Hide password' : 'Show password'} onClick={() => setShow(!show)}><EyeIcon off={show} /></button></div><CapsHint on={caps} /></div>
+    <button className="pri" style={{ width: '100%' }} disabled={busy} onClick={go}>{busy ? 'Signing in…' : 'Sign in'}</button>
+    <p className="login-links"><button type="button" className="linkbtn" onClick={() => { setFu(f.username.trim()); go2('forgot'); }}>Forgot password?</button><span aria-hidden="true"> · </span><button type="button" className="linkbtn" onClick={() => { setC(x => ({ ...x, username: f.username.trim() })); go2('code'); }}>I have a reset code</button></p>
+    {canReset && <p><button type="button" className="linkbtn" onClick={() => { setMode('reset'); setErr(''); setMsg(''); }}>Quick reset (test only)</button></p>}
+    <br/> <span className="err" role="alert">{err}</span>
+    <p className="login-notice">Authorised users only. All sign-ins and record access are logged. Sessions end after {IDLE_MINUTES} minutes of inactivity.</p></div></div>;
 }
 
 const IC = { users: 'M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75',
   ok: 'M22 11.08V12a10 10 0 1 1-5.93-9.14M22 4 12 14.01l-3-3', no: 'M12 22a10 10 0 1 0 0-20 10 10 0 0 0 0 20M15 9l-6 6M9 9l6 6',
   seat: 'M3 3h7v7H3zM14 3h7v7h-7zM14 14h7v7h-7zM3 14h7v7H3z', clock: 'M12 22a10 10 0 1 0 0-20 10 10 0 0 0 0 20M12 6v6l4 2',
   star: 'M12 2l3.1 6.3 6.9 1-5 4.9 1.2 6.8L12 17.8 5.8 21l1.2-6.8-5-4.9 6.9-1z' };
+IC.lock = 'M19 11H5a2 2 0 0 0-2 2v7a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7a2 2 0 0 0-2-2zM7 11V7a5 5 0 0 1 10 0v4';
 const Icon = ({ n }) => <svg viewBox="0 0 24 24"><path d={IC[n]} /></svg>;
 const Stat = ({ icon, color, label, value, note }) => <div className="card stat"><div className={`chip ${color}`}><Icon n={icon} /></div>
   <div><span>{label}</span><b>{value.toLocaleString()}</b>{note && <small>{note}</small>}</div></div>;
@@ -294,7 +339,7 @@ function TcRequests({ user }) {
           {!pv ? <p>Loading letter…</p> : pv.error ? <p className="err">{pv.error}</p>
             : pv.type.startsWith('image') ? <img src={pv.url} alt="Request letter" style={{ maxWidth: '100%', borderRadius: 10, border: '1px solid var(--line)' }} />
             : <iframe src={pv.url} title="Request letter" style={{ width: '100%', height: 440, border: '1px solid var(--line)', borderRadius: 10 }} />}
-          {pv?.url && <p><a href={pv.url} target="_blank" rel="noreferrer">Open letter in a new tab</a></p>}</div></div>
+          {pv?.url && <p><a href={pv.url} target="_blank" rel="noopener noreferrer">Open letter in a new tab</a></p>}</div></div>
       <div className="row2"><button onClick={() => { setOpen(null); setErr(''); }}>Close</button></div></div></div>}
     {picked && <TcPopup s={picked} onClose={() => setPicked(null)} onDone={() => { setPicked(null); setTab('PENDING'); setN(x => x + 1); }} />}</>;
 }
@@ -339,7 +384,7 @@ function ImportData() {
 
 IC.log = 'M4 6h16M4 12h16M4 18h10';
 const ts = d => { const t = new Date(d), p = (n, l = 2) => String(n).padStart(l, '0'); return `${t.getFullYear()}-${p(t.getMonth() + 1)}-${p(t.getDate())} ${p(t.getHours())}:${p(t.getMinutes())}:${p(t.getSeconds())}.${p(t.getMilliseconds(), 3)}`; };
-const ACTIONS = ['FREEZE', 'UNFREEZE', 'LOGIN_BLOCKED', 'LOGIN', 'LOGOUT', 'VIEW', 'SELECT', 'NOT_WILLING', 'LOGIN_FAILED', 'IMPORT_STUDENTS', 'IMPORT_VACANCIES', 'SELECTION_RUN', 'ADMIT', 'NOT_ADMIT', 'UNWILLING', 'WILLING', 'VERIFY_ACCEPTED', 'VERIFY_REJECTED', 'REVERT', 'REVERT_TC', 'EXPORT_MASTER', 'EXPORT_VACANCIES', 'REVOKE_ADMISSION', 'DOC_UPLOAD', 'DOC_EDIT', 'DOC_RESUBMIT', 'DOC_VERIFIED', 'DOC_REJECTED', 'TC_RAISE', 'TC_RC_APPROVED', 'TC_RC_REJECTED', 'TC_SC_APPROVED', 'TC_SC_REJECTED', 'TC_APPROVED', 'TC_REJECTED', 'REVOKE', 'PASSWORD_RESET_TEST'];
+const ACTIONS = ['FREEZE', 'UNFREEZE', 'PASSWORD_RESET_REQUESTED', 'PASSWORD_RESET_APPROVED', 'PASSWORD_RESET_REJECTED', 'PASSWORD_RESET_COMPLETED', 'PASSWORD_RESET_FAILED', 'PASSWORD_RESET_BLOCKED', 'SUPERADMIN_RECOVERY', 'LOGIN_BLOCKED', 'LOGIN', 'LOGOUT', 'VIEW', 'SELECT', 'NOT_WILLING', 'LOGIN_FAILED', 'IMPORT_STUDENTS', 'IMPORT_VACANCIES', 'SELECTION_RUN', 'ADMIT', 'NOT_ADMIT', 'UNWILLING', 'WILLING', 'VERIFY_ACCEPTED', 'VERIFY_REJECTED', 'REVERT', 'REVERT_TC', 'EXPORT_MASTER', 'EXPORT_VACANCIES', 'REVOKE_ADMISSION', 'DOC_UPLOAD', 'DOC_EDIT', 'DOC_RESUBMIT', 'DOC_VERIFIED', 'DOC_REJECTED', 'TC_RAISE', 'TC_RC_APPROVED', 'TC_RC_REJECTED', 'TC_SC_APPROVED', 'TC_SC_REJECTED', 'TC_APPROVED', 'TC_REJECTED', 'REVOKE', 'PASSWORD_RESET_TEST'];
 const logLine = e => `${e.level === 'INFO' ? '.' : '!'} ${ts(e.at)} [${e.actor}] ${e.action.padEnd(16)} ${e.regno ? `reg ${e.regno} ` : ''}${e.message}${e.revokedAt ? '  [REVOKED]' : ''}`;
 
 function Logs() {
@@ -390,6 +435,42 @@ function UsersPage({ me }) {
       <h3>Freeze {tg.username}</h3><p>They will be signed out on all devices right now and cannot sign in until you unfreeze them.</p>
       <textarea rows="2" style={{ width: '100%' }} aria-label="Reason (required)" placeholder="Reason (required)" autoFocus value={why} onChange={e => setWhy(e.target.value)} />
       {err && <p className="err" role="alert">{err}</p>}<div className="row2"><button className="bad" disabled={busy} onClick={() => act(tg, 'freeze', { reason: why })}>Freeze access</button><button onClick={() => setTg(null)}>Cancel</button></div></div></div>}</>;
+}
+
+const when = v => (v ? new Date(v).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' }) : '—');
+function PasswordRequests({ onCount }) {
+  const [data, setData] = useState({ pending: 0, rows: [] }), [err, setErr] = useState(''), [n, setN] = useState(0), [busy, setBusy] = useState(false), [tab, setTab] = useState('open');
+  const [shown, setShown] = useState(null), [copied, setCopied] = useState(false), [rej, setRej] = useState(null), [why, setWhy] = useState('');
+  useEffect(() => { let stale = false; api('/password-resets').then(r => { if (stale) return; setData(r); setErr(''); onCount?.(r.pending); }).catch(e => !stale && setErr(e.message)); return () => { stale = true; }; }, [n]);
+  const run = async (r, path, body) => { try { setBusy(true); const d = await api(`/password-resets/${r.id}/${path}`, { method: 'POST', body }); setErr(''); setN(x => x + 1); return d; } catch (e) { setErr(e.message); } finally { setBusy(false); } };
+  const approve = async r => { const d = await run(r, 'approve'); if (d) { setShown(d); setCopied(false); } };
+  const reject = async () => { if (await run(rej, 'reject', { remarks: why })) { setRej(null); setWhy(''); } };
+  const copy = async () => { try { await navigator.clipboard.writeText(shown.code); setCopied(true); } catch { setErr('Copying is blocked by the browser. Select the code and copy it manually.'); } };
+  const open = data.rows.filter(r => ['PENDING', 'APPROVED'].includes(r.status)), closed = data.rows.filter(r => !['PENDING', 'APPROVED'].includes(r.status)), rows = tab === 'open' ? open : closed;
+  return <>
+    <div className="head"><h1>Password Requests</h1></div>
+    <p><small>Users who forgot their password send a request here. Nothing changes until you approve it. Approving creates a one-time code that you give to the user yourself (phone or in person); it is shown only once. Super admin accounts are not part of this process.</small></p>
+    <div className="tabs" role="tablist"><button className={tab === 'open' ? 'on' : ''} onClick={() => setTab('open')}>Open ({open.length})</button><button className={tab === 'closed' ? 'on' : ''} onClick={() => setTab('closed')}>History ({closed.length})</button></div>
+    {err && !rej && <p className="err" role="alert">{err}</p>}
+    <div className="panel"><table><thead><tr><th>Requested</th><th>User</th><th>Scope</th><th>From</th><th>Status</th><th>{tab === 'open' ? 'Action' : 'Decision'}</th></tr></thead>
+      <tbody>{rows.map(r => <tr key={r.id}><td>{when(r.requestedAt)}</td><td><b>{r.username}</b><br /><small>{r.role === 'STATE' ? 'STATE COORDINATOR' : (r.role || '').replaceAll('_', ' ')}</small></td><td>{r.district || r.region || '—'}</td><td><small>{r.requestedIp || '—'}</small></td>
+        <td>{badge(r.status === 'COMPLETED' ? 'APPROVED' : r.status)}{r.status === 'COMPLETED' && <><br /><small>Password changed {when(r.completedAt)}</small></>}{r.status === 'APPROVED' && <><br /><small>Code valid until {when(r.expiresAt)}</small></>}</td>
+        <td>{tab === 'open'
+          ? <div className="row2" style={{ margin: 0 }}>{r.status === 'PENDING' && <button className="pri" disabled={busy} onClick={() => approve(r)}>Approve</button>}<button className="bad" disabled={busy} onClick={() => { setRej(r); setWhy(''); setErr(''); }}>{r.status === 'PENDING' ? 'Reject' : 'Cancel code'}</button></div>
+          : <small>{r.decidedBy ? `By ${r.decidedBy}, ${when(r.decidedAt)}` : '—'}{r.decisionRemarks ? <><br />{r.decisionRemarks}</> : null}</small>}</td></tr>)}
+        {!rows.length && <tr><td colSpan="6">{tab === 'open' ? 'No open requests' : 'No earlier requests'}</td></tr>}</tbody></table></div>
+    {shown && <div className="modal" role="dialog" aria-modal="true" aria-labelledby="rc-title"><div className="panel" style={{ width: 460 }}>
+      <h3 id="rc-title">Request approved for {shown.username}</h3>
+      <p>Give this one-time code to {shown.username} yourself (phone or in person). They enter it with their username on the sign-in page, under “I have a reset code”.</p>
+      <div className="code-box" aria-live="polite">{shown.code}</div>
+      <p><small>Valid until {when(shown.expiresAt)}. It is shown only now and cannot be looked up later. If it is lost, cancel this request and ask the user to send a new one.</small></p>
+      {err && <p className="err" role="alert">{err}</p>}
+      <div className="row2"><button className="pri" onClick={copy}>{copied ? 'Copied' : 'Copy code'}</button><button onClick={() => { setShown(null); setErr(''); }}>I have noted the code</button></div></div></div>}
+    {rej && <div className="modal" role="dialog" aria-modal="true" onClick={() => setRej(null)}><div className="panel" style={{ width: 420 }} onClick={e => e.stopPropagation()}>
+      <h3>{rej.status === 'PENDING' ? 'Reject' : 'Cancel'} request from {rej.username}</h3>
+      <p>{rej.status === 'PENDING' ? 'The user will not be able to change their password with this request.' : 'The code that was issued will stop working.'}</p>
+      <textarea rows="2" style={{ width: '100%' }} aria-label="Remarks (optional)" placeholder="Remarks (optional)" maxLength={300} autoFocus value={why} onChange={e => setWhy(e.target.value)} />
+      {err && <p className="err" role="alert">{err}</p>}<div className="row2"><button className="bad" disabled={busy} onClick={reject}>{rej.status === 'PENDING' ? 'Reject request' : 'Cancel code'}</button><button onClick={() => setRej(null)}>Back</button></div></div></div>}</>;
 }
 
 const REQUIRED = ['Transfer Certificate', 'Birth Certificate', 'Application Form'], OPTIONAL = ['Community Certificate', 'Aadhaar Card'];
@@ -490,11 +571,12 @@ function DocVerification({ user }) {
     {pick && <DocPopup s={pick} onClose={() => setPick(null)} onChanged={() => setN(x => x + 1)} />}</>;
 }
 
-function ChangePassword({ onClose }) {
+function ChangePassword({ onClose, username }) {
   const [f, setF] = useState({ currentPassword: '', newPassword: '', again: '' }), [err, setErr] = useState(''), [done, setDone] = useState(false), [busy, setBusy] = useState(false);
   const set = k => e => setF({ ...f, [k]: e.target.value })
   const submit = async () => {
     if (f.newPassword !== f.again) return setErr('The new passwords do not match');
+    if (!passwordAcceptable(f.newPassword, username)) return setErr('The new password does not meet the requirements listed below.');
     try { setBusy(true); const r = await api('/auth/change-password', { method: 'POST', body: { currentPassword: f.currentPassword, newPassword: f.newPassword } }); if (r.token) setToken(r.token); setErr(''); setDone(true); }
     catch (e) { setErr(e.message); } finally { setBusy(false); }
   };
@@ -502,39 +584,61 @@ function ChangePassword({ onClose }) {
     <h3>Change password</h3>
     {done ? <><p>Password changed.</p><div className="row2"><button className="pri" onClick={onClose}>Close</button></div></> : <>
       <div className="field"><label htmlFor="cp-cur">Current password</label><input id="cp-cur" type="password" autoComplete="current-password" autoFocus value={f.currentPassword} onChange={set('currentPassword')} /></div>
-      <div className="field"><label htmlFor="cp-new">New password (at least 10 characters)</label><input id="cp-new" type="password" autoComplete="new-password" value={f.newPassword} onChange={set('newPassword')} /></div>
+      <div className="field"><label htmlFor="cp-new">New password (at least 10 characters)</label><input id="cp-new" type="password" autoComplete="new-password" value={f.newPassword} onChange={set('newPassword')} maxLength={200} /><PasswordMeter value={f.newPassword} username={username} /></div>
       <div className="field"><label htmlFor="cp-again">Repeat new password</label><input id="cp-again" type="password" autoComplete="new-password" value={f.again} onChange={set('again')} onKeyDown={e => e.key === 'Enter' && submit()} /></div>
       {err && <p className="err" role="alert">{err}</p>}
-      <div className="row2"><button className="pri" disabled={busy} onClick={submit}>Change password</button><button onClick={onClose}>Cancel</button></div></>}
+      <div className="row2"><button className="pri" disabled={busy || !f.currentPassword || !passwordAcceptable(f.newPassword, username) || f.newPassword !== f.again} onClick={submit}>{busy ? 'Saving…' : 'Change password'}</button><button onClick={onClose}>Cancel</button></div></>}
   </div></div>;
 }
 
 export default function App() {
-  const [user, setUser] = useState(savedUser), [page, setPage] = useState('dash'), [pw, setPw] = useState(false);
-  useEffect(() => { const h = e => { if (e.key === 'Escape') document.querySelector('.modal')?.click(); }; window.addEventListener('keydown', h); return () => window.removeEventListener('keydown', h); }, []);
-  useEffect(() => { document.title = `${user ? ({ dash: 'Dashboard', students: 'Student Details', docs: 'Document Verification', tc: 'TC Requests', import: 'Import Data', logs: 'Logs', users: 'Users & Access' }[page] || 'Portal') : 'Sign in'} · School Admissions Portal`; }, [page, user]);
-
-
+  const [user, setUser] = useState(savedUser), [page, setPage] = useState('dash'), [pw, setPw] = useState(false), [mobileOpen, setMobileOpen] = useState(false), [pendingResets, setPendingResets] = useState(0);
+  useEffect(() => { const h = e => { if (e.key === 'Escape') { document.querySelector('.modal')?.click(); setMobileOpen(false); } }; window.addEventListener('keydown', h); return () => window.removeEventListener('keydown', h); }, []);
+  const pageNames = { dash: 'Dashboard', students: 'Student Details', seats: 'Vacancy Management', docs: 'Document Verification', tc: 'Transfer Certificate Requests', import: 'Import Data', logs: 'Audit Logs', users: 'Users & Access', resets: 'Password Requests' };
+  useEffect(() => { document.title = `${user ? (pageNames[page] || 'Admission Portal') : 'Sign in'} · School Admissions Portal`; }, [page, user]);
+  // Re-check the session when the person returns to the tab. There is deliberately no timer that pings the server
+  // in the background: that would keep an unattended session alive forever. IdleGuard keeps it alive only while
+  // the person is actually working, and signs them out when they are not.
   useEffect(() => {
     if (!user) return;
-    const ping = () => api('/auth/session').catch(() => {});
-    const t = setInterval(ping, 60_000);
-    const vis = () => document.visibilityState === 'visible' && ping();
-    const sync = e => { if (e.key === 'token') window.location.reload(); };
-    document.addEventListener('visibilitychange', vis); window.addEventListener('storage', sync);
-    return () => { clearInterval(t); document.removeEventListener('visibilitychange', vis); window.removeEventListener('storage', sync); };
+    const vis = () => document.visibilityState === 'visible' && api('/auth/session').catch(() => {});
+    document.addEventListener('visibilitychange', vis);
+    return () => document.removeEventListener('visibilitychange', vis);
   }, [user]);
+  // Count of password requests waiting for the super admin (fetched on sign-in and when changing page; no background polling).
+  useEffect(() => { if (user?.role === 'SUPER_ADMIN') api('/password-resets').then(r => setPendingResets(r.pending)).catch(() => {}); }, [user, page]);
   if (!user) return <Login onLogin={setUser} />;
-  const Nav = ({ k, icon, label }) => <button className={`nav ${page === k ? 'on' : ''}`} aria-current={page === k ? 'page' : undefined} onClick={() => setPage(k)}>
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d={IC[icon]} /></svg>{label}</button>;
-  return <div className="shell"><aside className="side">
-    <div className="brand"><img src="/emblem.png" alt="Government of Tamil Nadu emblem" />Admissions</div>
-    <Nav k="dash" icon="seat" label="Dashboard" /><Nav k="students" icon="users" label="Student Details" />{user.role !== 'STATE' && <Nav k="seats" icon="seat" label="Vacancies" />}{user.role !== 'STATE' && <Nav k="docs" icon="ok" label="Document Verification" />}<Nav k="tc" icon="doc" label="TC Requests" />
-    {user.role === 'SUPER_ADMIN' && <><Nav k="import" icon="up" label="Import Data" /><Nav k="logs" icon="log" label="Logs" /><Nav k="users" icon="users" label="Users & Access" /></>}
-    <div className="sp" />
-    <div className="me"><div className="av">{user.username[0]}</div><div>{user.username}<small>{user.role === 'STATE' ? 'STATE COORDINATOR' : user.role.replace('_', ' ')}</small></div></div>
-    <div className="acct"><button className="acct-btn" onClick={() => setPw(true)}>🔑 Change password</button>
-      <button className="acct-btn out" onClick={() => { api('/auth/logout', { method: 'POST' }).catch(() => {}).finally(() => { setToken(null); setUser(null); }); }}>⎋ Log out</button></div></aside>
-    <main className="main">{page === 'dash' ? <Dashboard user={user} /> : page === 'docs' && user.role !== 'STATE' ? <DocVerification user={user} /> : page === 'seats' && user.role !== 'STATE' ? <SeatList user={user} /> : page === 'tc' ? <TcRequests user={user} />
-      : page === 'import' && user.role === 'SUPER_ADMIN' ? <ImportData /> : page === 'logs' && user.role === 'SUPER_ADMIN' ? <Logs /> : page === 'users' && user.role === 'SUPER_ADMIN' ? <UsersPage me={user} /> : <StudentDetails user={user} />}</main>{pw && <ChangePassword onClose={() => setPw(false)} />}</div>;
+  const Nav = ({ k, icon, label, badge }) => <button className={`nav ${page === k ? 'on' : ''}`} aria-current={page === k ? 'page' : undefined} onClick={() => { setPage(k); setMobileOpen(false); }}>
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d={IC[icon]} /></svg><span>{label}</span>{badge > 0 && <em className="nav-badge" aria-label={`${badge} waiting`}>{badge}</em>}
+  </button>;
+  const logout = (reason) => { if (typeof reason === 'string' && reason) setLogoutReason(reason); api('/auth/logout', { method: 'POST' }).catch(() => {}).finally(() => { setToken(null); setUser(null); if (typeof reason === 'string' && reason) window.location.reload(); }); };
+  return <div className={`shell ${mobileOpen ? 'menu-open' : ''}`}>
+    <button className="side-scrim" aria-label="Close navigation" onClick={() => setMobileOpen(false)} />
+    <aside className="side" aria-label="Main navigation">
+      <div className="brand"><img src="/emblem.png" alt="Government of Tamil Nadu emblem" /><div><strong>Admissions Portal</strong><small>Government of Tamil Nadu</small></div></div>
+      <div className="nav-caption">WORKSPACE</div>
+      <Nav k="dash" icon="seat" label="Dashboard" />
+      <Nav k="students" icon="users" label="Student Details" />
+      {user.role !== 'STATE' && <><div className="nav-caption">ADMISSION OPERATIONS</div><Nav k="seats" icon="seat" label="Vacancy Management" /><Nav k="docs" icon="ok" label="Document Verification" /></>}
+      <Nav k="tc" icon="doc" label="TC Requests" />
+      {user.role === 'SUPER_ADMIN' && <><div className="nav-caption">ADMINISTRATION</div><Nav k="import" icon="up" label="Import Data" /><Nav k="logs" icon="log" label="Audit Logs" /><Nav k="users" icon="users" label="Users & Access" /><Nav k="resets" icon="lock" label="Password Requests" badge={pendingResets} /></>}
+      <div className="side-spacer" />
+      <div className="side-security"><span className="security-dot" /> Secure administrative workspace</div>
+      <div className="me"><div className="av">{(user.username || 'U')[0]}</div><div className="me-copy"><strong>{user.username}</strong><small>{user.role === 'STATE' ? 'STATE COORDINATOR' : user.role.replaceAll('_', ' ')}</small></div></div>
+      <div className="acct"><button className="acct-btn" onClick={() => setPw(true)}>Change password</button><button className="acct-btn out" onClick={() => logout()}>Sign out</button></div>
+    </aside>
+    <main className="main">
+      <header className="topbar">
+        <div className="topbar-left"><button className="menu-toggle" aria-label="Open navigation" onClick={() => setMobileOpen(true)}><span></span><span></span><span></span></button><div><div className="eyebrow">ADMISSION MANAGEMENT SYSTEM</div><div className="topbar-title">{pageNames[page] || 'Admission Portal'}</div></div></div>
+        <div className="topbar-right"><div className="scope-chip session-chip" title={`Sessions end after ${IDLE_MINUTES} minutes of inactivity`}><span className="scope-dot"></span>Secure session</div><div className="scope-chip"><span className="scope-dot"></span>{['SUPER_ADMIN', 'STATE'].includes(user.role) ? 'All regions' : (user.region || user.district || 'Assigned region')}</div><div className="topbar-user"><div className="topbar-avatar">{(user.username || 'U')[0]}</div><div><strong>{user.username}</strong><small>{user.role === 'STATE' ? 'State Coordinator' : user.role.replaceAll('_', ' ')}</small></div></div></div>
+      </header>
+      <OfflineBanner /><div className="page-content">
+        {page === 'dash' ? <Dashboard user={user} /> : page === 'docs' && user.role !== 'STATE' ? <DocVerification user={user} /> : page === 'seats' && user.role !== 'STATE' ? <SeatList user={user} /> : page === 'tc' ? <TcRequests user={user} />
+          : page === 'import' && user.role === 'SUPER_ADMIN' ? <ImportData /> : page === 'logs' && user.role === 'SUPER_ADMIN' ? <Logs /> : page === 'users' && user.role === 'SUPER_ADMIN' ? <UsersPage me={user} /> : page === 'resets' && user.role === 'SUPER_ADMIN' ? <PasswordRequests onCount={setPendingResets} /> : <StudentDetails user={user} />}
+      </div>
+      <footer className="app-footer"><span>Government of Tamil Nadu · Admission Management System</span><span>Authorised access only</span></footer>
+    </main>
+    {pw && <ChangePassword username={user.username} onClose={() => setPw(false)} />}
+    <IdleGuard onExpire={logout} />
+  </div>;
 }

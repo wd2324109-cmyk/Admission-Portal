@@ -11,6 +11,7 @@ const ANY = 'any signed-in user', PUBLIC = 'public', ADMIN = ['SUPER_ADMIN'];
 const EXPECT = {
   'POST /auth/login': PUBLIC,
   'GET /auth/test-reset-status': PUBLIC,                  // only reports whether the test-only reset is on
+  'POST /auth/password-reset/request': PUBLIC, 'POST /auth/password-reset/complete': PUBLIC,   // nothing changes until a super admin approves; see passwordReset.service.impl.js
   'POST /auth/logout': ANY, 'GET /auth/session': ANY, 'POST /auth/change-password': ANY,
   'GET /dashboard': ANY,
   'GET /students': ANY, 'GET /students/:id': ANY,         // always limited to the caller's own district / region in the service
@@ -27,6 +28,7 @@ const EXPECT = {
   'POST /documents': ['DISTRICT'], 'POST /documents/:id/replace': ['DISTRICT'], 'POST /documents/:id/review': ADMIN,
   'GET /export/master': ANY, 'GET /export/vacancies': ANY,
   'GET /users': ADMIN, 'POST /users/:id/freeze': ADMIN, 'POST /users/:id/unfreeze': ADMIN,
+  'GET /password-resets': ADMIN, 'POST /password-resets/:id/approve': ADMIN, 'POST /password-resets/:id/reject': ADMIN,
 };
 const NO_STATE = new Set(['GET /documents', 'GET /documents/students', 'GET /documents/progress', 'GET /documents/:id/file']);
 

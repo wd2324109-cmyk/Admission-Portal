@@ -5,3 +5,4 @@ export * from './statusLogs.schema.js';
 export * from './auditLogs.schema.js';
 export * from './tcRequests.schema.js';
 export * from './seats.schema.js';
+export * from './passwordResets.schema.js';

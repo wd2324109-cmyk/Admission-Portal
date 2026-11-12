@@ -9,20 +9,13 @@ import { frozenUsers } from '../../common/freeze.js';
 import { HttpError } from '../../common/http.js';
 import { makeLimiter } from '../../common/rateLimit.js';
 import { TEST_RESET } from '../../common/testReset.js';
+import { checkNewPassword } from '../../common/password.js';
 import { AuthService } from '../auth.service.js';
 
 const byUser = makeLimiter({ max: 8 }), byIp = makeLimiter({ max: 30 });
 const resetByIp = makeLimiter({ max: 20 });
 const byPwChange = makeLimiter({ max: 5 });                         // wrong "current password" guesses, per account
 const DUMMY = bcrypt.hashSync('not-a-real-password', 12);           // same cost as real hashes, so unknown users take as long as known ones
-// bcrypt only reads the first 72 bytes, so a longer password would silently be cut short: refuse it instead.
-const checkNewPassword = (pw, username = '') => {
-  const p = String(pw);
-  if (p.length < 10) throw new HttpError('New password must be at least 10 characters');
-  if (Buffer.byteLength(p, 'utf8') > 72) throw new HttpError('New password is too long (72 bytes at most)');
-  if (username && p.toLowerCase().includes(String(username).toLowerCase())) throw new HttpError('New password must not contain the username');
-};
-
 export class AuthServiceImpl extends AuthService {
   async login({ body, ip, agent }) {
     const { username, password } = body || {};

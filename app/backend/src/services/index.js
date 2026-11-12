@@ -26,3 +26,5 @@ import { ExportServiceImpl } from './impl/export.service.impl.js';
 export const exportService = new ExportServiceImpl();
 import { UserServiceImpl } from './impl/user.service.impl.js';
 export const userService = new UserServiceImpl();
+import { PasswordResetServiceImpl } from './impl/passwordReset.service.impl.js';
+export const passwordResetService = new PasswordResetServiceImpl();

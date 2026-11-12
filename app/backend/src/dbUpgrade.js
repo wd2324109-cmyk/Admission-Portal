@@ -38,6 +38,15 @@ const required = [
   `CREATE INDEX IF NOT EXISTS audit_at_idx ON audit_logs (at)`,
   `CREATE INDEX IF NOT EXISTS audit_regno_idx ON audit_logs (regno)`,
   `CREATE INDEX IF NOT EXISTS audit_actor_idx ON audit_logs (actor)`,
+  // Password reset requests (user asks, super admin approves, user sets a new password with a one-time code)
+  `CREATE TABLE IF NOT EXISTS password_resets (
+     id serial PRIMARY KEY, user_id integer NOT NULL REFERENCES users (id) ON DELETE CASCADE, username text NOT NULL,
+     status text NOT NULL DEFAULT 'PENDING', requested_at timestamp NOT NULL, requested_ip text,
+     decided_by text, decided_at timestamp, decision_remarks text, code_hash text, expires_at timestamp,
+     attempts integer NOT NULL DEFAULT 0, completed_at timestamp)`,
+  `CREATE INDEX IF NOT EXISTS password_resets_user_idx ON password_resets (user_id, id)`,
+  `CREATE INDEX IF NOT EXISTS password_resets_status_idx ON password_resets (status)`,
+  `CREATE UNIQUE INDEX IF NOT EXISTS password_resets_open_uq ON password_resets (user_id) WHERE status IN ('PENDING', 'APPROVED')`,
   `CREATE INDEX IF NOT EXISTS students_class_admit_idx ON students (class_level, admit_status)`,
   `CREATE INDEX IF NOT EXISTS students_class_select_idx ON students (class_level, select_status)`,
   `CREATE INDEX IF NOT EXISTS students_district_idx ON students (district, class_level)`,
