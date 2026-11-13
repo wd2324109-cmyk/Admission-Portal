@@ -3,34 +3,25 @@
 import assert from 'node:assert';
 
 process.env.NODE_ENV = 'test';
-delete process.env.ENABLE_TEST_PASSWORD_RESET;
 const { default: api } = await import('../controllers/index.js');
 const { only } = await import('./auth.js');
 
-const ANY = 'any signed-in user', PUBLIC = 'public', ADMIN = ['SUPER_ADMIN'];
+const ANY = 'any signed-in user', PUBLIC = 'public', ADMIN = ['SUPER_ADMIN'], NOT_DMS = ['SUPER_ADMIN', 'STATE', 'REGION'];
 const EXPECT = {
   'POST /auth/login': PUBLIC,
-  'GET /auth/test-reset-status': PUBLIC,                  // only reports whether the test-only reset is on
-  'POST /auth/password-reset/request': PUBLIC, 'POST /auth/password-reset/complete': PUBLIC,   // nothing changes until a super admin approves; see passwordReset.service.impl.js
   'POST /auth/logout': ANY, 'GET /auth/session': ANY, 'POST /auth/change-password': ANY,
   'GET /dashboard': ANY,
-  'GET /students': ANY, 'GET /students/:id': ANY,         // always limited to the caller's own district / region in the service
-  'PATCH /students/:id': ['DISTRICT', 'SUPER_ADMIN'],
-  'POST /students/:id/revert': ADMIN, 'POST /students/:id/revert-tc': ADMIN, 'POST /students/:id/revoke-admission': ADMIN,
-  'GET /verification': ANY, 'POST /students/:id/verify': ADMIN,
-  'GET /vacancies': ANY,
-  'GET /seats': ['SUPER_ADMIN', 'REGION', 'DISTRICT'],
-  'POST /selection/run': ADMIN,
-  'GET /tc': ANY, 'GET /tc/:id/letter': ANY, 'POST /tc': ['DISTRICT'], 'POST /tc/:id/review': ['REGION', 'STATE', 'SUPER_ADMIN'],
+  'GET /students': ANY, 'GET /students/:cls/:id': ANY,                // always limited to the caller's own classes and districts in the service
+  'POST /students/:cls/:id/action': ANY,                               // which step a role may do is decided by workflow/transitions.js (tested in workflow.test.js)
+  'POST /students/:cls/:id/override': ADMIN,
+  'GET /vacancies': NOT_DMS, 'GET /seats': NOT_DMS, 'GET /tc': ANY,
+  'POST /rank/generate': ADMIN, 'POST /lists/generate': ADMIN,
   'POST /import/students': ADMIN, 'POST /import/vacancies': ADMIN,
-  'GET /logs': ADMIN, 'POST /logs/:id/revoke': ADMIN,
-  'GET /documents': ANY, 'GET /documents/students': ANY, 'GET /documents/progress': ANY, 'GET /documents/:id/file': ANY,   // these four also refuse STATE (noState)
-  'POST /documents': ['DISTRICT'], 'POST /documents/:id/replace': ['DISTRICT'], 'POST /documents/:id/review': ADMIN,
-  'GET /export/master': ANY, 'GET /export/vacancies': ANY,
-  'GET /users': ADMIN, 'POST /users/:id/freeze': ADMIN, 'POST /users/:id/unfreeze': ADMIN,
-  'GET /password-resets': ADMIN, 'POST /password-resets/:id/approve': ADMIN, 'POST /password-resets/:id/reject': ADMIN,
+  'GET /logs/students': ADMIN, 'GET /logs/vacancies': ADMIN,
+  'GET /export/master': ANY, 'GET /export/vacancies': NOT_DMS,
+  'GET /users': ADMIN, 'POST /users': ADMIN, 'POST /users/:id/reset-password': ADMIN, 'PUT /users/:id/access': ADMIN,
 };
-const NO_STATE = new Set(['GET /documents', 'GET /documents/students', 'GET /documents/progress', 'GET /documents/:id/file']);
+const NO_STATE = new Set();
 
 const found = {};
 for (const layer of api.stack) {
@@ -56,7 +47,6 @@ for (const [key, f] of Object.entries(found)) {
   assert.equal(f.noState, NO_STATE.has(key), `${key}: the "not for STATE" guard is wrong`);
 }
 for (const key of Object.keys(EXPECT)) assert(found[key], `EXPECT lists "${key}" but no such route exists`);
-assert(!found['POST /auth/test-reset-password'], 'the test-only password reset route must not be registered unless explicitly enabled');
 
 // The role guard itself: allows listed roles, refuses everyone else (and a missing user)
 const run = (guard, user) => { let out = 'next'; guard({ user }, { status: c => ({ json: () => { out = c; } }) }, () => {}); return out; };

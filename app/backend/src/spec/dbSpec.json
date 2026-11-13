@@ -1,0 +1,959 @@
+{
+ "source": "Admission_Portal_Database_Tables.docx",
+ "tables": [
+  {
+   "name": "users",
+   "columns": [
+    {
+     "name": "id",
+     "type": "serial"
+    },
+    {
+     "name": "username",
+     "type": "text"
+    },
+    {
+     "name": "password_hash",
+     "type": "text"
+    },
+    {
+     "name": "role",
+     "type": "text"
+    },
+    {
+     "name": "region",
+     "type": "text"
+    },
+    {
+     "name": "district",
+     "type": "text"
+    },
+    {
+     "name": "session_id",
+     "type": "text"
+    }
+   ]
+  },
+  {
+   "name": "access",
+   "columns": [
+    {
+     "name": "User",
+     "type": "text"
+    },
+    {
+     "name": "Class_level",
+     "type": "text"
+    },
+    {
+     "name": "tag",
+     "type": "text"
+    }
+   ]
+  },
+  {
+   "name": "Student_LOG",
+   "columns": [
+    {
+     "name": "id",
+     "type": "serial"
+    },
+    {
+     "name": "district",
+     "type": "text"
+    },
+    {
+     "name": "block",
+     "type": "text"
+    },
+    {
+     "name": "Udise",
+     "type": "text"
+    },
+    {
+     "name": "school_type",
+     "type": "text"
+    },
+    {
+     "name": "Schoolname",
+     "type": "text"
+    },
+    {
+     "name": "class",
+     "type": "text"
+    },
+    {
+     "name": "Emis",
+     "type": "integer"
+    },
+    {
+     "name": "Name",
+     "type": "text"
+    },
+    {
+     "name": "Dob",
+     "type": "text"
+    },
+    {
+     "name": "Gender",
+     "type": "text"
+    },
+    {
+     "name": "community",
+     "type": "text"
+    },
+    {
+     "name": "medium",
+     "type": "text"
+    },
+    {
+     "name": "Disability_status",
+     "type": "boolean"
+    },
+    {
+     "name": "Disability_desc",
+     "type": "text"
+    },
+    {
+     "name": "phone",
+     "type": "text"
+    },
+    {
+     "name": "address",
+     "type": "text"
+    },
+    {
+     "name": "pincode",
+     "type": "text"
+    },
+    {
+     "name": "mark1",
+     "type": "integer"
+    },
+    {
+     "name": "mark2",
+     "type": "integer"
+    },
+    {
+     "name": "mark3",
+     "type": "integer"
+    },
+    {
+     "name": "mark4",
+     "type": "integer"
+    },
+    {
+     "name": "mark5",
+     "type": "integer"
+    },
+    {
+     "name": "total",
+     "type": "integer"
+    },
+    {
+     "name": "pass",
+     "type": "text"
+    },
+    {
+     "name": "regno",
+     "type": "integer"
+    },
+    {
+     "name": "orank",
+     "type": "integer"
+    },
+    {
+     "name": "select_status",
+     "type": "text"
+    },
+    {
+     "name": "selected_category",
+     "type": "text"
+    },
+    {
+     "name": "admit_status",
+     "type": "text"
+    },
+    {
+     "name": "New_distc_name",
+     "type": "text"
+    },
+    {
+     "name": "New_udise_type",
+     "type": "text"
+    },
+    {
+     "name": "New_udise_code",
+     "type": "text"
+    },
+    {
+     "name": "New_school_name",
+     "type": "text"
+    },
+    {
+     "name": "tag1",
+     "type": "text"
+    },
+    {
+     "name": "remark1",
+     "type": "text"
+    },
+    {
+     "name": "tag2",
+     "type": "text"
+    },
+    {
+     "name": "remark2",
+     "type": "text"
+    },
+    {
+     "name": "Update_status_before",
+     "type": "text"
+    },
+    {
+     "name": "Update_status_after",
+     "type": "text"
+    },
+    {
+     "name": "updated_by",
+     "type": "text"
+    },
+    {
+     "name": "updated_at",
+     "type": "timestamp"
+    }
+   ]
+  },
+  {
+   "name": "VACANCY_logs",
+   "columns": [
+    {
+     "name": "id",
+     "type": "serial"
+    },
+    {
+     "name": "New_district",
+     "type": "text"
+    },
+    {
+     "name": "New_udise_type",
+     "type": "text"
+    },
+    {
+     "name": "New_udise_code",
+     "type": "text"
+    },
+    {
+     "name": "New_school_name",
+     "type": "text"
+    },
+    {
+     "name": "Group_code",
+     "type": "text"
+    },
+    {
+     "name": "Group_desc",
+     "type": "text"
+    },
+    {
+     "name": "class_level",
+     "type": "integer"
+    },
+    {
+     "name": "gender",
+     "type": "text"
+    },
+    {
+     "name": "medium",
+     "type": "text"
+    },
+    {
+     "name": "community",
+     "type": "text"
+    },
+    {
+     "name": "Vacancy_Ref_no",
+     "type": "integer"
+    },
+    {
+     "name": "Vacancy_status",
+     "type": "text"
+    },
+    {
+     "name": "Update_status_before",
+     "type": "text"
+    },
+    {
+     "name": "Update_status_after",
+     "type": "text"
+    },
+    {
+     "name": "updated_by",
+     "type": "text"
+    },
+    {
+     "name": "updated_at",
+     "type": "timestamp"
+    }
+   ]
+  },
+  {
+   "name": "Students_master_9th",
+   "columns": [
+    {
+     "name": "id",
+     "type": "serial"
+    },
+    {
+     "name": "district",
+     "type": "text"
+    },
+    {
+     "name": "block",
+     "type": "text"
+    },
+    {
+     "name": "Udise",
+     "type": "text"
+    },
+    {
+     "name": "school_type",
+     "type": "text"
+    },
+    {
+     "name": "Schoolname",
+     "type": "text"
+    },
+    {
+     "name": "class",
+     "type": "text"
+    },
+    {
+     "name": "Emis",
+     "type": "integer"
+    },
+    {
+     "name": "Name",
+     "type": "text"
+    },
+    {
+     "name": "Dob",
+     "type": "text"
+    },
+    {
+     "name": "Gender",
+     "type": "text"
+    },
+    {
+     "name": "community",
+     "type": "text"
+    },
+    {
+     "name": "medium",
+     "type": "text"
+    },
+    {
+     "name": "Disability_status",
+     "type": "boolean"
+    },
+    {
+     "name": "Disability_desc",
+     "type": "text"
+    },
+    {
+     "name": "Father_name",
+     "type": "text"
+    },
+    {
+     "name": "Mother_name",
+     "type": "text"
+    },
+    {
+     "name": "Phone",
+     "type": "text"
+    },
+    {
+     "name": "address",
+     "type": "text"
+    },
+    {
+     "name": "pincode",
+     "type": "text"
+    },
+    {
+     "name": "mark1-quertly",
+     "type": "integer"
+    },
+    {
+     "name": "mark2-half",
+     "type": "integer"
+    },
+    {
+     "name": "Total-highest of two",
+     "type": "integer"
+    },
+    {
+     "name": "pass",
+     "type": "text"
+    },
+    {
+     "name": "nmss",
+     "type": "integer"
+    },
+    {
+     "name": "Trust",
+     "type": "text"
+    },
+    {
+     "name": "Other marks",
+     "type": "integer"
+    },
+    {
+     "name": "orank",
+     "type": "integer"
+    },
+    {
+     "name": "select_status",
+     "type": "text"
+    },
+    {
+     "name": "selected_category",
+     "type": "text"
+    },
+    {
+     "name": "admit_status",
+     "type": "text"
+    },
+    {
+     "name": "New_distc_name",
+     "type": "text"
+    },
+    {
+     "name": "New_udise_type",
+     "type": "text"
+    },
+    {
+     "name": "New_udise_code",
+     "type": "text"
+    },
+    {
+     "name": "New_school_name",
+     "type": "text"
+    },
+    {
+     "name": "tag1",
+     "type": "text"
+    },
+    {
+     "name": "remark1",
+     "type": "text"
+    },
+    {
+     "name": "tag2",
+     "type": "text"
+    },
+    {
+     "name": "remark2",
+     "type": "text"
+    }
+   ]
+  },
+  {
+   "name": "Vacancies_9th",
+   "columns": [
+    {
+     "name": "id",
+     "type": "serial"
+    },
+    {
+     "name": "New_district",
+     "type": "text"
+    },
+    {
+     "name": "New_udise_type",
+     "type": "text"
+    },
+    {
+     "name": "New_udise_code",
+     "type": "text"
+    },
+    {
+     "name": "New_school_name",
+     "type": "text"
+    },
+    {
+     "name": "Group_code",
+     "type": "text"
+    },
+    {
+     "name": "Group_desc",
+     "type": "text"
+    },
+    {
+     "name": "class_level",
+     "type": "integer"
+    },
+    {
+     "name": "gender",
+     "type": "text"
+    },
+    {
+     "name": "medium",
+     "type": "text"
+    },
+    {
+     "name": "community",
+     "type": "text"
+    },
+    {
+     "name": "Vacancy_Ref_no",
+     "type": "integer"
+    },
+    {
+     "name": "Vacancy_status",
+     "type": "text"
+    },
+    {
+     "name": "remarks",
+     "type": "text"
+    }
+   ]
+  },
+  {
+   "name": "Students_master_10th",
+   "columns": [
+    {
+     "name": "id",
+     "type": "serial"
+    },
+    {
+     "name": "district",
+     "type": "text"
+    },
+    {
+     "name": "block",
+     "type": "text"
+    },
+    {
+     "name": "Udise",
+     "type": "text"
+    },
+    {
+     "name": "school_type",
+     "type": "text"
+    },
+    {
+     "name": "Schoolname",
+     "type": "text"
+    },
+    {
+     "name": "class",
+     "type": "text"
+    },
+    {
+     "name": "Emis",
+     "type": "integer"
+    },
+    {
+     "name": "Name",
+     "type": "text"
+    },
+    {
+     "name": "Dob",
+     "type": "text"
+    },
+    {
+     "name": "Gender",
+     "type": "text"
+    },
+    {
+     "name": "community",
+     "type": "text"
+    },
+    {
+     "name": "medium",
+     "type": "text"
+    },
+    {
+     "name": "Disability_status",
+     "type": "boolean"
+    },
+    {
+     "name": "Disability_desc",
+     "type": "text"
+    },
+    {
+     "name": "Father_name",
+     "type": "text"
+    },
+    {
+     "name": "Mother_name",
+     "type": "text"
+    },
+    {
+     "name": "Phone",
+     "type": "text"
+    },
+    {
+     "name": "address",
+     "type": "text"
+    },
+    {
+     "name": "pincode",
+     "type": "text"
+    },
+    {
+     "name": "mark1-quertly",
+     "type": "integer"
+    },
+    {
+     "name": "mark2-half",
+     "type": "integer"
+    },
+    {
+     "name": "Total-highest of two",
+     "type": "integer"
+    },
+    {
+     "name": "pass",
+     "type": "text"
+    },
+    {
+     "name": "nmss",
+     "type": "integer"
+    },
+    {
+     "name": "Trust",
+     "type": "text"
+    },
+    {
+     "name": "Other marks",
+     "type": "integer"
+    },
+    {
+     "name": "orank",
+     "type": "integer"
+    },
+    {
+     "name": "select_status",
+     "type": "text"
+    },
+    {
+     "name": "selected_category",
+     "type": "text"
+    },
+    {
+     "name": "admit_status",
+     "type": "text"
+    },
+    {
+     "name": "New_distc_name",
+     "type": "text"
+    },
+    {
+     "name": "New_udise_type",
+     "type": "text"
+    },
+    {
+     "name": "New_udise_code",
+     "type": "text"
+    },
+    {
+     "name": "New_school_name",
+     "type": "text"
+    },
+    {
+     "name": "tag1",
+     "type": "text"
+    },
+    {
+     "name": "remark1",
+     "type": "text"
+    },
+    {
+     "name": "tag2",
+     "type": "text"
+    }
+   ]
+  },
+  {
+   "name": "Vacancies_10th",
+   "columns": [
+    {
+     "name": "id",
+     "type": "serial"
+    },
+    {
+     "name": "New_district",
+     "type": "text"
+    },
+    {
+     "name": "New_udise_type",
+     "type": "text"
+    },
+    {
+     "name": "New_udise_code",
+     "type": "text"
+    },
+    {
+     "name": "New_school_name",
+     "type": "text"
+    },
+    {
+     "name": "Group_code",
+     "type": "text"
+    },
+    {
+     "name": "Group_desc",
+     "type": "text"
+    },
+    {
+     "name": "class_level",
+     "type": "integer"
+    },
+    {
+     "name": "gender",
+     "type": "text"
+    },
+    {
+     "name": "medium",
+     "type": "text"
+    },
+    {
+     "name": "community",
+     "type": "text"
+    },
+    {
+     "name": "Vacancy_Ref_no",
+     "type": "integer"
+    },
+    {
+     "name": "Vacancy_status",
+     "type": "text"
+    },
+    {
+     "name": "remarks",
+     "type": "text"
+    }
+   ]
+  },
+  {
+   "name": "Students_master_11th",
+   "columns": [
+    {
+     "name": "id",
+     "type": "serial"
+    },
+    {
+     "name": "district",
+     "type": "text"
+    },
+    {
+     "name": "block",
+     "type": "text"
+    },
+    {
+     "name": "Udise",
+     "type": "text"
+    },
+    {
+     "name": "school_type",
+     "type": "text"
+    },
+    {
+     "name": "Schoolname",
+     "type": "text"
+    },
+    {
+     "name": "class",
+     "type": "text"
+    },
+    {
+     "name": "Emis",
+     "type": "integer"
+    },
+    {
+     "name": "Name",
+     "type": "text"
+    },
+    {
+     "name": "Dob",
+     "type": "text"
+    },
+    {
+     "name": "Gender",
+     "type": "text"
+    },
+    {
+     "name": "community",
+     "type": "text"
+    },
+    {
+     "name": "medium",
+     "type": "text"
+    },
+    {
+     "name": "Disability_status",
+     "type": "boolean"
+    },
+    {
+     "name": "Disability_desc",
+     "type": "text"
+    },
+    {
+     "name": "phone",
+     "type": "text"
+    },
+    {
+     "name": "address",
+     "type": "text"
+    },
+    {
+     "name": "pincode",
+     "type": "text"
+    },
+    {
+     "name": "mark1",
+     "type": "integer"
+    },
+    {
+     "name": "mark2",
+     "type": "integer"
+    },
+    {
+     "name": "mark3",
+     "type": "integer"
+    },
+    {
+     "name": "mark4",
+     "type": "integer"
+    },
+    {
+     "name": "mark5",
+     "type": "integer"
+    },
+    {
+     "name": "total",
+     "type": "integer"
+    },
+    {
+     "name": "pass",
+     "type": "text"
+    },
+    {
+     "name": "regno",
+     "type": "integer"
+    },
+    {
+     "name": "orank",
+     "type": "integer"
+    },
+    {
+     "name": "select_status",
+     "type": "text"
+    },
+    {
+     "name": "selected_category",
+     "type": "text"
+    },
+    {
+     "name": "admit_status",
+     "type": "text"
+    },
+    {
+     "name": "New_distc_name",
+     "type": "text"
+    },
+    {
+     "name": "New_udise_type",
+     "type": "text"
+    },
+    {
+     "name": "New_udise_code",
+     "type": "text"
+    },
+    {
+     "name": "New_school_name",
+     "type": "text"
+    },
+    {
+     "name": "tag1",
+     "type": "text"
+    },
+    {
+     "name": "remark1",
+     "type": "text"
+    },
+    {
+     "name": "tag2",
+     "type": "text"
+    },
+    {
+     "name": "remark2",
+     "type": "text"
+    }
+   ]
+  },
+  {
+   "name": "Vacancies_11th",
+   "columns": [
+    {
+     "name": "id",
+     "type": "serial"
+    },
+    {
+     "name": "New_district",
+     "type": "text"
+    },
+    {
+     "name": "New_udise_type",
+     "type": "text"
+    },
+    {
+     "name": "New_udise_code",
+     "type": "text"
+    },
+    {
+     "name": "New_school_name",
+     "type": "text"
+    },
+    {
+     "name": "Group_code",
+     "type": "text"
+    },
+    {
+     "name": "Group_desc",
+     "type": "text"
+    },
+    {
+     "name": "class_level",
+     "type": "integer"
+    },
+    {
+     "name": "gender",
+     "type": "text"
+    },
+    {
+     "name": "medium",
+     "type": "text"
+    },
+    {
+     "name": "community",
+     "type": "text"
+    },
+    {
+     "name": "Vacancy_Ref_no",
+     "type": "integer"
+    },
+    {
+     "name": "Vacancy_status",
+     "type": "text"
+    },
+    {
+     "name": "remarks",
+     "type": "text"
+    }
+   ]
+  }
+ ]
+}

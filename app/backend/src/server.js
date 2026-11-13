@@ -3,22 +3,10 @@ import fs from 'node:fs'; import path from 'node:path';
 import express from 'express'; import cors from 'cors';
 import { notFound, errorHandler } from './common/http.js';
 import api from './controllers/index.js';
-import { verifyToken, auth } from './common/auth.js';
+import { auth } from './common/auth.js';
 import { securityHeaders, apiHeaders, corsMiddleware } from './common/hardening.js';
 import { rateLimit } from './common/rateLimit.js';
-import { db, pool } from './db/index.js';
-import { audit } from './common/audit.js';
-
-const VIEW = [
-  [/^\/dashboard$/, () => 'Viewed the dashboard'],
-  [/^\/students$/, q => (!q.search && (+q.page || 1) === 1 ? `Viewed Class ${q.class} students: ${q.view || 'all'}` : null)],
-  [/^\/students\/\d+$/, () => 'Opened a student record'],
-  [/^\/documents\/students$/, q => `Viewed document verification: ${q.status || 'all'}`],
-  [/^\/documents\/\d+-\d+\/file$/, () => 'Opened a student document'],
-  [/^\/seats$/, q => (!q.search && (+q.page || 1) === 1 ? `Viewed seats: Class ${q.class || 'all'}, ${q.status || 'all'}` : null)],
-  [/^\/tc$/, q => `Viewed TC requests: ${q.status || 'all'}`],
-  [/^\/tc\/\d+\/letter$/, () => 'Opened a TC letter'],
-];
+import { pool } from './db/index.js';
 
 const app = express();
 app.disable('x-powered-by');
@@ -36,31 +24,16 @@ const WINDOW = 60 * 1000;
 app.use('/api', rateLimit({ max: +process.env.API_RATE_LIMIT_PER_MIN || 2000, windowMs: WINDOW }));
 const heavy = rateLimit({ max: +process.env.HEAVY_RATE_LIMIT_PER_MIN || 60, windowMs: WINDOW, message: 'Too many import, export or upload requests. Please wait a minute and try again.' });
 const writesOnly = mw => (req, res, next) => (req.method === 'GET' || req.method === 'HEAD' || req.method === 'OPTIONS' ? next() : mw(req, res, next));
-app.use(['/api/export', '/api/import', '/api/selection'], heavy);
-app.use(['/api/documents', '/api/tc'], writesOnly(heavy));
+app.use(['/api/export', '/api/import', '/api/lists', '/api/rank'], heavy);
 
-// Request size limits. The large bodies (an Excel import, an uploaded letter or document) are read ONLY for a signed-in
-// user, so a stranger cannot make the server buffer megabytes before being turned away. Uploaded files are at most 3 MB
-// (about 4 MB as base64), so 6 MB is plenty for them; only the Excel import needs the big limit.
+// Request size limits: only the Excel imports need a big body, and only for a signed-in user.
 const signedIn = writesOnly(auth);
 app.use('/api/import', signedIn, express.json({ limit: '25mb' }));
-app.use(['/api/documents', '/api/tc'], signedIn, express.json({ limit: '6mb' }));
 app.use(express.json({ limit: '100kb' }));
 app.use('/api', apiHeaders);
 
 app.get('/api/health', async (req, res) => {
   try { await pool.query('select 1'); res.json({ ok: true }); } catch { res.status(503).json({ ok: false }); }
-});
-app.use('/api', (req, res, next) => {
-  res.on('finish', async () => {
-    try {
-      if (req.method !== 'GET' || res.statusCode >= 400) return;
-      const hit = VIEW.find(([re]) => re.test(req.path)), msg = hit && hit[1](req.query);
-      if (!msg) return;
-      await audit(db, { user: verifyToken((req.headers.authorization || '').replace('Bearer ', '')) }, { action: 'VIEW', message: msg });
-    } catch {}
-  });
-  next();
 });
 app.use('/api', api);
 app.use('/api', notFound);
@@ -83,5 +56,7 @@ app.use(errorHandler);
 
 const port = process.env.PORT || 4000;
 const server = app.listen(port, () => console.log('API on :' + port));
+// A failed background database call must not take the whole portal down: print the real reason and keep serving.
+process.on('unhandledRejection', e => console.error('\n!! Unhandled error (the server keeps running):', e?.message || e, '\n', e?.stack || ''));
 const stop = () => { server.close(() => pool.end().finally(() => process.exit(0))); setTimeout(() => process.exit(1), 10000).unref(); };
 process.on('SIGTERM', stop); process.on('SIGINT', stop);

@@ -16,14 +16,9 @@ services:
     plan: starter                # paid; needed for the disk, and it does not sleep
     rootDir: app
     buildCommand: cd frontend && npm ci && npm run build && cd ../backend && npm ci --include=dev
-    # db:deploy = one-time cleanup + table sync + indexes/checks + super admin. It runs here (not as a
-    # pre-deploy command) because the cleanup may write document records to the disk.
+    # db:deploy = create the 10 tables of the database document, verify them against it, create the first logins.
     startCommand: cd backend && npm run db:deploy && node src/server.js
     healthCheckPath: /api/health
-    disk:
-      name: uploads
-      mountPath: /var/data
-      sizeGB: 2
     envVars:
       - key: NODE_ENV
         value: production
@@ -39,8 +34,6 @@ services:
         sync: false                    # you type it in the dashboard; it is never printed in the logs
       - key: SEED_STATE_PASSWORD
         sync: false                    # password of the "state_coordinator" login (created on first start)
-      - key: UPLOADS_DIR
-        value: /var/data/uploads
       - key: TRUST_PROXY
         value: "true"
       - key: SESSION_IDLE_MINUTES
