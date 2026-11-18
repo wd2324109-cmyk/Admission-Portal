@@ -19,6 +19,11 @@ services:
     # db:deploy = create the 10 tables of the database document, verify them against it, create the first logins.
     startCommand: cd backend && npm run db:deploy && node src/server.js
     healthCheckPath: /api/health
+    # Persistent disk: the unwilling letters (and any other upload) are saved here, so they survive every deploy.
+    disk:
+      name: uploads
+      mountPath: /var/data
+      sizeGB: 1
     envVars:
       - key: NODE_ENV
         value: production
@@ -34,6 +39,8 @@ services:
         sync: false                    # you type it in the dashboard; it is never printed in the logs
       - key: SEED_STATE_PASSWORD
         sync: false                    # password of the "state_coordinator" login (created on first start)
+      - key: UPLOADS_DIR
+        value: /var/data/uploads
       - key: TRUST_PROXY
         value: "true"
       - key: SESSION_IDLE_MINUTES

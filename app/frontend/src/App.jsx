@@ -40,11 +40,11 @@ const Icon = ({ n }) => <svg viewBox="0 0 24 24"><path d={IC[n]} /></svg>;
 const Stat = ({ icon, color, label, value, note }) => <div className="card stat"><div className={`chip ${color}`}><Icon n={icon} /></div>
   <div><span>{label}</span><b>{value.toLocaleString()}</b>{note && <small>{note}</small>}</div></div>;
 
-const KEYS = [['notlisted', 'Not listed', '#9aa5bd'], ['waiting', 'Waiting', '#e8a317'], ['selected', 'Selected', '#3b5bdb'], ['joined', 'Joined', '#12a36b'], ['notwilling', 'Not Willing', '#e5484d'], ['notjoined', 'Not Joined', '#ff8f6b'], ['tc', 'TC', '#7c4dff']];
-// The DMS (DISTRICT) works with six groups only: Pending, Selected, Joined, Not Willing, Not Joined, TC.
+const KEYS = [['notlisted', 'Not listed', '#9aa5bd'], ['waiting', 'Waiting', '#e8a317'], ['selected', 'Selected', '#3b5bdb'], ['joined', 'Joined', '#12a36b'], ['notwilling', 'Not Willing', '#e5484d'], ['notjoinedpending', 'Not Joined - Pending', '#f2a65a'], ['notjoined', 'Not Joined', '#ff8f6b'], ['tc', 'TC', '#7c4dff']];
+// The DMS (DISTRICT) works with six groups only: Pending, Selected, Joined, Not Willing, Not Joined - Pending (waiting for the RC), Not Joined, TC.
 const DMS_KEYS = KEYS.filter(([k]) => k !== 'notlisted').map(([k, l, c]) => [k, k === 'waiting' ? 'Pending' : l, c]);
 const keysFor = user => (user.role === 'DISTRICT' ? DMS_KEYS : KEYS);
-const ICON = { notlisted: ['users', 'blue'], waiting: ['clock', 'amber'], selected: ['star', 'blue'], joined: ['ok', 'green'], notwilling: ['no', 'red'], notjoined: ['no', 'red'], tc: ['doc', 'violet'] };
+const ICON = { notlisted: ['users', 'blue'], waiting: ['clock', 'amber'], selected: ['star', 'blue'], joined: ['ok', 'green'], notwilling: ['no', 'red'], notjoinedpending: ['clock', 'amber'], notjoined: ['no', 'red'], tc: ['doc', 'violet'] };
 const Legend = ({ keys }) => <div style={{ display: 'flex', gap: 14, fontSize: 12, color: 'var(--mute)', marginBottom: 12, flexWrap: 'wrap' }}>{keys.map(([k, l, c]) =>
   <span key={k}><i style={{ display: 'inline-block', width: 9, height: 9, borderRadius: '50%', background: c, marginRight: 5 }} />{l}</span>)}</div>;
 
@@ -96,37 +96,39 @@ function Dashboard({ user }) {
 
 // ---- Students: the flowchart statuses (1A 1B 2A 6A / 3A 3B 7A 7B 8A 8B)
 const CODE = { '1A': 'Waiting', '1B': 'Waiting (reconsidered)', '2A': 'Selected', '6A': 'Not Willing', '3A': 'Joined by HM', '3B': 'Joined by RC', '7A': 'Not Joined - Pending Approval', '7B': 'Not Joined - Approved', '8A': 'TC-Waiting', '8B': 'TC Issued' };
-const GROUP_CLASS = { notlisted: 'PENDING', waiting: 'PENDING', selected: 'Selected', notwilling: 'NotAdmitted', joined: 'Admitted', notjoined: 'NotAdmitted', tc: 'TCIssued' };
-const StatusBadge = ({ r }) => <span className={`badge ${GROUP_CLASS[r.group] || ''}`}>{r.statusCode ? `${r.statusCode} ${CODE[r.statusCode]}` : 'Not listed'}</span>;
-const TABS = [['all', 'All'], ['notlisted', 'Not listed'], ['waiting', 'Waiting'], ['selected', 'Selected'], ['joined', 'Joined'], ['notwilling', 'Not Willing'], ['notjoined', 'Not Joined'], ['tc', 'TC']];
+const GROUP_CLASS = { notlisted: 'PENDING', waiting: 'PENDING', selected: 'Selected', notwilling: 'NotAdmitted', joined: 'Admitted', notjoinedpending: 'PENDING', notjoined: 'NotAdmitted', tc: 'TCIssued' };
+const StatusBadge = ({ r }) => <span className={`badge ${GROUP_CLASS[r.group] || ''}`}>{r.statusCode ? CODE[r.statusCode] : 'Not listed'}</span>;
+const TABS = [['all', 'All'], ['notlisted', 'Not listed'], ['waiting', 'Waiting'], ['selected', 'Selected'], ['joined', 'Joined'], ['notwilling', 'Not Willing'], ['notjoinedpending', 'Not Joined - Pending'], ['notjoined', 'Not Joined'], ['tc', 'TC']];
 const ALL_CODES = ['', '1A', '1B', '2A', '6A', '3A', '3B', '7A', '7B', '8A', '8B'];
 // select_status = the status code (every one of the ten); admit_status = the description of that code.
-const selectOf = r => r.selectStatus || '—', admitOf = r => r.admitStatus || '—';
+const selectOf = r => r.selectStatus || '—', admitOf = r => (r.statusCode ? CODE[r.statusCode] : r.admitStatus) || '—', stageOf = c => CODE[c] || c || 'start';
 
 function StudentModal({ cls, id, user, onClose, onChange }) {
-  const [s, setS] = useState(null), [err, setErr] = useState(''), [remarks, setRemarks] = useState(''), [ov, setOv] = useState({ code: '', remarks: '' }), [busy, setBusy] = useState(false);
+  const [s, setS] = useState(null), [err, setErr] = useState(''), [remarks, setRemarks] = useState(''), [ov, setOv] = useState({ code: '', remarks: '' }), [busy, setBusy] = useState(false), [letter, setLetter] = useState(null);
   const load = () => api(`/students/${cls}/${id}`).then(x => { setS(x); setOv(o => ({ ...o, code: x.state.code })); }).catch(e => setErr(e.message)); useEffect(() => { load(); }, [id]);
   if (!s) return err ? <div className="modal" role="dialog" aria-modal="true" onClick={onClose}><div className="panel"><p className="err">{err}</p></div></div> : null;
   const run = async fn => { try { setBusy(true); await fn(); setErr(''); setRemarks(''); await load(); onChange(); } catch (e) { setErr(e.message); } finally { setBusy(false); } };
-  const go = a => run(() => api(`/students/${cls}/${id}/action`, { method: 'POST', body: { action: a.key, remarks } }));
+  const pickLetter = f => { if (!f) return setLetter(null); const r = new FileReader(); r.onload = () => setLetter({ name: f.name, data: String(r.result).split(',')[1] || '' }); r.readAsDataURL(f); };
+  const go = a => { if (a.needsLetter && !letter) return setErr('Upload the unwilling letter (PDF, JPG or PNG, under 3 MB) before marking Not Willing'); run(async () => { await api(`/students/${cls}/${id}/action`, { method: 'POST', body: { action: a.key, remarks, ...(a.needsLetter ? { fileName: letter.name, fileData: letter.data } : {}) } }); setLetter(null); }); };
   const needs = s.actions.some(a => a.needsRemarks);
-  const rows = [['EMIS', s.emis], ['Class', s.classLevel], ['Select status', selectOf(s)], ['Admit status', admitOf(s)], ['Gender / Medium', `${s.gender} / ${s.medium}`], ['Community', s.community + (s.disabilityStatus ? ' (PWD)' : '')],
+  const rows = [['EMIS', s.emis], ['Class', s.classLevel], ['Admit status', admitOf(s)], ['Gender / Medium', `${s.gender} / ${s.medium}`], ['Community', s.community + (s.disabilityStatus ? ' (PWD)' : '')],
     ['Father / Mother', `${s.fatherName || '—'} / ${s.motherName || '—'}`], ['District / Block', `${s.district || '—'} / ${s.block || '—'}`], ['School', s.schoolname], ['Phone', s.phone || '—'], ['Address', [s.address, s.pincode].filter(Boolean).join(' - ') || '—'],
     ['Quarterly / Half-yearly', `${s.mark1 ?? '—'} / ${s.mark2 ?? '—'}`],
     ['Overall rank', s.orank ?? '—'], ['Total (highest of two)', s.total ?? '—'], ['NMMS / TRUST / Other marks', [s.nmss, s.trust, s.otherMarks].map(v => v ?? '—').join(' / ')],
-    ['Allotted to', s.newSchoolName ? `${s.newSchoolName} (${s.newDistcName})` : '—'], ['Seat category', s.selectedCategory || '—'], ['Note', s.remark1 ? `${s.tag1}: ${s.remark1}` : '—']];
+    ['Allotted to', s.newSchoolName ? `${s.newSchoolName} (${s.newDistcName})` : '—'], ['Seat category', s.selectedCategory || '—'], ['Note', s.remark1 || '—'], ...(s.letter ? [['Unwilling letter', <button key="l" onClick={() => downloadFile(`/students/${cls}/${id}/letter`).catch(e => setErr(e.message))}>{s.letter.fileName}</button>]] : [])];
   return <div className="modal" role="dialog" aria-modal="true" onClick={onClose}><div className="panel" onClick={e => e.stopPropagation()}>
     <h3>{s.name} <StatusBadge r={s} /></h3>
     <table><tbody>{rows.map(([k, v]) => <tr key={k}><th>{k}</th><td>{v}</td></tr>)}</tbody></table>
     {s.actions.length > 0 && <><h4>Next step</h4>
+      {s.actions.some(a => a.needsLetter) && <p><label>Unwilling letter (PDF, JPG or PNG, under 3 MB) <input type="file" accept=".pdf,.jpg,.jpeg,.png" onChange={e => pickLetter(e.target.files[0])} /></label></p>}
       {needs && <textarea rows="2" style={{ width: '100%' }} aria-label="Remarks" placeholder="Remarks / reason" value={remarks} onChange={e => setRemarks(e.target.value)} />}
-      <div className="row2">{s.actions.map(a => <button key={a.key} className={/NOT_|REJECT/.test(a.key) ? 'bad' : 'pri'} disabled={busy} onClick={() => go(a)}>{a.label}</button>)}</div></>}
+      <div className="row2">{s.actions.map(a => <button key={a.key} className={/^NOT_|REJECT/.test(a.key) ? 'bad' : 'pri'} disabled={busy} onClick={() => go(a)}>{a.label}</button>)}</div></>}
     {user.role === 'SUPER_ADMIN' && <><h4>Correction (super admin)</h4>
-      <div className="row2"><select aria-label="Status" value={ov.code} onChange={e => setOv({ ...ov, code: e.target.value })}>{ALL_CODES.map(c => <option key={c} value={c}>{c ? `${c} ${CODE[c]}` : 'Not listed (clear)'}</option>)}</select></div>
+      <div className="row2"><select aria-label="Status" value={ov.code} onChange={e => setOv({ ...ov, code: e.target.value })}>{ALL_CODES.map(c => <option key={c} value={c}>{c ? CODE[c] : 'Not listed (clear)'}</option>)}</select></div>
       <textarea rows="2" style={{ width: '100%' }} aria-label="Remarks (required)" placeholder="Reason for the correction (required)" value={ov.remarks} onChange={e => setOv({ ...ov, remarks: e.target.value })} />
       <div className="row2"><button className="bad" disabled={busy} onClick={() => window.confirm('Force this status? The seat and the logs are updated.') && run(() => api(`/students/${cls}/${id}/override`, { method: 'POST', body: ov }))}>Apply correction</button></div></>}
     {err && <p className="err">{err}</p>}
-    <h4>History</h4>{s.logs.map(l => <div key={l.id}><small>{new Date(l.at).toLocaleString()} · {l.by} · {l.before || 'start'} → {l.after || 'none'}{l.remarks ? ` · ${l.remarks}` : ''}</small></div>)}
+    {user.role === 'SUPER_ADMIN' && <><h4>History</h4>{s.logs.map(l => <div key={l.id}><small>{new Date(l.at).toLocaleString()} · {l.by} · {stageOf(l.before)} → {l.after ? stageOf(l.after) : 'none'}{l.remarks ? ` · ${l.remarks}` : ''}</small></div>)}</>}
     <div className="row2"><button onClick={onClose}>Close</button></div></div></div>;
 }
 
@@ -144,20 +146,18 @@ function StudentDetails({ user }) {
     return () => { stale = true; };
   }, [cls, tab, q, status, page, reload]);
   // DMS: from the Pending or Selected tab a student is marked Joined in one click; Not joined opens the record because a reason is required.
-  const markJoined = async r => { if (!window.confirm(`Mark ${r.name} as joined?`)) return; try { await api(`/students/${cls}/${r.id}/action`, { method: 'POST', body: { action: 'JOINED_HM', remarks: '' } }); setReload(n => n + 1); } catch (e) { setListErr(e.message); } };
   return <>
     <div className="head"><h1>Student Details</h1></div>
     <ClassTabs user={user} cls={cls} setCls={setCls} />
     <div className="tabs">{(user.role === 'DISTRICT' ? DMS_KEYS.map(([k, l]) => [k, l]) : TABS).map(([k, l]) => <button key={k} className={tab === k ? 'on' : ''} onClick={() => setTab(k)}>{l}</button>)}</div>
     <div className="panel">
       <div className="row2"><input aria-label="Search name / EMIS" placeholder="Search name / EMIS" value={search} onChange={e => setSearch(e.target.value)} />
-        {user.role !== 'DISTRICT' && <select aria-label="Select status" value={status} onChange={e => setStatus(e.target.value)}><option value="">Every status</option>{ALL_CODES.filter(Boolean).map(c => <option key={c} value={c}>{c} · {CODE[c]}</option>)}</select>}
+        {user.role !== 'DISTRICT' && <select aria-label="Status" value={status} onChange={e => setStatus(e.target.value)}><option value="">All statuses</option>{ALL_CODES.filter(Boolean).map(c => <option key={c} value={c}>{CODE[c]}</option>)}</select>}
         <button onClick={() => downloadFile(`/export/master?class=${cls}`).catch(e => setListErr(e.message))}>Download Excel</button></div>
       {listErr && <p className="err">{listErr}</p>}
-      <table><thead><tr><th>EMIS</th><th>Name</th><th>District</th><th>Comm.</th><th>Rank</th><th>Seat</th><th>Select status</th><th>Admit status</th><th>Next step</th></tr></thead>
-        <tbody>{data.rows.map(r => <tr className="row" key={r.id} onClick={() => setOpen(r.id)}>
-          <td>{r.emis}</td><td>{r.name}</td><td>{r.district}</td><td>{r.community}</td><td>{r.orank ?? '—'}</td><td>{r.selectedCategory || '—'}</td><td><b>{selectOf(r)}</b></td><td>{admitOf(r)}</td><td>{user.role === 'DISTRICT' && ['1A', '2A'].includes(r.statusCode) ? <div className="row2"><button className="pri" onClick={e => { e.stopPropagation(); markJoined(r); }}>Joined</button><button className="bad" onClick={e => { e.stopPropagation(); setOpen(r.id); }}>Not joined</button></div>
-          : r.actions.length ? <small>{r.actions.map(a => a.label.split(' - ')[0]).join(' / ')}</small> : ''}</td></tr>)}</tbody></table>
+      <table><thead><tr><th>EMIS</th><th>Name</th><th>District</th><th>Comm.</th><th>Rank</th><th>Seat</th><th>Admit status</th><th></th></tr></thead>
+        <tbody>{data.rows.map(r => <tr key={r.id}>
+          <td>{r.emis}</td><td>{r.name}</td><td>{r.district}</td><td>{r.community}</td><td>{r.orank ?? '—'}</td><td>{r.selectedCategory || '—'}</td><td><b>{admitOf(r)}</b></td><td><button aria-label={`View ${r.name}`} onClick={() => setOpen(r.id)}>View</button></td></tr>)}</tbody></table>
       {!data.rows.length && !listErr && <p style={{ color: 'var(--mute)' }}>No students in this view.</p>}
       {data.pages > 1 && <div className="row2"><button disabled={page <= 1} onClick={() => setPage(page - 1)}>Prev</button>Page {page} / {data.pages}<button disabled={page >= data.pages} onClick={() => setPage(page + 1)}>Next</button></div>}
     </div>
@@ -188,8 +188,8 @@ function SeatList({ user }) {
         <tbody>{cells.map((x, i) => <tr key={i}><td>{x.district}</td><td>{x.school || x.udiseCode || '—'}</td><td>{x.gender}</td><td>{x.medium}</td><td>{x.community}</td><td>{x.seats}</td><td>{x.joined}</td><td>{x.held}</td><td><b>{x.open}</b></td></tr>)}</tbody></table>
         {!cells.length && !err && <p style={{ color: 'var(--mute)' }}>No vacancies yet.</p>}</>
       : <><div className="row2"><input aria-label="Search student" placeholder="Search student name / EMIS" value={search} onChange={e => setSearch(e.target.value)} /></div>
-        <table><thead><tr><th>#</th><th>District</th><th>Gender</th><th>Medium</th><th>Community</th><th>Status</th><th>Student</th></tr></thead>
-          <tbody>{d.rows.map((r, i) => <tr key={i}><td>{r.seatNo}</td><td>{r.district}</td><td>{r.gender}</td><td>{r.medium}</td><td>{r.community}</td><td><span className={`badge ${SEAT_TAG[r.status][1]}`}>{SEAT_TAG[r.status][0]}</span></td>
+        <table><thead><tr><th>Vacancy ref no</th><th>District</th><th>Gender</th><th>Medium</th><th>Community</th><th>Status</th><th>Student</th></tr></thead>
+          <tbody>{d.rows.map((r, i) => <tr key={i}><td>{r.refNo}</td><td>{r.district}</td><td>{r.gender}</td><td>{r.medium}</td><td>{r.community}</td><td><span className={`badge ${SEAT_TAG[r.status][1]}`}>{SEAT_TAG[r.status][0]}</span></td>
             <td>{r.who ? <><b>{r.who.name}</b> · EMIS {r.who.emis}</> : r.remarks || '—'}</td></tr>)}</tbody></table>
         {d.pages > 1 && <div className="row2"><button disabled={page <= 1} onClick={() => setPage(page - 1)}>Prev</button>Page {page} / {d.pages}<button disabled={page >= d.pages} onClick={() => setPage(page + 1)}>Next</button></div>}</>}
     </div></>;
@@ -197,18 +197,18 @@ function SeatList({ user }) {
 
 // ---- TC requests: DMS asks, the Regional Coordinator approves, then the State Regional Coordinator
 IC.doc = 'M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8zM14 2v6h6M16 13H8M16 17H8';
-const TC_STAGE = { REGION: ['Waiting for the Regional Coordinator', 'PENDING'], STATE: ['Waiting for the State Regional Coordinator', 'RCAPPROVED'], DONE: ['TC Issued (8B)', 'Admitted'] };
+const TC_STAGE = { REGION: ['Waiting for the Regional Coordinator', 'PENDING'], STATE: ['Waiting for the State Regional Coordinator', 'RCAPPROVED'], DONE: ['TC Issued', 'Admitted'] };
 function TcRequests({ user }) {
   const [rows, setRows] = useState([]), [err, setErr] = useState(''), [n, setN] = useState(0), [open, setOpen] = useState(null), [cls, setCls] = useState(firstClass(user));
   useEffect(() => { api('/tc').then(setRows).catch(e => setErr(e.message)); }, [n]);
   const mine = rows.filter(r => r.classLevel === cls);
   return <>
     <div className="head"><h1>TC Requests</h1></div><ClassTabs user={user} cls={cls} setCls={setCls} />
-    <p><small>A TC is requested from a student's record (Student Details → open the student → "Request TC"). It is then approved by the Regional Coordinator and by the State Regional Coordinator; the seat is released only when the TC is issued.</small></p>
+    <p><small>A TC is requested from a student's record (Student Details → open the student → "Request TC"). It is then approved (or rejected, with a reason) by the Regional Coordinator and by the State Regional Coordinator; a rejected request returns the student to Joined; the seat is released only when the TC is issued.</small></p>
     <div className="panel">{err && <p className="err">{err}</p>}
       <table><thead><tr><th>EMIS</th><th>Name</th><th>School</th><th>Reason</th><th>Stage</th><th></th></tr></thead>
-        <tbody>{mine.map(r => <tr className="row" key={r.id} onClick={() => setOpen(r.id)}><td>{r.emis}</td><td>{r.name}</td><td>{r.newSchoolName}</td><td>{r.reason || '—'}</td>
-          <td><span className={`badge ${TC_STAGE[r.tcStage][1]}`}>{TC_STAGE[r.tcStage][0]}</span></td><td>{r.actions.length ? <b>Your decision</b> : ''}</td></tr>)}</tbody></table>
+        <tbody>{mine.map(r => <tr key={r.id}><td>{r.emis}</td><td>{r.name}</td><td>{r.newSchoolName}</td><td>{r.reason || '—'}</td>
+          <td><span className={`badge ${TC_STAGE[r.tcStage][1]}`}>{TC_STAGE[r.tcStage][0]}</span></td><td><button aria-label={`View ${r.name}`} onClick={() => setOpen(r.id)}>View</button></td></tr>)}</tbody></table>
       {!mine.length && !err && <p style={{ color: 'var(--mute)' }}>No TC requests.</p>}</div>
     {open && <StudentModal cls={cls} id={open} user={user} onClose={() => setOpen(null)} onChange={() => setN(x => x + 1)} />}</>;
 }
@@ -241,7 +241,7 @@ function ListPanel({ cls, user }) {
   const [busy, setBusy] = useState(false), [res, setRes] = useState(null), [err, setErr] = useState('');
   const run = async (path, body, label) => { try { setBusy(true); setErr(''); setRes(null); const r = await api(path, { method: 'POST', body: { classLevel: cls, ...body } }); setRes({ label, r }); } catch (e) { setErr(e.message); } finally { setBusy(false); } };
   return <div className="panel"><h3>State Enrollment Team</h3>
-    <p><small>1. Generate the overall rank (before any list). 2. Generate the student list: it fills the open balance of every seat group with the best-ranked eligible students and marks them Waiting (1A). Repeat after the DMS has finished a list: seats freed by Not Willing (6A), Not Joined - Approved (7B) and TC Issued (8B) are filled again, and students in Waiting (1B) are considered again.</small></p>
+    <p><small>1. Generate the overall rank (before any list). 2. Generate the student list: it fills the open balance of every seat group with the best-ranked eligible students and marks them Waiting. Repeat after the DMS has finished a list: seats freed by Not Willing, Not Joined - Approved and TC Issued are filled again, and students who are Waiting (reconsidered) are considered again.</small></p>
     <div className="row2"><button disabled={busy} onClick={() => window.confirm('Generate the overall rank for every Class ' + cls + ' student?') && run('/rank/generate', {}, 'rank')}>Generate overall rank</button>
       <button disabled={busy} onClick={() => run('/lists/generate', { preview: true }, 'preview')}>Preview next list</button>
       <button className="pri" disabled={busy} onClick={() => window.confirm('Generate the next student list for Class ' + cls + ' and send it to the DMS?') && run('/lists/generate', {}, 'list')}>Generate student list</button></div>
