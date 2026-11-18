@@ -32,6 +32,13 @@ api.get('/vacancies', auth, NOT_DMS, json(vacancyService.cells));
 api.get('/seats', auth, NOT_DMS, json(vacancyService.seats));
 api.get('/tc', auth, json(tcService.list));
 
+// Document Verification / TC letters. The files will live in an S3 bucket, which is not connected yet, so nothing is stored.
+// The rules are enforced here (not only in the screen): uploads by the DMS (DISTRICT) only, history for the super admin only.
+const S3_PENDING = 'Document storage (S3) is not connected yet, so files cannot be saved.';
+api.post('/documents', auth, only('DISTRICT'), (req, res) => res.status(501).json({ error: S3_PENDING }));
+api.post('/tc/letter', auth, only('DISTRICT'), (req, res) => res.status(501).json({ error: S3_PENDING }));
+api.get('/documents/history', auth, ADMIN, (req, res) => res.json({ storage: 'S3 (not connected)', rows: [] }));
+
 api.post('/rank/generate', auth, ADMIN, json(listService.rank));
 api.post('/lists/generate', auth, ADMIN, json(listService.generate));
 
