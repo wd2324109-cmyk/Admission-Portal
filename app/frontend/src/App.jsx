@@ -157,8 +157,12 @@ function StudentDetails({ user }) {
       {listErr && <p className="err">{listErr}</p>}
       <table><thead><tr><th>EMIS</th><th>Name</th><th>District</th><th>Comm.</th><th>Rank</th><th>Seat</th><th>Admit status</th><th>Next step</th></tr></thead>
         <tbody>{data.rows.map(r => <tr className="row" key={r.id} onClick={() => setOpen(r.id)}>
+<<<<<<< HEAD
           <td>{r.emis}</td><td>{r.name}</td><td>{r.district}</td><td>{r.community}</td><td>{r.orank ?? '—'}</td><td>{r.selectedCategory || '—'}</td><td><b>{admitOf(r)}</b></td><td>{user.role === 'DISTRICT' && r.statusCode === '1A' ? <div className="row2"><button className="pri" onClick={e => { e.stopPropagation(); markSelected(r); }}>Selected</button><button className="bad" onClick={e => { e.stopPropagation(); setOpen(r.id); }}>Not Selected</button></div>
           : user.role === 'DISTRICT' && r.statusCode === '2A' ? <div className="row2"><button className="pri" onClick={e => { e.stopPropagation(); markJoined(r); }}>Joined</button><button className="bad" onClick={e => { e.stopPropagation(); setOpen(r.id); }}>Not Joined</button></div>
+=======
+          <td>{r.emis}</td><td>{r.name}</td><td>{r.district}</td><td>{r.community}</td><td>{r.orank ?? '—'}</td><td>{r.selectedCategory || '—'}</td><td><b>{admitOf(r)}</b></td><td>{user.role === 'DISTRICT' && ['1A', '2A'].includes(r.statusCode) ? <div className="row2"><button className="pri" onClick={e => { e.stopPropagation(); markJoined(r); }}>Joined</button><button className="bad" onClick={e => { e.stopPropagation(); setOpen(r.id); }}>Not joined</button></div>
+>>>>>>> ef55160489ee8af09f09430d3dc86f76517d9c4b
           : r.actions.length ? <small>{r.actions.map(a => a.label.split(' - ')[0]).join(' / ')}</small> : ''}</td></tr>)}</tbody></table>
       {!data.rows.length && !listErr && <p style={{ color: 'var(--mute)' }}>No students in this view.</p>}
       {data.pages > 1 && <div className="row2"><button disabled={page <= 1} onClick={() => setPage(page - 1)}>Prev</button>Page {page} / {data.pages}<button disabled={page >= data.pages} onClick={() => setPage(page + 1)}>Next</button></div>}
