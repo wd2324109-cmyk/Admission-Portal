@@ -21,11 +21,6 @@ export const ACTIONS = {
   RC_APPROVE_NOT_JOINED: { label: 'Approve "Not Joined"', roles: RC, from: s => s.code === '7A', to: { code: '7B' }, needsRemarks: true },
   TC_REQUEST:  { label: 'Request TC', roles: DMS, from: s => ['3A', '3B'].includes(s.code), to: { code: '8A', tag2: 'TC-RC' }, needsRemarks: true },
 
-  JOINED_HM:   { label: 'Relieved and joined DMS - Joined by HM (3A)', roles: DMS_ONLY, from: s => ['1A', '2A'].includes(s.code), to: { code: '3A' } },
-  NOT_JOINED:  { label: 'Not joined - Pending Approval (7A)', roles: DMS_ONLY, from: s => ['1A', '2A'].includes(s.code), to: { code: '7A' }, needsRemarks: true },
-  RC_READMIT:  { label: 'Re-admit student - Joined by RC (3B)', roles: RC, from: s => s.code === '7A', to: { code: '3B' }, needsRemarks: true },
-  RC_APPROVE_NOT_JOINED: { label: 'Approve "Not Joined" (7B)', roles: RC, from: s => s.code === '7A', to: { code: '7B' }, needsRemarks: true },
-  TC_REQUEST:  { label: 'Request TC - TC-Waiting (8A)', roles: DMS, from: s => ['3A', '3B'].includes(s.code), to: { code: '8A', tag2: 'TC-RC' }, needsRemarks: true },
 
   TC_RC_APPROVE: { label: 'RC: approve TC request', roles: RC, from: s => s.code === '8A' && s.tag2 === 'TC-RC', to: { tag2: 'TC-SRC' } },
   TC_STATE_APPROVE: { label: 'State Regional Coordinator: approve TC', roles: SRC, from: s => s.code === '8A' && s.tag2 === 'TC-SRC', to: { code: '8B', tag2: 'TC-DONE' } },

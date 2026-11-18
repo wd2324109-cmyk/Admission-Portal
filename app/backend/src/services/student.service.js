@@ -48,7 +48,7 @@ export const studentService = {
   },
   async getById({ user, params }) {
     const cls = await requireClass(user, parseClass(params.cls)), row = await load(db, user, cls, params.id);
-    const logs = row.emis == null ? [] : await db.select().from(studentLog).where(and(eq(studentLog.class, row.class ?? String(cls)), eq(studentLog.emis, row.emis))).orderBy(sql`${studentLog.id} desc`).limit(50);
+    const logs = row.emis == null || user.role !== 'SUPER_ADMIN' ? [] : await db.select().from(studentLog).where(and(eq(studentLog.class, row.class ?? String(cls)), eq(studentLog.emis, row.emis))).orderBy(sql`${studentLog.id} desc`).limit(50);
     return { ...view(row, cls, user.role), logs: logs.map(l => ({ id: l.id, before: l.updateStatusBefore, after: l.updateStatusAfter, by: l.updatedBy, at: l.updatedAt, tag: l.tag1, remarks: l.remark1 })) };
   },
   // One step of the flowchart on one student (see workflow/transitions.js).

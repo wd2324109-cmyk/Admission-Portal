@@ -129,7 +129,7 @@ function StudentModal({ cls, id, user, onClose, onChange }) {
       <textarea rows="2" style={{ width: '100%' }} aria-label="Remarks (required)" placeholder="Reason for the correction (required)" value={ov.remarks} onChange={e => setOv({ ...ov, remarks: e.target.value })} />
       <div className="row2"><button className="bad" disabled={busy} onClick={() => window.confirm('Force this status? The seat and the logs are updated.') && run(() => api(`/students/${cls}/${id}/override`, { method: 'POST', body: ov }))}>Apply correction</button></div></>}
     {err && <p className="err">{err}</p>}
-    <h4>History</h4>{s.logs.map(l => <div key={l.id}><small>{new Date(l.at).toLocaleString()} · {l.by} · {stageOf(l.before)} → {l.after ? stageOf(l.after) : 'none'}{l.remarks ? ` · ${l.remarks}` : ''}</small></div>)}
+    {user.role === 'SUPER_ADMIN' && <><h4>History</h4>{s.logs.map(l => <div key={l.id}><small>{new Date(l.at).toLocaleString()} · {l.by} · {stageOf(l.before)} → {l.after ? stageOf(l.after) : 'none'}{l.remarks ? ` · ${l.remarks}` : ''}</small></div>)}</>}
     <div className="row2"><button onClick={onClose}>Close</button></div></div></div>;
 }
 

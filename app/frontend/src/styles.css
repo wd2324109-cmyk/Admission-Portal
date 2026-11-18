@@ -268,3 +268,6 @@ td{overflow-wrap:anywhere;word-break:normal;vertical-align:top}
 .mute{color:var(--mute)}
 small.mute{display:block;margin-top:4px}
 .docpick{min-width:240px}.docpick input[type=file]{width:100%;max-width:100%}
+
+/* the student popup must sit above the top bar (z-index 10) and the sidebar (20), or its header is hidden behind them */
+.modal{z-index:100}.idle-modal{z-index:200}
