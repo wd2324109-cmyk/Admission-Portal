@@ -110,7 +110,7 @@ function StudentModal({ cls, id, user, onClose, onChange }) {
   const run = async fn => { try { setBusy(true); await fn(); setErr(''); setRemarks(''); await load(); onChange(); } catch (e) { setErr(e.message); } finally { setBusy(false); } };
   const go = a => run(() => api(`/students/${cls}/${id}/action`, { method: 'POST', body: { action: a.key, remarks } }));
   const needs = s.actions.some(a => a.needsRemarks);
-  const rows = [['EMIS', s.emis], ['Class', s.classLevel], ['Select status', selectOf(s)], ['Admit status', admitOf(s)], ['Gender / Medium', `${s.gender} / ${s.medium}`], ['Community', s.community + (s.disabilityStatus ? ' (PWD)' : '')],
+  const rows = [['EMIS', s.emis], ['Class', s.classLevel], ['Admit status', admitOf(s)], ['Gender / Medium', `${s.gender} / ${s.medium}`], ['Community', s.community + (s.disabilityStatus ? ' (PWD)' : '')],
     ['Father / Mother', `${s.fatherName || '—'} / ${s.motherName || '—'}`], ['District / Block', `${s.district || '—'} / ${s.block || '—'}`], ['School', s.schoolname], ['Phone', s.phone || '—'], ['Address', [s.address, s.pincode].filter(Boolean).join(' - ') || '—'],
     ['Quarterly / Half-yearly', `${s.mark1 ?? '—'} / ${s.mark2 ?? '—'}`],
     ['Overall rank', s.orank ?? '—'], ['Total (highest of two)', s.total ?? '—'], ['NMMS / TRUST / Other marks', [s.nmss, s.trust, s.otherMarks].map(v => v ?? '—').join(' / ')],
@@ -151,12 +151,12 @@ function StudentDetails({ user }) {
     <div className="tabs">{(user.role === 'DISTRICT' ? DMS_KEYS.map(([k, l]) => [k, l]) : TABS).map(([k, l]) => <button key={k} className={tab === k ? 'on' : ''} onClick={() => setTab(k)}>{l}</button>)}</div>
     <div className="panel">
       <div className="row2"><input aria-label="Search name / EMIS" placeholder="Search name / EMIS" value={search} onChange={e => setSearch(e.target.value)} />
-        {user.role !== 'DISTRICT' && <select aria-label="Select status" value={status} onChange={e => setStatus(e.target.value)}><option value="">Every status</option>{ALL_CODES.filter(Boolean).map(c => <option key={c} value={c}>{c} · {CODE[c]}</option>)}</select>}
+        {user.role !== 'DISTRICT' && <select aria-label="Status" value={status} onChange={e => setStatus(e.target.value)}><option value="">All statuses</option>{ALL_CODES.filter(Boolean).map(c => <option key={c} value={c}>{CODE[c]}</option>)}</select>}
         <button onClick={() => downloadFile(`/export/master?class=${cls}`).catch(e => setListErr(e.message))}>Download Excel</button></div>
       {listErr && <p className="err">{listErr}</p>}
-      <table><thead><tr><th>EMIS</th><th>Name</th><th>District</th><th>Comm.</th><th>Rank</th><th>Seat</th><th>Select status</th><th>Admit status</th><th>Next step</th></tr></thead>
+      <table><thead><tr><th>EMIS</th><th>Name</th><th>District</th><th>Comm.</th><th>Rank</th><th>Seat</th><th>Admit status</th><th>Next step</th></tr></thead>
         <tbody>{data.rows.map(r => <tr className="row" key={r.id} onClick={() => setOpen(r.id)}>
-          <td>{r.emis}</td><td>{r.name}</td><td>{r.district}</td><td>{r.community}</td><td>{r.orank ?? '—'}</td><td>{r.selectedCategory || '—'}</td><td><b>{selectOf(r)}</b></td><td>{admitOf(r)}</td><td>{user.role === 'DISTRICT' && ['1A', '2A'].includes(r.statusCode) ? <div className="row2"><button className="pri" onClick={e => { e.stopPropagation(); markJoined(r); }}>Joined</button><button className="bad" onClick={e => { e.stopPropagation(); setOpen(r.id); }}>Not joined</button></div>
+          <td>{r.emis}</td><td>{r.name}</td><td>{r.district}</td><td>{r.community}</td><td>{r.orank ?? '—'}</td><td>{r.selectedCategory || '—'}</td><td><b>{admitOf(r)}</b></td><td>{user.role === 'DISTRICT' && ['1A', '2A'].includes(r.statusCode) ? <div className="row2"><button className="pri" onClick={e => { e.stopPropagation(); markJoined(r); }}>Joined</button><button className="bad" onClick={e => { e.stopPropagation(); setOpen(r.id); }}>Not joined</button></div>
           : r.actions.length ? <small>{r.actions.map(a => a.label.split(' - ')[0]).join(' / ')}</small> : ''}</td></tr>)}</tbody></table>
       {!data.rows.length && !listErr && <p style={{ color: 'var(--mute)' }}>No students in this view.</p>}
       {data.pages > 1 && <div className="row2"><button disabled={page <= 1} onClick={() => setPage(page - 1)}>Prev</button>Page {page} / {data.pages}<button disabled={page >= data.pages} onClick={() => setPage(page + 1)}>Next</button></div>}
@@ -188,8 +188,8 @@ function SeatList({ user }) {
         <tbody>{cells.map((x, i) => <tr key={i}><td>{x.district}</td><td>{x.school || x.udiseCode || '—'}</td><td>{x.gender}</td><td>{x.medium}</td><td>{x.community}</td><td>{x.seats}</td><td>{x.joined}</td><td>{x.held}</td><td><b>{x.open}</b></td></tr>)}</tbody></table>
         {!cells.length && !err && <p style={{ color: 'var(--mute)' }}>No vacancies yet.</p>}</>
       : <><div className="row2"><input aria-label="Search student" placeholder="Search student name / EMIS" value={search} onChange={e => setSearch(e.target.value)} /></div>
-        <table><thead><tr><th>#</th><th>District</th><th>Gender</th><th>Medium</th><th>Community</th><th>Status</th><th>Student</th></tr></thead>
-          <tbody>{d.rows.map((r, i) => <tr key={i}><td>{r.seatNo}</td><td>{r.district}</td><td>{r.gender}</td><td>{r.medium}</td><td>{r.community}</td><td><span className={`badge ${SEAT_TAG[r.status][1]}`}>{SEAT_TAG[r.status][0]}</span></td>
+        <table><thead><tr><th>Vacancy ref no</th><th>District</th><th>Gender</th><th>Medium</th><th>Community</th><th>Status</th><th>Student</th></tr></thead>
+          <tbody>{d.rows.map((r, i) => <tr key={i}><td>{r.refNo}</td><td>{r.district}</td><td>{r.gender}</td><td>{r.medium}</td><td>{r.community}</td><td><span className={`badge ${SEAT_TAG[r.status][1]}`}>{SEAT_TAG[r.status][0]}</span></td>
             <td>{r.who ? <><b>{r.who.name}</b> · EMIS {r.who.emis}</> : r.remarks || '—'}</td></tr>)}</tbody></table>
         {d.pages > 1 && <div className="row2"><button disabled={page <= 1} onClick={() => setPage(page - 1)}>Prev</button>Page {page} / {d.pages}<button disabled={page >= d.pages} onClick={() => setPage(page + 1)}>Next</button></div>}</>}
     </div></>;

@@ -20,7 +20,7 @@ export const labelOf = code => (STATUS[code] ? `${code} ${STATUS[code].label}` :
 
 /** Who does what. The 4 roles of the users table map to the actors of the flowchart. */
 export const ROLES = {
-  SUPER_ADMIN: 'State Enrollment Team (SE Team): imports data, ranks, generates lists. Also acts for any other role.',
+  SUPER_ADMIN: 'State Enrollment Team (SE Team): imports data, ranks, generates lists. Does not mark statuses for the DMS (only the DMS user does).',
   STATE: 'State Regional Coordinator: final approval of TC requests.',
   REGION: 'Regional Coordinator (RC): verifies "Not Joined", re-admits, first approval of TC requests.',
   DISTRICT: 'District Model School (DMS): records willing / not willing, joining, TC requests.',

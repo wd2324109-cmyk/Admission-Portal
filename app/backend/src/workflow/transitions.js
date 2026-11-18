@@ -5,7 +5,7 @@
 //   to           - the new status code (select_status) / tag2    needsRemarks - a note is required
 import { HttpError } from '../common/http.js';
 
-const DMS = ['DISTRICT', 'SUPER_ADMIN'], DMS_ONLY = ['DISTRICT'], RC = ['REGION', 'SUPER_ADMIN'], SRC = ['STATE', 'SUPER_ADMIN'];
+const DMS = ['DISTRICT'], DMS_ONLY = DMS, RC = ['REGION', 'SUPER_ADMIN'], SRC = ['STATE', 'SUPER_ADMIN'];
 
 export const ACTIONS = {
   // Section 4 - Admission at DMS
@@ -13,6 +13,7 @@ export const ACTIONS = {
   NOT_WILLING: { label: 'Not Willing (6A)', roles: DMS, from: s => s.code === '1A', to: { code: '6A' }, needsRemarks: true },
   RECONSIDER:  { label: 'Request reconsideration - Waiting (1B)', roles: DMS, from: s => s.code === '6A', to: { code: '1B' }, needsRemarks: true },
   // Section 6 - Joining, Non-Joining & TC
+  // Every status marking at the DMS (willing, not willing, reconsider, joined, not joined, TC request) is done by the DMS user only, not by the super admin.
   // Joined / Not joined: only the DMS user marks these, straight from the Pending list (1A) or the Selected list (2A).
   JOINED_HM:   { label: 'Relieved and joined DMS - Joined by HM (3A)', roles: DMS_ONLY, from: s => ['1A', '2A'].includes(s.code), to: { code: '3A' } },
   NOT_JOINED:  { label: 'Not joined - Pending Approval (7A)', roles: DMS_ONLY, from: s => ['1A', '2A'].includes(s.code), to: { code: '7A' }, needsRemarks: true },

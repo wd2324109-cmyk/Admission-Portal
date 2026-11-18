@@ -13,6 +13,10 @@ async function loadClass(user, cls) {
   return { seats, students: students.map(r => norm(r, cls)), T };
 }
 
+// Vacancy reference of a seat: community/medium/gender/001. The number counts the seats of the same group (district + school + community + medium + gender) in order.
+// It is worked out when the list is shown, so the Vacancy_Ref_no column of the database (which holds the joined student's EMIS) is not changed.
+export const vacancyRef = (r, n) => [r.community, r.medium, r.gender, String(n).padStart(3, '0')].map(v => String(v ?? '').trim()).join('/');
+
 export const vacancyService = {
   // Per seat group: seats, joined, held for students on the list / selected, and open (the balance the next list can fill).
   async cells({ user, query }) {
@@ -38,7 +42,7 @@ export const vacancyService = {
       let status = r.vacancyStatus === 'JOINED' ? 'JOINED' : 'VACANT', who = null;
       if (status === 'JOINED') { const j = byEmis.get(r.vacancyRefNo); who = j ? { id: j.id, name: j.name, emis: j.emis } : null; }
       else { const i = used.get(k) ?? 0, h = holders.get(k)?.[i]; if (h) { status = 'RESERVED'; who = { id: h.id, name: h.name, emis: h.emis }; used.set(k, i + 1); } }
-      rows.push({ seatNo: n, district: r.newDistrict, school: r.newSchoolName, gender: r.gender, medium: r.medium, community: r.community, status, who, remarks: r.remarks });
+      rows.push({ seatNo: n, refNo: vacancyRef(r, n), district: r.newDistrict, school: r.newSchoolName, gender: r.gender, medium: r.medium, community: r.community, status, who, remarks: r.remarks });
     }
     const term = String(query.search || '').trim().toLowerCase(), want = ['JOINED', 'RESERVED', 'VACANT'].includes(query.status) ? query.status : '';
     const counts = rows.reduce((c, r) => ({ ...c, [r.status]: (c[r.status] || 0) + 1 }), {});
