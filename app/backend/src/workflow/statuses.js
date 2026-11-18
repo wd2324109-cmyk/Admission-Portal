@@ -8,7 +8,15 @@ export const STATUS = {
   '1A': { label: 'Waiting', note: 'On the selection list sent to the DMS' },
   '1B': { label: 'Waiting (reconsidered)', note: 'Not Willing, reconsidered on DMS request' },
   '2A': { label: 'Selected', note: 'Student is willing' },
+<<<<<<< HEAD
   '6A': { label: 'Not Willing', note: 'Student is not willing (unwilling letter uploaded)' },
+=======
+<<<<<<< HEAD
+  '6A': { label: 'Not Willing', note: 'Student is not willing (unwilling letter uploaded)' },
+=======
+  '6A': { label: 'Not Selected', note: 'Student is not willing' },
+>>>>>>> 001ba82803224c48da9bb5f12e8652d11e563aac
+>>>>>>> 6b8353ff571d6c993fc2cc2078aa9dcb96fd0ae5
   '3A': { label: 'Joined by HM', note: 'Relieved and joined the DMS' },
   '3B': { label: 'Joined by RC', note: 'Re-admitted by the Regional Coordinator' },
   '7A': { label: 'Not Joined - Pending Approval', note: 'Waiting for the Regional Coordinator to verify' },

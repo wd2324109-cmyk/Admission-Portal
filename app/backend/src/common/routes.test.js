@@ -16,6 +16,7 @@ const EXPECT = {
   'GET /students/:cls/:id/letter': ANY,                                 // the unwilling letter: limited to the caller's own students in the service
   'POST /students/:cls/:id/override': ADMIN,
   'GET /vacancies': NOT_DMS, 'GET /seats': NOT_DMS, 'GET /tc': ANY,
+  'POST /documents': ['DISTRICT'], 'POST /tc/letter': ['DISTRICT'], 'GET /documents/history': ADMIN,   // uploads: DMS only; upload history: super admin only
   'POST /rank/generate': ADMIN, 'POST /lists/generate': ADMIN,
   'POST /import/students': ADMIN, 'POST /import/vacancies': ADMIN,
   'GET /logs/students': ADMIN, 'GET /logs/vacancies': ADMIN,

@@ -53,9 +53,17 @@ export const studentService = {
   },
   async getById({ user, params }) {
     const cls = await requireClass(user, parseClass(params.cls)), row = await load(db, user, cls, params.id);
+<<<<<<< HEAD
     const logs = row.emis == null ? [] : await db.select().from(studentLog).where(and(eq(studentLog.class, row.class ?? String(cls)), eq(studentLog.emis, row.emis))).orderBy(sql`${studentLog.id} desc`).limit(50);
     const letter = await getLetter(cls, row.id);
     return { ...view(row, cls, user.role), letter: letter ? { fileName: letter.fileName, by: letter.by, at: letter.at } : null, logs: logs.map(l => ({ id: l.id, before: l.updateStatusBefore, after: l.updateStatusAfter, by: l.updatedBy, at: l.updatedAt, tag: l.tag1, remarks: l.remark1 })) };
+<<<<<<< HEAD
+=======
+=======
+    const logs = row.emis == null || user.role !== 'SUPER_ADMIN' ? [] : await db.select().from(studentLog).where(and(eq(studentLog.class, row.class ?? String(cls)), eq(studentLog.emis, row.emis))).orderBy(sql`${studentLog.id} desc`).limit(50);
+    return { ...view(row, cls, user.role), logs: logs.map(l => ({ id: l.id, before: l.updateStatusBefore, after: l.updateStatusAfter, by: l.updatedBy, at: l.updatedAt, tag: l.tag1, remarks: l.remark1 })) };
+>>>>>>> 001ba82803224c48da9bb5f12e8652d11e563aac
+>>>>>>> 6b8353ff571d6c993fc2cc2078aa9dcb96fd0ae5
   },
   // One step of the flowchart on one student (see workflow/transitions.js).
   async act({ user, params, body }) {
