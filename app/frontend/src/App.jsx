@@ -146,6 +146,8 @@ function StudentDetails({ user }) {
     return () => { stale = true; };
   }, [cls, tab, q, status, page, reload]);
   // DMS: from the Pending or Selected tab a student is marked Joined in one click; Not joined opens the record because a reason is required.
+  const markSelected = async r => { if (!window.confirm(`Mark ${r.name} as selected?`)) return; try { await api(`/students/${cls}/${r.id}/action`, { method: 'POST', body: { action: 'WILLING', remarks: '' } }); setReload(n => n + 1); } catch (e) { setListErr(e.message); } };
+  const markJoined = async r => { if (!window.confirm(`Mark ${r.name} as joined?`)) return; try { await api(`/students/${cls}/${r.id}/action`, { method: 'POST', body: { action: 'JOINED_HM', remarks: '' } }); setReload(n => n + 1); } catch (e) { setListErr(e.message); } };
   return <>
     <div className="head"><h1>Student Details</h1></div>
     <ClassTabs user={user} cls={cls} setCls={setCls} />
@@ -155,9 +157,11 @@ function StudentDetails({ user }) {
         {user.role !== 'DISTRICT' && <select aria-label="Status" value={status} onChange={e => setStatus(e.target.value)}><option value="">All statuses</option>{ALL_CODES.filter(Boolean).map(c => <option key={c} value={c}>{CODE[c]}</option>)}</select>}
         <button onClick={() => downloadFile(`/export/master?class=${cls}`).catch(e => setListErr(e.message))}>Download Excel</button></div>
       {listErr && <p className="err">{listErr}</p>}
-      <table><thead><tr><th>EMIS</th><th>Name</th><th>District</th><th>Comm.</th><th>Rank</th><th>Seat</th><th>Admit status</th><th>View</th></tr></thead>
-        <tbody>{data.rows.map(r => <tr key={r.id}>
-          <td>{r.emis}</td><td>{r.name}</td><td>{r.district}</td><td>{r.community}</td><td>{r.orank ?? '—'}</td><td>{r.selectedCategory || '—'}</td><td><b>{admitOf(r)}</b></td><td><button aria-label={`View ${r.name}`} onClick={() => setOpen(r.id)}>View</button></td></tr>)}</tbody></table>
+      <table><thead><tr><th>EMIS</th><th>Name</th><th>District</th><th>Comm.</th><th>Rank</th><th>Seat</th><th>Admit status</th><th>Next step</th></tr></thead>
+        <tbody>{data.rows.map(r => <tr className="row" key={r.id} onClick={() => setOpen(r.id)}>
+          <td>{r.emis}</td><td>{r.name}</td><td>{r.district}</td><td>{r.community}</td><td>{r.orank ?? '—'}</td><td>{r.selectedCategory || '—'}</td><td><b>{admitOf(r)}</b></td><td>{user.role === 'DISTRICT' && r.statusCode === '1A' ? <div className="row2"><button className="pri" onClick={e => { e.stopPropagation(); markSelected(r); }}>Selected</button><button className="bad" onClick={e => { e.stopPropagation(); setOpen(r.id); }}>Not Willing</button></div>
+          : user.role === 'DISTRICT' && r.statusCode === '2A' ? <div className="row2"><button className="pri" onClick={e => { e.stopPropagation(); markJoined(r); }}>Joined</button><button className="bad" onClick={e => { e.stopPropagation(); setOpen(r.id); }}>Not Joined</button></div>
+          : r.actions.length ? <small>{r.actions.map(a => a.label.split(' - ')[0]).join(' / ')}</small> : ''}</td></tr>)}</tbody></table>
       {!data.rows.length && !listErr && <p style={{ color: 'var(--mute)' }}>No students in this view.</p>}
       {data.pages > 1 && <div className="row2"><button disabled={page <= 1} onClick={() => setPage(page - 1)}>Prev</button>Page {page} / {data.pages}<button disabled={page >= data.pages} onClick={() => setPage(page + 1)}>Next</button></div>}
     </div>
@@ -195,6 +199,46 @@ function SeatList({ user }) {
     </div></>;
 }
 
+// ---- Document Verification: joined students. Files will go to an S3 bucket (not connected yet). Only the DMS uploads; only the super admin sees the history.
+IC.doc = IC.doc || 'M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8zM14 2v6h6M16 13H8M16 17H8';
+const DOC_TYPES = '.pdf,.jpg,.jpeg,.png', MAX_DOCS = 5;
+function DocumentVerification({ user }) {
+  const [cls, setCls] = useState(firstClass(user)), [data, setData] = useState({ rows: [], pages: 1 }), [search, setSearch] = useState(''), [q, setQ] = useState(''), [page, setPage] = useState(1), [err, setErr] = useState('');
+  const [pick, setPick] = useState(null), [files, setFiles] = useState([]), [hist, setHist] = useState(null), [histErr, setHistErr] = useState('');
+  const dms = user.role === 'DISTRICT', admin = user.role === 'SUPER_ADMIN';
+  useEffect(() => { const t = setTimeout(() => setQ(search), 350); return () => clearTimeout(t); }, [search]);
+  useEffect(() => { setPage(1); }, [cls, q]);
+  useEffect(() => {
+    let stale = false;
+    api(`/students?class=${cls}&view=joined&status=&search=${encodeURIComponent(q)}&page=${page}`).then(d => { if (!stale) { setData(d); setErr(''); } }).catch(e => !stale && setErr(e.message));
+    return () => { stale = true; };
+  }, [cls, q, page]);
+  useEffect(() => { if (admin) api('/documents/history').then(setHist).catch(e => setHistErr(e.message)); }, [admin]);
+  const choose = e => { const f = [...e.target.files]; if (f.length > MAX_DOCS) { setErr(`Choose at most ${MAX_DOCS} files.`); return; } setErr(''); setFiles(f); };
+  return <>
+    <div className="head"><h1>Document Verification</h1></div>
+    <ClassTabs user={user} cls={cls} setCls={setCls} />
+    <p><small>Joined students of your {dms ? 'district' : 'scope'}. {dms ? `Choose up to ${MAX_DOCS} documents (PDF, JPG or PNG) for a student.` : 'Documents are uploaded by the DMS.'} Files will be kept in an S3 bucket; it is not connected yet, so nothing is saved for now.</small></p>
+    <div className="panel">
+      <div className="row2"><input aria-label="Search name / EMIS" placeholder="Search name / EMIS" value={search} onChange={e => setSearch(e.target.value)} /></div>
+      {err && <p className="err">{err}</p>}
+      <table><thead><tr><th>EMIS</th><th>Name</th><th>District</th><th>School</th><th>Community</th><th>Status</th>{dms && <th>Documents</th>}</tr></thead>
+        <tbody>{data.rows.map(r => <tr key={r.id}><td>{r.emis}</td><td>{r.name}</td><td>{r.district}</td><td>{r.newSchoolName || r.schoolname || '—'}</td><td>{r.community}</td><td><StatusBadge r={r} /></td>
+          {dms && <td>{pick === r.id
+            ? <div className="docpick"><input type="file" multiple accept={DOC_TYPES} aria-label={`Documents for ${r.name}`} onChange={choose} />
+                <small className="mute">{files.length ? files.map(f => f.name).join(', ') : 'No file chosen'}</small>
+                <div className="row2"><button disabled title="S3 storage is not connected yet">Upload (S3 not connected)</button><button onClick={() => { setPick(null); setFiles([]); }}>Cancel</button></div></div>
+            : <button onClick={() => { setPick(r.id); setFiles([]); }}>Add documents</button>}</td>}</tr>)}</tbody></table>
+      {!data.rows.length && !err && <p className="mute">No joined students in this view.</p>}
+      {data.pages > 1 && <div className="row2"><button disabled={page <= 1} onClick={() => setPage(page - 1)}>Prev</button>Page {page} / {data.pages}<button disabled={page >= data.pages} onClick={() => setPage(page + 1)}>Next</button></div>}
+    </div>
+    {admin && <div className="panel" style={{ marginTop: 16 }}><h3>Upload history (super admin only)</h3>
+      {histErr && <p className="err">{histErr}</p>}
+      {hist && <><p><small>Storage: {hist.storage}</small></p>
+        {hist.rows.length ? <table><thead><tr><th>Time</th><th>Uploaded by</th><th>Student</th><th>Type</th><th>File</th></tr></thead><tbody>{hist.rows.map((h, i) => <tr key={i}><td>{ts(h.at)}</td><td>{h.by}</td><td>{h.student}</td><td>{h.kind}</td><td>{h.file}</td></tr>)}</tbody></table>
+          : <p className="mute">No uploads yet. Document and TC letter uploads will be listed here once S3 is connected.</p>}</>}</div>}</>;
+}
+
 // ---- TC requests: DMS asks, the Regional Coordinator approves, then the State Regional Coordinator
 IC.doc = 'M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8zM14 2v6h6M16 13H8M16 17H8';
 const TC_STAGE = { REGION: ['Waiting for the Regional Coordinator', 'PENDING'], STATE: ['Waiting for the State Regional Coordinator', 'RCAPPROVED'], DONE: ['TC Issued', 'Admitted'] };
@@ -206,7 +250,7 @@ function TcRequests({ user }) {
     <div className="head"><h1>TC Requests</h1></div><ClassTabs user={user} cls={cls} setCls={setCls} />
     <p><small>A TC is requested from a student's record (Student Details → open the student → "Request TC"). It is then approved (or rejected, with a reason) by the Regional Coordinator and by the State Regional Coordinator; a rejected request returns the student to Joined; the seat is released only when the TC is issued.</small></p>
     <div className="panel">{err && <p className="err">{err}</p>}
-      <table><thead><tr><th>EMIS</th><th>Name</th><th>School</th><th>Reason</th><th>Stage</th><th>View</th></tr></thead>
+      <table><thead><tr><th>EMIS</th><th>Name</th><th>School</th><th>Reason</th><th>Stage</th><th></th></tr></thead>
         <tbody>{mine.map(r => <tr key={r.id}><td>{r.emis}</td><td>{r.name}</td><td>{r.newSchoolName}</td><td>{r.reason || '—'}</td>
           <td><span className={`badge ${TC_STAGE[r.tcStage][1]}`}>{TC_STAGE[r.tcStage][0]}</span></td><td><button aria-label={`View ${r.name}`} onClick={() => setOpen(r.id)}>View</button></td></tr>)}</tbody></table>
       {!mine.length && !err && <p style={{ color: 'var(--mute)' }}>No TC requests.</p>}</div>
