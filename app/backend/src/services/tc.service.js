@@ -1,5 +1,5 @@
 // Section 6, last part: TC requests wait for the Regional Coordinator, then the State Regional Coordinator (workflow/transitions.js).
-// The approvals themselves are student actions (TC_REQUEST, TC_RC_APPROVE, TC_STATE_APPROVE); this only lists them.
+// The approvals themselves are student actions (TC_REQUEST, TC_RC_APPROVE or TC_RC_REJECT, TC_STATE_APPROVE or TC_STATE_REJECT); this only lists them.
 import { and, desc, sql } from 'drizzle-orm';
 import { db } from '../db/index.js';
 import { classesOf, scope } from '../common/access.js';
