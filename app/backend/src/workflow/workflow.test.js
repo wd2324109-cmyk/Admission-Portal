@@ -39,7 +39,7 @@ assert.equal(seatEffect(S('2A', '8A'), S('2A', '8B')), 'RELEASE');
 assert.equal(seatEffect(S('2A'), S('2A', '7B')), null);
 assert([S('1A'), S('2A'), S('2A', '7A')].every(holdsSeat) && ![S('1B'), S('6A'), S('2A', '7B'), S('2A', '8B'), S('2A', '3A')].some(holdsSeat));
 // --- who sees which buttons
-assert.deepEqual(availableActions('DISTRICT', S('1A')).map(a => a.key).sort(), ['NOT_WILLING', 'WILLING']);          // Waiting: Selected / Not Willing first
+assert.deepEqual(availableActions('DISTRICT', S('1A')).map(a => a.key).sort(), ['NOT_WILLING', 'WILLING']);          // Waiting: Selected / Not Selected first
 assert.deepEqual(availableActions('DISTRICT', S('2A')).map(a => a.key).sort(), ['JOINED_HM', 'NOT_JOINED']);          // then Joined / Not Joined
 // Joined / Not joined only after Selected (2A), by the DMS user alone
 fails(() => run('DISTRICT', S('1A'), 'JOINED_HM'), 409); fails(() => run('DISTRICT', S('1A'), 'NOT_JOINED', 'x'), 409);

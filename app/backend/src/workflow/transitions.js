@@ -15,7 +15,7 @@ export const ACTIONS = {
   RECONSIDER:  { label: 'Request reconsideration', roles: DMS, from: s => s.code === '6A', to: { code: '1B' }, needsRemarks: true },
   // Section 6 - Joining, Non-Joining & TC
   // Every status marking at the DMS (willing, not willing, reconsider, joined, not joined, TC request) is done by the DMS user only, not by the super admin.
-  // Order of the DMS steps: Waiting (1A) -> Selected / Not Willing -> Joined / Not Joined. Joined / Not Joined are marked only on a Selected student (2A).
+  // Order of the DMS steps: Waiting (1A) -> Selected / Not Selected -> Joined / Not Joined. Joined / Not Joined are marked only on a Selected student (2A).
   JOINED_HM:   { label: 'Joined', roles: DMS_ONLY, from: s => s.code === '2A', to: { code: '3A' } },
   NOT_JOINED:  { label: 'Not Joined', roles: DMS_ONLY, from: s => s.code === '2A', to: { code: '7A' }, needsRemarks: true },
   RC_READMIT:  { label: 'Re-admit student', roles: RC, from: s => s.code === '7A', to: { code: '3B' }, needsRemarks: true },
@@ -26,6 +26,19 @@ export const ACTIONS = {
   TC_RC_REJECT: { label: 'Reject TC request', roles: RC, from: s => s.code === '8A' && s.tag2 === 'TC-RC', to: s => ({ code: s.prev || '3A', tag2: '' }), needsRemarks: true },   // the student goes back to Joined
   TC_STATE_APPROVE: { label: 'Approve TC request', roles: SRC, from: s => s.code === '8A' && s.tag2 === 'TC-SRC', to: { code: '8B', tag2: 'TC-DONE' } },
   TC_STATE_REJECT: { label: 'Reject TC request', roles: SRC, from: s => s.code === '8A' && s.tag2 === 'TC-SRC', to: s => ({ code: s.prev || '3A', tag2: '' }), needsRemarks: true },
+  NOT_WILLING: { label: 'Not Selected', roles: DMS, from: s => s.code === '1A', to: { code: '6A' }, needsRemarks: true },
+  RECONSIDER:  { label: 'Request reconsideration', roles: DMS, from: s => s.code === '6A', to: { code: '1B' }, needsRemarks: true },
+  // Section 6 - Joining, Non-Joining & TC
+  // Every status marking at the DMS (willing, not willing, reconsider, joined, not joined, TC request) is done by the DMS user only, not by the super admin.
+  JOINED_HM:   { label: 'Joined', roles: DMS_ONLY, from: s => s.code === '2A', to: { code: '3A' } },
+  NOT_JOINED:  { label: 'Not Joined', roles: DMS_ONLY, from: s => s.code === '2A', to: { code: '7A' }, needsRemarks: true },
+  RC_READMIT:  { label: 'Re-admit student', roles: RC, from: s => s.code === '7A', to: { code: '3B' }, needsRemarks: true },
+  RC_APPROVE_NOT_JOINED: { label: 'Approve "Not Joined"', roles: RC, from: s => s.code === '7A', to: { code: '7B' }, needsRemarks: true },
+  TC_REQUEST:  { label: 'Request TC', roles: DMS, from: s => ['3A', '3B'].includes(s.code), to: { code: '8A', tag2: 'TC-RC' }, needsRemarks: true },
+
+
+  TC_RC_APPROVE: { label: 'RC: approve TC request', roles: RC, from: s => s.code === '8A' && s.tag2 === 'TC-RC', to: { tag2: 'TC-SRC' } },
+  TC_STATE_APPROVE: { label: 'State Regional Coordinator: approve TC', roles: SRC, from: s => s.code === '8A' && s.tag2 === 'TC-SRC', to: { code: '8B', tag2: 'TC-DONE' } },
 };
 
 /** The actions this role may take on a student in this state (used by the screens to show buttons). */
