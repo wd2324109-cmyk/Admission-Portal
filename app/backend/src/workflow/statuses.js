@@ -8,7 +8,7 @@ export const STATUS = {
   '1A': { label: 'Waiting', note: 'On the selection list sent to the DMS' },
   '1B': { label: 'Waiting (reconsidered)', note: 'Not Willing, reconsidered on DMS request' },
   '2A': { label: 'Selected', note: 'Student is willing' },
-  '6A': { label: 'Not Willing', note: 'Student is not willing' },
+  '6A': { label: 'Not Selected', note: 'Student is not willing' },
   '3A': { label: 'Joined by HM', note: 'Relieved and joined the DMS' },
   '3B': { label: 'Joined by RC', note: 'Re-admitted by the Regional Coordinator' },
   '7A': { label: 'Not Joined - Pending Approval', note: 'Waiting for the Regional Coordinator to verify' },
@@ -16,11 +16,11 @@ export const STATUS = {
   '8A': { label: 'TC-Waiting', note: 'TC requested, waiting for approvals' },
   '8B': { label: 'TC Issued', note: 'TC approved by the State Regional Coordinator' },
 };
-export const labelOf = code => (STATUS[code] ? `${code} ${STATUS[code].label}` : '');
+export const labelOf = code => (STATUS[code] ? STATUS[code].label : '');
 
 /** Who does what. The 4 roles of the users table map to the actors of the flowchart. */
 export const ROLES = {
-  SUPER_ADMIN: 'State Enrollment Team (SE Team): imports data, ranks, generates lists. Also acts for any other role.',
+  SUPER_ADMIN: 'State Enrollment Team (SE Team): imports data, ranks, generates lists. Does not mark statuses for the DMS (only the DMS user does).',
   STATE: 'State Regional Coordinator: final approval of TC requests.',
   REGION: 'Regional Coordinator (RC): verifies "Not Joined", re-admits, first approval of TC requests.',
   DISTRICT: 'District Model School (DMS): records willing / not willing, joining, TC requests.',

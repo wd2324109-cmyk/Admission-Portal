@@ -39,10 +39,11 @@ assert.equal(seatEffect(S('2A', '8A'), S('2A', '8B')), 'RELEASE');
 assert.equal(seatEffect(S('2A'), S('2A', '7B')), null);
 assert([S('1A'), S('2A'), S('2A', '7A')].every(holdsSeat) && ![S('1B'), S('6A'), S('2A', '7B'), S('2A', '8B'), S('2A', '3A')].some(holdsSeat));
 // --- who sees which buttons
-assert.deepEqual(availableActions('DISTRICT', S('1A')).map(a => a.key).sort(), ['JOINED_HM', 'NOT_JOINED', 'NOT_WILLING', 'WILLING']);
-// Joined / Not joined from Pending (1A), by the DMS user alone
-assert.equal(run('DISTRICT', S('1A'), 'JOINED_HM').code, '3A'); assert.equal(run('DISTRICT', S('1A'), 'NOT_JOINED').code, '7A');
-fails(() => run('SUPER_ADMIN', S('1A'), 'JOINED_HM'), 403); fails(() => run('REGION', S('2A'), 'NOT_JOINED'), 403); fails(() => run('DISTRICT', S('1B'), 'JOINED_HM'), 409);
+assert.deepEqual(availableActions('DISTRICT', S('1A')).map(a => a.key).sort(), ['NOT_WILLING', 'WILLING']);          // Waiting: Selected / Not Selected first
+assert.deepEqual(availableActions('DISTRICT', S('2A')).map(a => a.key).sort(), ['JOINED_HM', 'NOT_JOINED']);          // then Joined / Not Joined
+// Joined / Not joined only after Selected (2A), by the DMS user alone
+fails(() => run('DISTRICT', S('1A'), 'JOINED_HM'), 409); fails(() => run('DISTRICT', S('1A'), 'NOT_JOINED', 'x'), 409);
+fails(() => run('SUPER_ADMIN', S('2A'), 'JOINED_HM'), 403); fails(() => run('SUPER_ADMIN', S('1A'), 'WILLING'), 403); fails(() => run('SUPER_ADMIN', S('1A'), 'NOT_WILLING', 'x'), 403); fails(() => run('SUPER_ADMIN', S('6A'), 'RECONSIDER', 'x'), 403); fails(() => run('SUPER_ADMIN', S('3A'), 'TC_REQUEST', 'x'), 403); fails(() => run('REGION', S('2A'), 'NOT_JOINED'), 403); fails(() => run('DISTRICT', S('1B'), 'JOINED_HM'), 409);
 assert.deepEqual(availableActions('REGION', S('1A')), []);
 assert.deepEqual(availableActions('STATE', S('2A', '8A', 'TC-SRC')).map(a => a.key), ['TC_STATE_APPROVE']);
 assert.equal(groupOf(S('6A')), 'notwilling');
