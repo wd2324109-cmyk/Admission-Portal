@@ -25,6 +25,7 @@ api.get('/dashboard', auth, json(dashboardService.summary));
 api.get('/students', auth, json(studentService.list));
 api.get('/students/:cls/:id', auth, json(studentService.getById));
 api.post('/students/:cls/:id/action', auth, json(studentService.act));                  // who may do which step is decided by workflow/transitions.js
+api.get('/students/:cls/:id/letter', auth, wrap(async (req, res) => { const f = await studentService.letter(ctx(req)); res.download(f.file, f.name, e => e && !res.headersSent && res.status(404).json({ error: 'File is missing' })); }));
 api.post('/students/:cls/:id/override', auth, ADMIN, json(studentService.override));
 
 api.get('/vacancies', auth, NOT_DMS, json(vacancyService.cells));
