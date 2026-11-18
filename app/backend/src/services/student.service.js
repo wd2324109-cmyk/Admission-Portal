@@ -1,4 +1,6 @@
-import { and, asc, eq, ilike, or, sql } from 'drizzle-orm';
+import fs from 'node:fs/promises';
+import path from 'node:path';
+import { and, asc, eq, ilike, inArray, or, sql } from 'drizzle-orm';
 import { studentLog } from '../schema/index.js';
 import { db } from '../db/index.js';
 import { HttpError } from '../common/http.js';
@@ -8,6 +10,9 @@ import { studentTable, parseClass, norm, pick } from '../common/studentStore.js'
 import { logStudent } from '../common/logs.js';
 import { joinSeat, releaseSeat } from '../common/seats.js';
 import { lockClass } from '../common/locks.js';
+import { saveUpload } from '../common/upload.js';
+import { getLetter, putLetter } from '../common/letters.js';
+import { UPLOADS } from '../common/paths.js';
 import { STATUS, GROUP_SQL, stateOf, groupOf, seatEffect, primary, statusColumns } from '../workflow/statuses.js';
 import { planAction, availableActions, VALID_CODES } from '../workflow/transitions.js';
 
@@ -49,17 +54,38 @@ export const studentService = {
   async getById({ user, params }) {
     const cls = await requireClass(user, parseClass(params.cls)), row = await load(db, user, cls, params.id);
     const logs = row.emis == null ? [] : await db.select().from(studentLog).where(and(eq(studentLog.class, row.class ?? String(cls)), eq(studentLog.emis, row.emis))).orderBy(sql`${studentLog.id} desc`).limit(50);
-    return { ...view(row, cls, user.role), logs: logs.map(l => ({ id: l.id, before: l.updateStatusBefore, after: l.updateStatusAfter, by: l.updatedBy, at: l.updatedAt, tag: l.tag1, remarks: l.remark1 })) };
+    const letter = await getLetter(cls, row.id);
+    return { ...view(row, cls, user.role), letter: letter ? { fileName: letter.fileName, by: letter.by, at: letter.at } : null, logs: logs.map(l => ({ id: l.id, before: l.updateStatusBefore, after: l.updateStatusAfter, by: l.updatedBy, at: l.updatedAt, tag: l.tag1, remarks: l.remark1 })) };
   },
   // One step of the flowchart on one student (see workflow/transitions.js).
   async act({ user, params, body }) {
     const cls = await requireClass(user, parseClass(params.cls));
-    await db.transaction(async tx => {
-      await lockClass(tx, cls);
-      const row = await load(tx, user, cls, params.id, true), plan = planAction(user.role, stateOf(row), body?.action, body?.remarks);
-      await commit(tx, user, cls, row, { ...statusColumns(plan.after.code), tag2: plan.after.tag2 || null, tag1: plan.tag1, remark1: plan.remark1 });
-    });
+    let saved = null;
+    try {
+      await db.transaction(async tx => {
+        await lockClass(tx, cls);
+        const row = await load(tx, user, cls, params.id, true), st = stateOf(row);
+        // For a TC rejection the student goes back to the Joined code he had before the TC request (3A or 3B).
+        if (st.code === '8A') {
+          const [lg] = await tx.select().from(studentLog).where(and(eq(studentLog.class, row.class ?? String(cls)), eq(studentLog.emis, row.emis), eq(studentLog.updateStatusAfter, '8A'), inArray(studentLog.updateStatusBefore, ['3A', '3B']))).orderBy(sql`${studentLog.id} desc`).limit(1);
+          st.prev = lg?.updateStatusBefore || '3A';
+        }
+        const plan = planAction(user.role, st, body?.action, body?.remarks);
+        if (plan.needsLetter) {
+          if (!body?.fileData) throw new HttpError('Upload the unwilling letter (PDF, JPG or PNG, under 3 MB)');
+          saved = await saveUpload(body.fileName, body.fileData);
+        }
+        await commit(tx, user, cls, row, { ...statusColumns(plan.after.code), tag2: plan.after.tag2 || null, tag1: plan.tag1, remark1: plan.remark1 });
+        if (saved) await putLetter(cls, row.id, { fileName: saved.name, stored: saved.stored, by: user.username, at: new Date().toISOString() });
+      });
+    } catch (e) { if (saved) await fs.unlink(path.join(UPLOADS, saved.stored)).catch(() => {}); throw e; }
     return { ok: true };
+  },
+  // The unwilling letter file of one student (same access as the student).
+  async letter({ user, params }) {
+    const cls = await requireClass(user, parseClass(params.cls)), row = await load(db, user, cls, params.id), l = await getLetter(cls, row.id);
+    if (!l) throw new HttpError('No unwilling letter for this student', 404);
+    return { file: path.join(UPLOADS, l.stored), name: l.fileName };
   },
   // Correction by the super admin: put the student at any status, with a reason. The seat and the logs follow.
   async override({ user, params, body }) {

@@ -39,12 +39,13 @@ assert.equal(seatEffect(S('2A', '8A'), S('2A', '8B')), 'RELEASE');
 assert.equal(seatEffect(S('2A'), S('2A', '7B')), null);
 assert([S('1A'), S('2A'), S('2A', '7A')].every(holdsSeat) && ![S('1B'), S('6A'), S('2A', '7B'), S('2A', '8B'), S('2A', '3A')].some(holdsSeat));
 // --- who sees which buttons
-assert.deepEqual(availableActions('DISTRICT', S('1A')).map(a => a.key).sort(), ['JOINED_HM', 'NOT_JOINED', 'NOT_WILLING', 'WILLING']);
-// Joined / Not joined from Pending (1A), by the DMS user alone
-assert.equal(run('DISTRICT', S('1A'), 'JOINED_HM').code, '3A'); assert.equal(run('DISTRICT', S('1A'), 'NOT_JOINED').code, '7A');
-fails(() => run('SUPER_ADMIN', S('1A'), 'JOINED_HM'), 403); fails(() => run('REGION', S('2A'), 'NOT_JOINED'), 403); fails(() => run('DISTRICT', S('1B'), 'JOINED_HM'), 409);
+assert.deepEqual(availableActions('DISTRICT', S('1A')).map(a => a.key).sort(), ['NOT_WILLING', 'WILLING']);          // Waiting: Selected / Not Selected first
+assert.deepEqual(availableActions('DISTRICT', S('2A')).map(a => a.key).sort(), ['JOINED_HM', 'NOT_JOINED']);          // then Joined / Not Joined
+// Joined / Not joined only after Selected (2A), by the DMS user alone
+fails(() => run('DISTRICT', S('1A'), 'JOINED_HM'), 409); fails(() => run('DISTRICT', S('1A'), 'NOT_JOINED', 'x'), 409);
+fails(() => run('SUPER_ADMIN', S('2A'), 'JOINED_HM'), 403); fails(() => run('SUPER_ADMIN', S('1A'), 'WILLING'), 403); fails(() => run('SUPER_ADMIN', S('1A'), 'NOT_WILLING', 'x'), 403); fails(() => run('SUPER_ADMIN', S('6A'), 'RECONSIDER', 'x'), 403); fails(() => run('SUPER_ADMIN', S('3A'), 'TC_REQUEST', 'x'), 403); fails(() => run('REGION', S('2A'), 'NOT_JOINED'), 403); fails(() => run('DISTRICT', S('1B'), 'JOINED_HM'), 409);
 assert.deepEqual(availableActions('REGION', S('1A')), []);
-assert.deepEqual(availableActions('STATE', S('2A', '8A', 'TC-SRC')).map(a => a.key), ['TC_STATE_APPROVE']);
+assert.deepEqual(availableActions('STATE', S('2A', '8A', 'TC-SRC')).map(a => a.key).sort(), ['TC_STATE_APPROVE', 'TC_STATE_REJECT']);
 assert.equal(groupOf(S('6A')), 'notwilling');
 
 // --- Sections 3 and 5: generating lists
@@ -102,3 +103,19 @@ console.log('Workflow rules OK');
   assert.deepEqual(sc.CLASSES, [9, 10]); assert.throws(() => sc.parseClass(11)); assert.throws(() => sc.studentTable(11));
   console.log('Import sheets OK');
 }
+
+// --- Not Willing needs the unwilling letter; Not Joined needs the RC (approve or reject); a TC request can be rejected
+assert.equal(planAction('DISTRICT', S('1A'), 'NOT_WILLING', 'x').needsLetter, true);
+assert.equal(planAction('DISTRICT', S('1A'), 'WILLING').needsLetter, false);
+assert.deepEqual(availableActions('REGION', S('2A', '7A')).map(a => a.key).sort(), ['RC_APPROVE_NOT_JOINED', 'RC_READMIT', 'RC_REJECT_NOT_JOINED']);
+assert.equal(groupOf(S('2A', '7A')), 'notjoinedpending'); assert.equal(groupOf(S('2A', '7B')), 'notjoined');   // Not Joined lists only after the RC approved
+assert.equal(run('REGION', S('2A', '7A'), 'RC_REJECT_NOT_JOINED').code, '2A');                            // rejected: back to Selected
+fails(() => run('DISTRICT', S('2A', '7A'), 'RC_REJECT_NOT_JOINED'), 403); fails(() => planAction('REGION', S('2A', '7A'), 'RC_REJECT_NOT_JOINED', ''), 400);
+st = { ...S('2A', '8A', 'TC-RC'), prev: '3B' };
+assert.deepEqual(availableActions('REGION', st).map(a => a.key).sort(), ['TC_RC_APPROVE', 'TC_RC_REJECT']);
+assert.deepEqual([run('REGION', st, 'TC_RC_REJECT').code, run('REGION', st, 'TC_RC_REJECT').tag2], ['3B', '']);   // back to the Joined code he had
+assert.equal(run('REGION', S('2A', '8A', 'TC-RC'), 'TC_RC_REJECT').code, '3A');
+fails(() => run('DISTRICT', st, 'TC_RC_REJECT'), 403); fails(() => planAction('REGION', st, 'TC_RC_REJECT', ''), 400);
+assert.equal(run('STATE', { ...S('2A', '8A', 'TC-SRC'), prev: '3A' }, 'TC_STATE_REJECT').code, '3A');
+fails(() => run('STATE', st, 'TC_STATE_REJECT'), 409);                                                    // still waiting for the RC
+console.log('Reject / letter rules OK');
