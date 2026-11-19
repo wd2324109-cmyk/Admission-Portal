@@ -5,6 +5,7 @@ import crypto from 'node:crypto';
 import { eq } from 'drizzle-orm';
 import { users } from '../schema/index.js';
 import { db } from '../db/index.js';
+import { isFrozen, FROZEN_MSG } from './freeze.js';
 
 export const IDLE_SECONDS = +process.env.SESSION_IDLE_SECONDS || Math.max(1, +process.env.SESSION_IDLE_MINUTES || 30) * 60;
 const IDLE_MS = IDLE_SECONDS * 1000;
@@ -14,6 +15,7 @@ export const SESSION_MSG = {
   SESSION_ENDED: 'Your session has ended (you signed out, signed in on another device, or the password was changed). Please sign in again.',
   SESSION_EXPIRED: 'Your session expired after a period of inactivity. Please sign in again.',
   TOKEN_EXPIRED: 'Your session has expired. Please sign in again.',
+  ACCOUNT_FROZEN: FROZEN_MSG,
   UNAUTHORIZED: 'Unauthorized',
 };
 export const pwStamp = hash => crypto.createHash('sha256').update(String(hash)).digest('hex').slice(0, 16);
@@ -24,6 +26,7 @@ setInterval(() => { const now = Date.now(); for (const [k, t] of lastSeen) if (n
 export async function checkSession(claims) {
   if (!claims?.id || !claims?.sid || !claims?.pv) return { ok: false, code: 'SESSION_ENDED' };
   const [r] = await db.select().from(users).where(eq(users.id, claims.id));
+  if (r && (await isFrozen(r.username))) return { ok: false, code: 'ACCOUNT_FROZEN' };
   if (!r || r.sessionId !== claims.sid || claims.pv !== pwStamp(r.passwordHash)) return { ok: false, code: 'SESSION_ENDED' };
   const now = Date.now(), seen = lastSeen.get(claims.sid);
   if (seen && now - seen > IDLE_MS) { lastSeen.delete(claims.sid); return { ok: false, code: 'SESSION_EXPIRED' }; }

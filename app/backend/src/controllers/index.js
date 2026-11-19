@@ -11,6 +11,7 @@ import { dashboardService } from '../services/dashboard.service.js';
 import { tcService } from '../services/tc.service.js';
 import { logService } from '../services/log.service.js';
 import { exportService } from '../services/export.service.js';
+import { listRequestService } from '../services/listRequest.service.js';
 
 const api = Router(), ADMIN = only('SUPER_ADMIN'), NOT_DMS = only('SUPER_ADMIN', 'STATE', 'REGION');   // the DMS (DISTRICT) sees Dashboard, Student Details and TC Requests only
 const json = fn => wrap(async (req, res) => res.json(await fn(ctx(req))));
@@ -54,4 +55,11 @@ api.get('/users', auth, ADMIN, json(userService.list));
 api.post('/users', auth, ADMIN, json(userService.create));
 api.post('/users/:id/reset-password', auth, ADMIN, json(userService.resetPassword));
 api.put('/users/:id/access', auth, ADMIN, json(userService.setAccess));
+api.post('/users/:id/freeze', auth, ADMIN, json(userService.freeze));                   // a frozen DMS is signed out and cannot sign in until unfrozen
+api.post('/users/:id/unfreeze', auth, ADMIN, json(userService.unfreeze));
+
+// "Request new list": the DMS asks, the super admin revises the list and marks the request done.
+api.get('/list-requests', auth, only('SUPER_ADMIN', 'DISTRICT'), json(listRequestService.list));
+api.post('/list-requests', auth, only('DISTRICT'), json(listRequestService.raise));
+api.post('/list-requests/:id/done', auth, ADMIN, json(listRequestService.done));
 export default api;

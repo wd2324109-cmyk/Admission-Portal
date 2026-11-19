@@ -9,6 +9,7 @@ import { lockClass } from '../common/locks.js';
 import { stateOf, statusColumns } from '../workflow/statuses.js';
 import { planList } from '../workflow/allocation.js';
 import { computeRanks } from '../workflow/rank.js';
+import { nextListNumber } from '../common/listNumber.js';
 
 const started = rows => rows.some(r => r.selectStatus);
 
@@ -44,8 +45,7 @@ export const listService = {
       const plan = planList(students, seats, cls), summary = { listed: plan.totals.listed, openSeats: plan.totals.open, shortfall: plan.totals.shortfall,
         cells: plan.cells.filter(c => c.open > 0).map(c => ({ district: c.newDistrict, school: c.newSchoolName, gender: c.gender, medium: c.medium, community: c.community, open: c.open, listed: c.chosen, shortfall: c.shortfall })) };
       if (preview || !plan.assignments.length) return { ...summary, preview, listNumber: null };
-      const [{ n }] = (await tx.execute(sql`select coalesce(max(substring(remark1 from '^List ([0-9]+)')::int), 0) as n from "Student_LOG" where "class" = ${String(cls)} and tag1 = 'LIST'`)).rows;
-      const listNumber = (+n || 0) + 1, byId = new Map(rows.map(r => [r.id, r])), pairs = [];
+      const listNumber = await nextListNumber(tx, cls), byId = new Map(rows.map(r => [r.id, r])), pairs = [];
       for (const a of plan.assignments) {
         const c = a.cell, [after] = await tx.update(T).set(pick(cls, { ...statusColumns('1A'), selectedCategory: c.community, newDistcName: c.newDistrict, newUdiseType: c.newUdiseType,
           newUdiseCode: c.newUdiseCode, newSchoolName: c.newSchoolName, tag1: 'LIST', remark1: `List ${listNumber}`, tag2: null })).where(eq(T.id, a.id)).returning();

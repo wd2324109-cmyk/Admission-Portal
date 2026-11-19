@@ -50,10 +50,20 @@ Removed because the document has no place for them: `students`, `vacancies`, `st
 5. Overall list numbers ("List 2") are kept in `remark1` of the log rows.
 
 ## 5. In the old app but not possible with 10 tables (dropped), or not in the chart
-Document upload/verification, TC letters, password-request/approval flow (a super admin now gives a new password), account freezing, login/export audit entries and the revoke-any-action undo (use *Correction* on the student; it is logged), forced single sign-in per user (`users.session_id`: signing in elsewhere signs you out).
-Not in the chart, so not built: DMS "request fresh list" button (the SE Team simply generates the next list), rejecting a TC request. The app works for Class 9 and 10 only. The Class 11 tables stay in the database (the document lists them) but nothing reads or writes them.
+Document upload/verification, TC letters, password-request/approval flow (a super admin now gives a new password), login/export audit entries and the revoke-any-action undo (use *Correction* on the student; it is logged), forced single sign-in per user (`users.session_id`: signing in elsewhere signs you out).
+Not in the chart, so not built: rejecting a TC request. (The DMS "request new list" button and Freeze / Unfreeze were added later: see section 7.) The app works for Class 9 and 10 only. The Class 11 tables stay in the database (the document lists them) but nothing reads or writes them.
 
 ## 6. How it was tested
 - `npm test`: schema = document, every flowchart rule, access control of all 26 routes.
 - `npm run test:integration` on a real PostgreSQL 16: imports Excel with the document's column names, ranks, imports vacancies, generates list 1, walks students through 2A, 6A, 3A, 7A, 7B, generates list 2, 1B, 8A, 8B, a correction, checks both log tables, the roles and class access, and finally runs `db:verify` (still exactly 10 tables).
 - The React app compiles (`npm run build`) but **was not clicked through in a browser** here. Do a quick pass of each page before using it.
+
+## 7. Request new list, Freeze / Unfreeze, appending a new list (no new table, no new column)
+| What | How it is stored (still exactly the 10 tables) |
+|---|---|
+| **DMS "Request new list"** (Dashboard, per class) | One row in `Student_LOG`: `tag1` = `LIST_REQUEST`, `tag2` = `OPEN` / `DONE`, `district`, `class`, `updated_by` / `updated_at` = the DMS login and the time, `remark1` = the DMS's note, `remark2` = JSON with the progress figures (and who marked it done, when). Student rows are never touched. |
+| Rule for raising it | At least `LIST_REQUEST_MIN_PERCENT` (default **80**) of the DMS's listed students must be decided, i.e. no longer Waiting (1A / 1B). One open request per district and class. Change the percentage with that environment variable, or in `workflow/listRequest.js`. |
+| **Super admin: List Requests** page | Lists the requests (Waiting / Done / All), shows the requester, progress and note, **Mark done**, and **Freeze / Unfreeze** for the requesting DMS login. The Dashboard shows how many are waiting. |
+| **Freeze / Unfreeze** (also on Users & Access) | One row in `access`: `User` = the username, `Class_level` = `*`, `tag` = `FROZEN`. A frozen DMS is signed out at once and cannot sign in (message: access frozen by the administrator). Unfreeze deletes the row. Only DMS (DISTRICT) logins can be frozen. Editing a user's classes never removes the freeze (it only rewrites the `ACTIVE` rows). |
+| **A new list is appended** | Importing a student sheet already added students after the existing ones (an `Emis` that exists is skipped; nobody is changed or removed; "replace" is refused once lists exist). Now the students that arrive with a `select_status` also become the next **List n** (`tag1` = `LIST`, `remark1` = `List n`, one `Student_LOG` row each), the same numbering the "Generate student list" button uses, so lists stay in order whichever way they come in. |
+| Not tested here | These parts need a running PostgreSQL: raising / closing a request, freeze / unfreeze with a real sign-in, and the import numbering. `npm test` covers the rules and route access (33 routes); please click through once with a DMS and a super admin login (`npm run test:integration` does not yet cover them). |

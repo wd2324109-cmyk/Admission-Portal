@@ -12,6 +12,8 @@ import { lockClass } from '../common/locks.js';
 import { setAccess } from './user.service.js';
 import { mapStudentRow, mapVacancyRow } from '../workflow/importMap.js';
 import { districtsOf } from '../common/access.js';
+import { nextListNumber } from '../common/listNumber.js';
+import { logStudents } from '../common/logs.js';
 
 const sheet = body => { try { const rows = readSheet(body?.fileData); if (!rows.length) throw new Error(); return rows; } catch { throw new HttpError('Could not read the file. Upload a valid .xlsx file with at least one row'); } };
 const brief = rejected => ({ rejected: rejected.slice(0, 20), rejectedCount: rejected.length });
@@ -19,19 +21,27 @@ const anyStatus = (tx, T) => tx.select({ n: sql`count(*)::int` }).from(T).where(
 
 export const importService = {
   // 9th_master_sheet / 10th_master_sheet -> Students_master_9th / _10th (marks, NMMS, TRUST, other marks, select_status and admit_status all come from this one sheet)
-  async students({ body }) {
+  // A new sheet is APPENDED to the students already there (students whose EMIS exists are skipped, nobody is changed or removed). The newly listed students
+  // (rows that arrive with a select_status) become the next "List n", written to Student_LOG like a generated list, so the DMS sees them after the earlier lists.
+  async students({ user, body }) {
     const cls = parseClass(body?.classLevel), T = studentTable(cls), rows = sheet(body), good = [], rejected = [], seen = new Set();
     rows.forEach((r, i) => { const m = mapStudentRow(r, cls); if (m.error) rejected.push({ row: i + 2, reason: m.error }); else if (seen.has(m.value.emis)) rejected.push({ row: i + 2, reason: `duplicate EMIS ${m.value.emis} in the file` }); else { seen.add(m.value.emis); good.push(m.value); } });
     if (!good.length) throw new HttpError('No valid rows found', 400, brief(rejected));
-    let inserted = 0;
+    let inserted = 0, listNumber = null;
     await db.transaction(async tx => {
       await lockClass(tx, cls, { exclusive: true });
       if (body.replace) { if (await anyStatus(tx, T)) throw new HttpError('Lists have already been generated for this class; the students can no longer be replaced.', 409); await tx.delete(T); }
       const have = new Set((await tx.select({ e: T.emis }).from(T)).map(r => r.e));
       const fresh = good.filter(s => !have.has(s.emis));
-      for (const c of chunks(fresh)) inserted += (await tx.insert(T).values(c.map(v => pick(cls, v))).returning({ id: T.id })).length;
+      if (fresh.some(s => s.selectStatus)) listNumber = await nextListNumber(tx, cls);
+      for (const c of chunks(fresh)) {
+        const added = await tx.insert(T).values(c.map(v => pick(cls, v.selectStatus && !v.tag1 ? { ...v, tag1: 'LIST', remark1: v.remark1 || `List ${listNumber}` } : v))).returning();
+        inserted += added.length;
+        const listed = added.filter(r => r.selectStatus);
+        if (listed.length) await logStudents(tx, cls, listed.map(r => [null, r]), user);
+      }
     });
-    return { imported: inserted, skippedExisting: good.length - inserted, ...brief(rejected) };
+    return { imported: inserted, skippedExisting: good.length - inserted, listNumber, ...brief(rejected) };
   },
 
   // 9th_vacancy_sheet / 10th_vacancy_sheet -> Vacancies_9th / _10th, one row per seat

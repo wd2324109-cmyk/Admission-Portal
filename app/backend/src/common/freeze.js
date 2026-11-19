@@ -1,48 +1,23 @@
-import { asc, inArray } from 'drizzle-orm';
-import { auditLogs as A, users } from '../schema/index.js';
+// Frozen DMS logins. No new table or column: a frozen user has ONE row in the `access` table
+//   User = <username>, Class_level = '*', tag = 'FROZEN'
+// (class access rows use tag 'ACTIVE' and a real class number, so the two never mix; classesOf() only reads ACTIVE rows.)
+import { eq } from 'drizzle-orm';
+import { access } from '../schema/index.js';
 import { db } from '../db/index.js';
 
+export const FROZEN = 'FROZEN', ALL_CLASSES = '*';
+export const FROZEN_MSG = 'Your access has been frozen by the administrator. Please contact them to restore it.';
 
-
-
-
-
-
-
-
-
-
-const TTL_MS = 5000;
-export const frozenMessage = (username, reason) => `Access frozen for ${username}: ${reason}`;
-export const restoredMessage = username => `Access restored for ${username}`;
-
+const TTL_MS = 5000;                       // other requests re-read at most every 5 s; the sign-in always reads fresh
 let cache = null, loadedAt = 0, loading = null;
 
-async function read(x) {
-  const [us, events] = await Promise.all([
-    x.select({ username: users.username }).from(users),
-    x.select({ action: A.action, message: A.message, actor: A.actor, at: A.at }).from(A).where(inArray(A.action, ['FREEZE', 'UNFREEZE'])).orderBy(asc(A.id))]);
-  const names = us.map(u => u.username).sort((a, b) => b.length - a.length);
-  const frozen = new Map();
-  for (const e of events) {
-    if (e.action === 'FREEZE') {
-      const n = names.find(n => e.message.startsWith(frozenMessage(n, '')));
-      if (n) frozen.set(n, { by: e.actor, reason: e.message.slice(frozenMessage(n, '').length), at: e.at });
-    } else {
-      const n = names.find(n => e.message === restoredMessage(n));
-      if (n) frozen.delete(n);
-    }
-  }
-  return frozen;
-}
+const read = async x => new Set((await x.select({ u: access.user }).from(access).where(eq(access.tag, FROZEN))).map(r => r.u));
 
-
-export async function frozenUsers(x = db, { fresh = false } = {}) {
-  if (fresh) return read(x);
+export async function frozenSet({ fresh = false } = {}) {
+  if (fresh) return read(db);
   if (cache && Date.now() - loadedAt < TTL_MS) return cache;
-  loading ||= read(db).then(m => { cache = m; loadedAt = Date.now(); return m; }).finally(() => { loading = null; });
+  loading ||= read(db).then(s => { cache = s; loadedAt = Date.now(); return s; }).finally(() => { loading = null; });
   return loading;
 }
-
-
+export const isFrozen = async (username, opts) => (await frozenSet(opts)).has(username);
 export const forgetFrozen = () => { cache = null; };

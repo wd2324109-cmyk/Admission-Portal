@@ -22,6 +22,8 @@ const EXPECT = {
   'GET /logs/students': ADMIN, 'GET /logs/vacancies': ADMIN,
   'GET /export/master': ANY, 'GET /export/vacancies': NOT_DMS,
   'GET /users': ADMIN, 'POST /users': ADMIN, 'POST /users/:id/reset-password': ADMIN, 'PUT /users/:id/access': ADMIN,
+  'POST /users/:id/freeze': ADMIN, 'POST /users/:id/unfreeze': ADMIN,
+  'GET /list-requests': ['SUPER_ADMIN', 'DISTRICT'], 'POST /list-requests': ['DISTRICT'], 'POST /list-requests/:id/done': ADMIN,   // the DMS asks for a new list, the super admin revises it
 };
 const NO_STATE = new Set();
 

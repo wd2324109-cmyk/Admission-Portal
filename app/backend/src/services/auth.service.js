@@ -8,6 +8,7 @@ import { HttpError } from '../common/http.js';
 import { makeLimiter } from '../common/rateLimit.js';
 import { checkNewPassword } from '../common/password.js';
 import { classesOf } from '../common/access.js';
+import { isFrozen, FROZEN_MSG } from '../common/freeze.js';
 
 const byUser = makeLimiter({ max: 8 }), byIp = makeLimiter({ max: 30 }), byPwChange = makeLimiter({ max: 5 });
 const DUMMY = bcrypt.hashSync('not-a-real-password', 12);            // same cost as real hashes, so unknown users take as long as known ones
@@ -24,6 +25,7 @@ export const authService = {
     const ok = (await bcrypt.compare(String(password), u ? u.passwordHash : DUMMY)) && !!u;
     if (!ok) { byUser.fail(userKey); byIp.fail(ipKey); console.warn(`Failed sign-in for "${name}" from ${ip}`); throw new HttpError('Invalid credentials', 401); }
     byUser.clear(userKey);
+    if (await isFrozen(u.username, { fresh: true })) throw new HttpError(FROZEN_MSG, 403, { code: 'ACCOUNT_FROZEN' });     // right password, but the super admin has frozen this login
     const sid = newSessionId();
     await db.update(users).set({ sessionId: sid }).where(eq(users.id, u.id));             // signs out any other device
     const profile = profileOf(u);

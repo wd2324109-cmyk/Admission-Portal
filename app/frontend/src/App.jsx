@@ -76,7 +76,7 @@ function Stacked({ title, rows, keys }) {
 }
 
 
-function Dashboard({ user }) {
+function Dashboard({ user, go }) {
   const [d, setD] = useState(null), [err, setErr] = useState('');
   useEffect(() => { api('/dashboard').then(setD).catch(e => setErr(e.message)); }, []);
   if (err) return <p className="err">{err}</p>;
@@ -85,6 +85,7 @@ function Dashboard({ user }) {
   const split = k => d.byClass.map(r => `Class ${r.key}: ${r[k] || 0}`).join('  ·  ');
   return <>
     <div className="head"><h1>Dashboard</h1><span className="pill">{['SUPER_ADMIN', 'STATE'].includes(user.role) ? 'All districts' : user.region || user.district}</span></div>
+    {dms && <RequestNewList />}{user.role === 'SUPER_ADMIN' && <OpenRequestsNotice go={go} />}
     <div className="grid stats">{keys.map(([k, l]) => <Stat key={k} icon={ICON[k][0]} color={ICON[k][1]} label={l} value={tot(k)} note={split(k)} />)}</div>
     <div className="grid two">
       <div className="panel"><h3>Overall share</h3><Donut parts={keys.map(([k, l, c]) => ({ l, c, v: tot(k) }))} /></div>
@@ -271,7 +272,7 @@ function Uploader({ title, hint, path, cls, canReplace, modes }) {
     {modes && <div className="row2"><select aria-label="Mode" value={mode} onChange={e => setMode(e.target.value)}><option value="replace">Replace this class's vacancies</option><option value="append">Add seats (a later round)</option></select></div>}
     <div className="row2"><button className="pri" disabled={busy} onClick={go}>{busy ? 'Importing…' : `Import for Class ${cls}`}</button></div>
     {err && <p className="err">{err}</p>}
-    {res && <div><p><b>{res.imported}</b> {res.seats ? `rows imported as ${res.seats} seats` : 'imported'}{res.skippedExisting ? <>, {res.skippedExisting} skipped (already exist)</> : ''}{res.rejectedCount ? <>, <span className="err">{res.rejectedCount} rejected</span></> : ''}.</p>
+    {res && <div><p><b>{res.imported}</b> {res.seats ? `rows imported as ${res.seats} seats` : 'imported'}{res.skippedExisting ? <>, {res.skippedExisting} skipped (already exist)</> : ''}{res.rejectedCount ? <>, <span className="err">{res.rejectedCount} rejected</span></> : ''}.{res.listNumber ? <> The students with a status were added as <b>List {res.listNumber}</b>, after the earlier lists.</> : ''}</p>
       {res.rejected?.length > 0 && <table><thead><tr><th>Excel row</th><th>Problem</th></tr></thead><tbody>{res.rejected.map((r, i) => <tr key={i}><td>{r.row}</td><td>{r.reason}</td></tr>)}</tbody></table>}
       {res.newUsers?.length > 0 && <><h4>New logins created</h4><p className="err"><small>Copy these now. Passwords are shown only once.</small></p>
         <table><thead><tr><th>Role</th><th>For</th><th>Username</th><th>Password</th></tr></thead><tbody>{res.newUsers.map(u => <tr key={u.username}><td>{u.role}</td><td>{u.scope}</td><td>{u.username}</td><td><code>{u.password}</code></td></tr>)}</tbody></table></>}</div>}
@@ -299,7 +300,7 @@ function ImportData({ user }) {
     <div className="tabs">{[9, 10].map(c => <button key={c} className={cls === c ? 'on' : ''} onClick={() => setCls(c)}>Class {c}</button>)}</div>
     <div className="grid two">
       {admin && <Uploader key={'s' + cls} title={`${th}_master_sheet`} cls={cls} path="/import/students" canReplace
-        hint="Columns (as in the database document): district, block, Udise, school_type, Schoolname, Emis, Name, Dob, Gender, community, medium, Disability_status, Disability_desc, Father_name, Mother_name, Phone, address, pincode, mark1-quertly, mark2-half, Total-highest of two, pass, nmss, Trust (Trust is the last column). The status columns are filled by the portal: select_status gets the status code and admit_status its description. Emis is a whole number up to 2,147,483,647." />}
+        hint="Columns (as in the database document): district, block, Udise, school_type, Schoolname, Emis, Name, Dob, Gender, community, medium, Disability_status, Disability_desc, Father_name, Mother_name, Phone, address, pincode, mark1-quertly, mark2-half, Total-highest of two, pass, nmss, Trust (Trust is the last column). The status columns are filled by the portal: select_status gets the status code and admit_status its description. Emis is a whole number up to 2,147,483,647. A new sheet is ADDED after the students already imported (an Emis that exists is skipped, nobody is changed or removed). Students that arrive with a select_status form the next List n." />}
       <Uploader key={'v' + cls} title={admin ? `${th}_vacancy_sheet` : `Your district ${th}_vacancy_sheet`} cls={cls} path="/import/vacancies" modes
         hint="Columns: New_district, New_udise_type, New_udise_code, New_school_name, Group_code, Group_desc, gender, medium, community (GT-PWD, GT, BC, BCM, MBC, SC, SCA, ST), vacancies, admitted. One sheet row becomes one seat row per vacancy." />
       {admin && <ListPanel cls={cls} user={user} />}
@@ -320,10 +321,68 @@ function Logs() {
     {err && <p className="err">{err}</p>}
     <div className="panel">{kind === 'students'
       ? <table><thead><tr><th>#</th><th>Time</th><th>User</th><th>Class</th><th>EMIS</th><th>Name</th><th>Change</th><th>Seat in</th><th>Note</th></tr></thead>
-        <tbody>{rows.map(l => <tr key={l.id}><td>{l.id}</td><td>{ts(l.updatedAt)}</td><td>{l.updatedBy}</td><td>{l.class}</td><td>{l.emis}</td><td>{l.name}</td><td>{l.updateStatusBefore || 'start'} → {l.updateStatusAfter || 'none'}</td><td>{l.newSchoolName || '—'}</td><td>{l.remark1 || '—'}</td></tr>)}</tbody></table>
+        <tbody>{rows.map(l => <tr key={l.id}><td>{l.id}</td><td>{ts(l.updatedAt)}</td><td>{l.updatedBy}</td><td>{l.class}</td><td>{l.emis ?? '—'}</td><td>{l.name || (l.tag1 === 'LIST_REQUEST' ? `DMS ${l.district}` : '—')}</td><td>{l.tag1 === 'LIST_REQUEST' ? `List request (${l.tag2 === 'DONE' ? 'done' : 'waiting'})` : <>{l.updateStatusBefore || 'start'} → {l.updateStatusAfter || 'none'}</>}</td><td>{l.newSchoolName || '—'}</td><td>{l.remark1 || '—'}</td></tr>)}</tbody></table>
       : <table><thead><tr><th>#</th><th>Time</th><th>User</th><th>Class</th><th>District</th><th>School</th><th>Seat group</th><th>EMIS</th><th>Change</th></tr></thead>
         <tbody>{rows.map(l => <tr key={l.id}><td>{l.id}</td><td>{ts(l.updatedAt)}</td><td>{l.updatedBy}</td><td>{l.classLevel}</td><td>{l.newDistrict}</td><td>{l.newSchoolName || '—'}</td><td>{l.gender} / {l.medium} / {l.community}</td><td>{l.vacancyRefNo ?? '—'}</td><td>{l.updateStatusBefore} → {l.updateStatusAfter}</td></tr>)}</tbody></table>}
       {!rows.length && !err && <p style={{ color: 'var(--mute)' }}>No entries.</p>}</div></>;
+}
+
+// ---- DMS: ask the super admin for a new list once most of the students are decided
+function RequestNewList() {
+  const [d, setD] = useState(null), [err, setErr] = useState(''), [msg, setMsg] = useState(''), [note, setNote] = useState({}), [busy, setBusy] = useState(false), [n, setN] = useState(0);
+  useEffect(() => { let stale = false; api('/list-requests').then(r => !stale && (setD(r), setErr(''))).catch(e => !stale && setErr(e.message)); return () => { stale = true; }; }, [n]);
+  if (!d) return err ? <p className="err" role="alert">{err}</p> : null;
+  if (!d.progress.length) return null;
+  const raise = async cls => {
+    try { setBusy(true); setErr(''); setMsg(''); await api('/list-requests', { method: 'POST', body: { classLevel: cls, note: (note[cls] || '').trim() } }); setNote(x => ({ ...x, [cls]: '' })); setMsg(`Your request for Class ${cls} was sent to the super admin.`); setN(x => x + 1); }
+    catch (e) { setErr(e.message); } finally { setBusy(false); }
+  };
+  return <div className="panel" style={{ marginBottom: 16 }}><h3>Request a new list</h3>
+    <p><small>When most of your students are decided (no longer Waiting), you can ask the super admin to revise the list. They see your request, and the new students are added after your earlier lists.</small></p>
+    {d.progress.map(p => {
+      const open = d.rows.find(r => r.classLevel === p.classLevel && r.status === 'OPEN'), last = d.rows.find(r => r.classLevel === p.classLevel && r.status === 'DONE');
+      return <div key={p.classLevel} style={{ marginBottom: 14 }}>
+        <b>Class {p.classLevel}</b> · {p.total ? `${p.decided} of ${p.total} students decided (${p.percent}%)` : 'No students listed yet'}
+        {open ? <p><span className="badge PENDING">Request pending</span> <small>sent {ts(open.requestedAt)}, waiting for the super admin</small></p>
+          : <><div className="row2"><input aria-label={`Note for Class ${p.classLevel} (optional)`} placeholder="Note for the super admin (optional)" maxLength={300} value={note[p.classLevel] || ''} onChange={e => setNote(x => ({ ...x, [p.classLevel]: e.target.value }))} />
+            <button className="pri" disabled={busy || !p.canRequest} onClick={() => raise(p.classLevel)}>Request new list</button></div>
+            {!p.canRequest && p.reason && <small className="mute">{p.reason}</small>}
+            {last && <div><small className="mute">Last request completed {ts(last.doneAt)}.</small></div>}</>}
+      </div>;
+    })}
+    {msg && <p>{msg}</p>}{err && <p className="err" role="alert">{err}</p>}</div>;
+}
+
+// ---- Super admin: how many requests are waiting (shown on the dashboard)
+function OpenRequestsNotice({ go }) {
+  const [n, setN] = useState(0);
+  useEffect(() => { let stale = false; api('/list-requests?status=OPEN').then(r => !stale && setN(r.rows.length)).catch(() => {}); return () => { stale = true; }; }, []);
+  if (!n) return null;
+  return <div className="panel" style={{ marginBottom: 16 }}><div className="row2"><span><b>{n}</b> DMS {n === 1 ? 'request is' : 'requests are'} waiting for a new list.</span><button className="pri" onClick={() => go('listreq')}>Open List Requests</button></div></div>;
+}
+
+// ---- Super admin: the requests, with Freeze / Unfreeze for the DMS login
+function ListRequests() {
+  const [rows, setRows] = useState([]), [tab, setTab] = useState('OPEN'), [err, setErr] = useState(''), [n, setN] = useState(0), [busy, setBusy] = useState(false);
+  useEffect(() => { let stale = false; api(`/list-requests?status=${tab === 'ALL' ? '' : tab}`).then(r => !stale && (setRows(r.rows), setErr(''))).catch(e => !stale && setErr(e.message)); return () => { stale = true; }; }, [tab, n]);
+  const run = async fn => { try { setBusy(true); setErr(''); await fn(); setN(x => x + 1); } catch (e) { setErr(e.message); } finally { setBusy(false); } };
+  return <>
+    <div className="head"><h1>List Requests</h1></div>
+    <p><small>A DMS can ask for a new list once most of its students are decided. Revise the list (Import Data &amp; Lists: a new sheet is added after the earlier students), then mark the request done. Freeze a DMS login to stop it signing in while you work; Unfreeze lets it back in.</small></p>
+    <div className="tabs">{[['OPEN', 'Waiting'], ['DONE', 'Done'], ['ALL', 'All']].map(([k, l]) => <button key={k} className={tab === k ? 'on' : ''} onClick={() => setTab(k)}>{l}</button>)}</div>
+    <div className="panel">{err && <p className="err" role="alert">{err}</p>}
+      <table><thead><tr><th>Requested</th><th>DMS login</th><th>District</th><th>Class</th><th>Students decided</th><th>Note</th><th>Status</th><th>DMS login state</th><th></th></tr></thead>
+        <tbody>{rows.map(r => <tr key={r.id}>
+          <td>{ts(r.requestedAt)}</td><td>{r.requestedBy}</td><td>{r.district}</td><td>{r.classLevel}</td><td>{r.total != null ? `${r.decided} of ${r.total} (${r.percent}%)` : '—'}</td><td>{r.note || '—'}</td>
+          <td>{r.status === 'OPEN' ? <span className="badge PENDING">Waiting</span> : <><span className="badge Admitted">Done</span><br /><small>{r.doneBy} · {ts(r.doneAt)}</small></>}</td>
+          <td>{r.userId ? (r.frozen ? <span className="badge REJECTED">Frozen</span> : <span className="badge Admitted">Active</span>) : '—'}</td>
+          <td><div className="row2">
+            {r.userId && (r.frozen
+              ? <button disabled={busy} onClick={() => run(() => api(`/users/${r.userId}/unfreeze`, { method: 'POST' }))}>Unfreeze</button>
+              : <button className="bad" disabled={busy} onClick={() => window.confirm(`Freeze ${r.requestedBy}? They are signed out now and cannot sign in until you unfreeze.`) && run(() => api(`/users/${r.userId}/freeze`, { method: 'POST' }))}>Freeze</button>)}
+            {r.status === 'OPEN' && <button className="pri" disabled={busy} onClick={() => window.confirm('Mark this request as done? The DMS will see it as completed.') && run(() => api(`/list-requests/${r.id}/done`, { method: 'POST', body: {} }))}>Mark done</button>}
+          </div></td></tr>)}</tbody></table>
+      {!rows.length && !err && <p style={{ color: 'var(--mute)' }}>No requests in this view.</p>}</div></>;
 }
 
 // ---- Users: create, new password, class access (the users and access tables)
@@ -336,10 +395,12 @@ function UsersPage({ me }) {
     <div className="head"><h1>Users &amp; Access</h1></div>
     {err && <p className="err" role="alert">{err}</p>}
     {shown && <div className="panel"><p className="err"><b>Copy now, shown only once:</b> {shown.username} / <code>{shown.password}</code></p><button onClick={() => setShown(null)}>Done</button></div>}
-    <div className="panel"><table><thead><tr><th>User</th><th>Role</th><th>District / region</th><th>Signed in</th><th>Classes</th><th></th></tr></thead>
-      <tbody>{rows.map(u => <tr key={u.id}><td>{u.username}</td><td>{u.role === 'STATE' ? 'STATE REGIONAL COORDINATOR' : u.role === 'REGION' ? 'REGIONAL COORDINATOR' : u.role === 'DISTRICT' ? 'DMS (DISTRICT)' : 'SE TEAM (SUPER ADMIN)'}</td><td>{u.district || u.region || '—'}</td><td>{u.signedIn ? 'Yes' : '—'}</td>
+    <div className="panel"><table><thead><tr><th>User</th><th>Role</th><th>District / region</th><th>Signed in</th><th>Login</th><th>Classes</th><th></th></tr></thead>
+      <tbody>{rows.map(u => <tr key={u.id}><td>{u.username}</td><td>{u.role === 'STATE' ? 'STATE REGIONAL COORDINATOR' : u.role === 'REGION' ? 'REGIONAL COORDINATOR' : u.role === 'DISTRICT' ? 'DMS (DISTRICT)' : 'SE TEAM (SUPER ADMIN)'}</td><td>{u.district || u.region || '—'}</td><td>{u.signedIn ? 'Yes' : '—'}</td><td>{u.role === 'DISTRICT' ? (u.frozen ? <span className="badge REJECTED">Frozen</span> : <span className="badge Admitted">Active</span>) : '—'}</td>
         <td>{u.role === 'SUPER_ADMIN' ? 'All' : [9, 10].map(c => <label key={c} style={{ marginRight: 8 }}><input type="checkbox" checked={u.classes.includes(c)} onChange={() => run(() => api(`/users/${u.id}/access`, { method: 'PUT', body: { classes: toggle(u.classes, c) } }))} /> {c}</label>)}</td>
-        <td>{u.id !== me.id && <button onClick={() => window.confirm(`Give ${u.username} a new password? They are signed out.`) && run(async () => setShown(await api(`/users/${u.id}/reset-password`, { method: 'POST' })))}>New password</button>}</td></tr>)}</tbody></table></div>
+        <td>{u.role === 'DISTRICT' && (u.frozen
+          ? <button onClick={() => run(() => api(`/users/${u.id}/unfreeze`, { method: 'POST' }))}>Unfreeze</button>
+          : <button className="bad" onClick={() => window.confirm(`Freeze ${u.username}? They are signed out now and cannot sign in until you unfreeze.`) && run(() => api(`/users/${u.id}/freeze`, { method: 'POST' }))}>Freeze</button>)} {u.id !== me.id && <button onClick={() => window.confirm(`Give ${u.username} a new password? They are signed out.`) && run(async () => setShown(await api(`/users/${u.id}/reset-password`, { method: 'POST' })))}>New password</button>}</td></tr>)}</tbody></table></div>
     <div className="panel"><h3>Add a user</h3>
       <div className="row2"><input aria-label="Username" placeholder="Username" value={f.username} onChange={e => setF({ ...f, username: e.target.value })} />
         <select aria-label="Role" value={f.role} onChange={e => setF({ ...f, role: e.target.value })}><option value="DISTRICT">DMS (district)</option><option value="REGION">Regional Coordinator</option><option value="STATE">State Regional Coordinator</option><option value="SUPER_ADMIN">SE Team (super admin)</option></select>
@@ -373,7 +434,7 @@ function ChangePassword({ onClose, username }) {
 export default function App() {
   const [user, setUser] = useState(savedUser), [page, setPage] = useState('dash'), [pw, setPw] = useState(false), [mobileOpen, setMobileOpen] = useState(false);
   useEffect(() => { const h = e => { if (e.key === 'Escape') { document.querySelector('.modal')?.click(); setMobileOpen(false); } }; window.addEventListener('keydown', h); return () => window.removeEventListener('keydown', h); }, []);
-  const pageNames = { dash: 'Dashboard', students: 'Student Details', seats: 'Vacancy Management', tc: 'TC Requests', import: 'Import Data & Lists', logs: 'Change History', users: 'Users & Access' };
+  const pageNames = { dash: 'Dashboard', students: 'Student Details', seats: 'Vacancy Management', tc: 'TC Requests', listreq: 'List Requests', import: 'Import Data & Lists', logs: 'Change History', users: 'Users & Access' };
   useEffect(() => { document.title = `${user ? (pageNames[page] || 'Admission Portal') : 'Sign in'} · School Admissions Portal`; }, [page, user]);
   useEffect(() => {
     if (!user) return;
@@ -387,8 +448,8 @@ export default function App() {
     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d={IC[icon]} /></svg><span>{label}</span></button>;
   const logout = reason => { if (typeof reason === 'string' && reason) setLogoutReason(reason); api('/auth/logout', { method: 'POST' }).catch(() => {}).finally(() => { setToken(null); setUser(null); if (typeof reason === 'string' && reason) window.location.reload(); }); };
   const roleName = { SUPER_ADMIN: 'SE TEAM (SUPER ADMIN)', STATE: 'STATE REGIONAL COORDINATOR', REGION: 'REGIONAL COORDINATOR', DISTRICT: 'DMS (DISTRICT)' }[user.role];
-  const body = page === 'dash' ? <Dashboard user={user} /> : page === 'students' ? <StudentDetails user={user} /> : page === 'seats' && !dms ? <SeatList user={user} /> : page === 'tc' ? <TcRequests user={user} />
-    : page === 'import' && canVac ? <ImportData user={user} /> : page === 'logs' && admin ? <Logs /> : page === 'users' && admin ? <UsersPage me={user} /> : <Dashboard user={user} />;
+  const body = page === 'dash' ? <Dashboard user={user} go={setPage} /> : page === 'students' ? <StudentDetails user={user} /> : page === 'seats' && !dms ? <SeatList user={user} /> : page === 'tc' ? <TcRequests user={user} />
+    : page === 'listreq' && admin ? <ListRequests /> : page === 'import' && canVac ? <ImportData user={user} /> : page === 'logs' && admin ? <Logs /> : page === 'users' && admin ? <UsersPage me={user} /> : <Dashboard user={user} go={setPage} />;
   return <div className={`shell ${mobileOpen ? 'menu-open' : ''}`}>
     <button className="side-scrim" aria-label="Close navigation" onClick={() => setMobileOpen(false)} />
     <aside className="side" aria-label="Main navigation">
@@ -397,6 +458,7 @@ export default function App() {
       <Nav k="dash" icon="seat" label="Dashboard" /><Nav k="students" icon="users" label="Student Details" />
       <div className="nav-caption">ADMISSION PROCESS</div>
       {!dms && <Nav k="seats" icon="seat" label="Vacancy Management" />}<Nav k="tc" icon="doc" label="TC Requests" />
+      {admin && <Nav k="listreq" icon="clock" label="List Requests" />}
       {canVac && <Nav k="import" icon="up" label="Import Data & Lists" />}
       {admin && <><div className="nav-caption">ADMINISTRATION</div><Nav k="logs" icon="log" label="Change History" /><Nav k="users" icon="users" label="Users & Access" /></>}
       <div className="side-spacer" />
