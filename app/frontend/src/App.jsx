@@ -100,28 +100,38 @@ const CODE = { '1A': 'Waiting', '1B': 'Waiting (reconsidered)', '2A': 'Selected'
 const GROUP_CLASS = { notlisted: 'PENDING', waiting: 'PENDING', selected: 'Selected', notwilling: 'NotAdmitted', joined: 'Admitted', notjoinedpending: 'PENDING', notjoined: 'NotAdmitted', tc: 'TCIssued' };
 const StatusBadge = ({ r }) => <span className={`badge ${GROUP_CLASS[r.group] || ''}`}>{r.statusCode ? CODE[r.statusCode] : 'Not listed'}</span>;
 const TABS = [['all', 'All'], ['notlisted', 'Not listed'], ['waiting', 'Waiting'], ['selected', 'Selected'], ['joined', 'Joined'], ['notwilling', 'Not Willing'], ['notjoinedpending', 'Not Joined - Pending'], ['notjoined', 'Not Joined'], ['tc', 'TC']];
+const LETTER_KINDS = { HM: 'HM letter', STUDENT: 'Student unwilling letter' };   // needed for Not Willing and for Not Joined
 const ALL_CODES = ['', '1A', '1B', '2A', '6A', '3A', '3B', '7A', '7B', '8A', '8B'];
 // select_status = the status code (every one of the ten); admit_status = the description of that code.
 const selectOf = r => r.selectStatus || '—', admitOf = r => (r.statusCode ? CODE[r.statusCode] : r.admitStatus) || '—', stageOf = c => CODE[c] || c || 'start';
 
 function StudentModal({ cls, id, user, onClose, onChange }) {
-  const [s, setS] = useState(null), [err, setErr] = useState(''), [remarks, setRemarks] = useState(''), [ov, setOv] = useState({ code: '', remarks: '' }), [busy, setBusy] = useState(false), [letter, setLetter] = useState(null);
+  const [s, setS] = useState(null), [err, setErr] = useState(''), [remarks, setRemarks] = useState(''), [ov, setOv] = useState({ code: '', remarks: '' }), [busy, setBusy] = useState(false), [letters, setLetters] = useState({ HM: null, STUDENT: null });
   const load = () => api(`/students/${cls}/${id}`).then(x => { setS(x); setOv(o => ({ ...o, code: x.state.code })); }).catch(e => setErr(e.message)); useEffect(() => { load(); }, [id]);
   if (!s) return err ? <div className="modal" role="dialog" aria-modal="true" onClick={onClose}><div className="panel"><p className="err">{err}</p></div></div> : null;
   const run = async fn => { try { setBusy(true); await fn(); setErr(''); setRemarks(''); await load(); onChange(); } catch (e) { setErr(e.message); } finally { setBusy(false); } };
-  const pickLetter = f => { if (!f) return setLetter(null); const r = new FileReader(); r.onload = () => setLetter({ name: f.name, data: String(r.result).split(',')[1] || '' }); r.readAsDataURL(f); };
-  const go = a => { if (a.needsLetter && !letter) return setErr('Upload the unwilling letter (PDF, JPG or PNG, under 3 MB) before marking Not Willing'); run(async () => { await api(`/students/${cls}/${id}/action`, { method: 'POST', body: { action: a.key, remarks, ...(a.needsLetter ? { fileName: letter.name, fileData: letter.data } : {}) } }); setLetter(null); }); };
+  const pickLetter = (kind, f) => { if (!f) return setLetters(x => ({ ...x, [kind]: null })); if (f.size > 3 * 1024 * 1024) return setErr('Each letter must be under 3 MB'); const r = new FileReader(); r.onload = () => { setErr(''); setLetters(x => ({ ...x, [kind]: { name: f.name, data: String(r.result).split(',')[1] || '' } })); }; r.readAsDataURL(f); };
+  const go = a => {
+    if (a.needsLetter) {
+      const miss = Object.entries(LETTER_KINDS).find(([k]) => !letters[k]);
+      if (miss) return setErr(`Upload the ${miss[1]} (PDF, JPG or PNG, under 3 MB) before submitting`);
+      if (!window.confirm(`Submit "${a.label}" with the two letters?\n\nOnce submitted, the letters cannot be edited.`)) return;
+    }
+    run(async () => { await api(`/students/${cls}/${id}/action`, { method: 'POST', body: { action: a.key, remarks, ...(a.needsLetter ? { letters: Object.fromEntries(Object.keys(LETTER_KINDS).map(k => [k, { fileName: letters[k].name, fileData: letters[k].data }])) } : {}) } }); setLetters({ HM: null, STUDENT: null }); });
+  };
   const needs = s.actions.some(a => a.needsRemarks);
   const rows = [['EMIS', s.emis], ['Class', s.classLevel], ['Admit status', admitOf(s)], ['Gender / Medium', `${s.gender} / ${s.medium}`], ['Community', s.community + (s.disabilityStatus ? ' (PWD)' : '')],
     ['Father / Mother', `${s.fatherName || '—'} / ${s.motherName || '—'}`], ['District / Block', `${s.district || '—'} / ${s.block || '—'}`], ['School', s.schoolname], ['Phone', s.phone || '—'], ['Address', [s.address, s.pincode].filter(Boolean).join(' - ') || '—'],
     ['Quarterly / Half-yearly', `${s.mark1 ?? '—'} / ${s.mark2 ?? '—'}`],
     ['Overall rank', s.orank ?? '—'], ['Total (highest of two)', s.total ?? '—'], ['NMMS / TRUST / Other marks', [s.nmss, s.trust, s.otherMarks].map(v => v ?? '—').join(' / ')],
-    ['Allotted to', s.newSchoolName ? `${s.newSchoolName} (${s.newDistcName})` : '—'], ['Seat category', s.selectedCategory || '—'], ['Note', s.remark1 || '—'], ...(s.letter ? [['Unwilling letter', <button key="l" onClick={() => downloadFile(`/students/${cls}/${id}/letter`).catch(e => setErr(e.message))}>{s.letter.fileName}</button>]] : [])];
+    ['Allotted to', s.newSchoolName ? `${s.newSchoolName} (${s.newDistcName})` : '—'], ['Seat category', s.selectedCategory || '—'], ['Note', s.remark1 || '—'], ...(s.letters || []).map(l => [l.label + ' (submitted, locked)', <button key={l.stage + l.kind} onClick={() => downloadFile(`/students/${cls}/${id}/letter?stage=${l.stage}&kind=${l.kind}`).catch(e => setErr(e.message))}>{l.fileName}</button>])];
   return <div className="modal" role="dialog" aria-modal="true" onClick={onClose}><div className="panel" onClick={e => e.stopPropagation()}>
     <h3>{s.name} <StatusBadge r={s} /></h3>
     <table><tbody>{rows.map(([k, v]) => <tr key={k}><th>{k}</th><td>{v}</td></tr>)}</tbody></table>
     {s.actions.length > 0 && <><h4>Next step</h4>
-      {s.actions.some(a => a.needsLetter) && <p><label>Unwilling letter (PDF, JPG or PNG, under 3 MB) <input type="file" accept=".pdf,.jpg,.jpeg,.png" onChange={e => pickLetter(e.target.files[0])} /></label></p>}
+      {s.actions.some(a => a.needsLetter) && <div className="letters"><p><small>Both letters are needed. You can change or remove a letter until you submit; after submitting it cannot be edited.</small></p>
+        {Object.entries(LETTER_KINDS).map(([k, label]) => <p key={k}><label>{label} (PDF, JPG or PNG, under 3 MB) <input key={letters[k]?.name || 'none-' + k} type="file" accept=".pdf,.jpg,.jpeg,.png" onChange={e => pickLetter(k, e.target.files[0])} /></label>
+          {letters[k] && <> <small>Chosen: <b>{letters[k].name}</b></small> <button type="button" onClick={() => pickLetter(k, null)}>Remove</button></>}</p>)}</div>}
       {needs && <textarea rows="2" style={{ width: '100%' }} aria-label="Remarks" placeholder="Remarks / reason" value={remarks} onChange={e => setRemarks(e.target.value)} />}
       <div className="row2">{s.actions.map(a => <button key={a.key} className={/^NOT_|REJECT/.test(a.key) ? 'bad' : 'pri'} disabled={busy} onClick={() => go(a)}>{a.label}</button>)}</div></>}
     {user.role === 'SUPER_ADMIN' && <><h4>Correction (super admin)</h4>

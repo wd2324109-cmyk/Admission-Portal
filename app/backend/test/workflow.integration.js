@@ -15,6 +15,7 @@ await new Promise(r => setTimeout(r, 1500));
 const B = 'http://localhost:4555/api';
 const call = async (token, method, path, body) => { const r = await fetch(B + path, { method, headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: 'Bearer ' + token } : {}) }, body: body && JSON.stringify(body) }); const d = await r.json().catch(() => ({})); return { status: r.status, ...d, data: d }; };
 const ok = async (...a) => { const r = await call(...a); assert(r.status < 300, `${a[1]} ${a[2]} -> ${r.status} ${JSON.stringify(r.data)}`); return r.data; };
+const pdf = n => ({ fileName: n + '.pdf', fileData: Buffer.from('%PDF-1.4\n' + n).toString('base64') }), LETTERS = { HM: pdf('hm'), STUDENT: pdf('student') };   // the two letters of Not Willing / Not Joined
 const xlsx = rows => { const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(rows), 'S'); return XLSX.write(wb, { type: 'base64', bookType: 'xlsx' }); };
 const login = async (username, password) => (await ok(null, 'POST', '/auth/login', { username, password })).token;
 
@@ -52,12 +53,12 @@ try {
   // Section 4
   assert.equal((await act(rcTok, s1, 'WILLING')).status, 403, 'the RC cannot decide willingness');
   await ok(dms, 'POST', `/students/9/${s1.id}/action`, { action: 'WILLING' });          // 2A
-  await ok(dms, 'POST', `/students/9/${s2.id}/action`, { action: 'NOT_WILLING', remarks: 'moved away' });   // 6A  -> V
+  await ok(dms, 'POST', `/students/9/${s2.id}/action`, { action: 'NOT_WILLING', remarks: 'moved away', letters: LETTERS });   // 6A  -> V
   await ok(dms, 'POST', `/students/9/${s3.id}/action`, { action: 'WILLING' });          // 2A
   assert.equal((await act(dms, s2, 'WILLING')).status, 409);
   // Section 6: joining
   await ok(dms, 'POST', `/students/9/${s1.id}/action`, { action: 'JOINED_HM' });        // 3A  -> seat JOINED
-  await ok(dms, 'POST', `/students/9/${s3.id}/action`, { action: 'NOT_JOINED', remarks: 'no relieving order' });   // 7A
+  await ok(dms, 'POST', `/students/9/${s3.id}/action`, { action: 'NOT_JOINED', remarks: 'no relieving order', letters: LETTERS });   // 7A
   await ok(rcTok, 'POST', `/students/9/${s3.id}/action`, { action: 'RC_APPROVE_NOT_JOINED', remarks: 'verified' }); // 7B -> V
   let cells = await ok(dms, 'GET', '/vacancies?class=9'); assert.equal(cells.reduce((n, c) => n + c.joined, 0), 1);
   // Section 5: fresh list fills the balance (V connector); 6A and 7B students are not listed again

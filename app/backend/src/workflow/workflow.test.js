@@ -107,6 +107,8 @@ console.log('Workflow rules OK');
 // --- Not Willing needs the unwilling letter; Not Joined needs the RC (approve or reject); a TC request can be rejected
 assert.equal(planAction('DISTRICT', S('1A'), 'NOT_WILLING', 'x').needsLetter, true);
 assert.equal(planAction('DISTRICT', S('1A'), 'WILLING').needsLetter, false);
+assert.equal(planAction('DISTRICT', S('2A'), 'NOT_JOINED', 'x').needsLetter, true);   // Not Joined needs the HM letter and the student's letter too
+assert.equal(planAction('DISTRICT', S('2A'), 'JOINED_HM').needsLetter, false);
 assert.deepEqual(availableActions('REGION', S('2A', '7A')).map(a => a.key).sort(), ['RC_APPROVE_NOT_JOINED', 'RC_READMIT', 'RC_REJECT_NOT_JOINED']);
 assert.equal(groupOf(S('2A', '7A')), 'notjoinedpending'); assert.equal(groupOf(S('2A', '7B')), 'notjoined');   // Not Joined lists only after the RC approved
 assert.equal(run('REGION', S('2A', '7A'), 'RC_REJECT_NOT_JOINED').code, '2A');                            // rejected: back to Selected

@@ -11,7 +11,7 @@ import { logStudent } from '../common/logs.js';
 import { joinSeat, releaseSeat } from '../common/seats.js';
 import { lockClass } from '../common/locks.js';
 import { saveUpload } from '../common/upload.js';
-import { getLetter, putLetter } from '../common/letters.js';
+import { getLetter, allLetters, putLetter, KINDS, STAGES } from '../common/letters.js';
 import { UPLOADS } from '../common/paths.js';
 import { STATUS, GROUP_SQL, stateOf, groupOf, seatEffect, primary, statusColumns } from '../workflow/statuses.js';
 import { planAction, availableActions, VALID_CODES } from '../workflow/transitions.js';
@@ -54,13 +54,13 @@ export const studentService = {
   async getById({ user, params }) {
     const cls = await requireClass(user, parseClass(params.cls)), row = await load(db, user, cls, params.id);
     const logs = row.emis == null || user.role !== 'SUPER_ADMIN' ? [] : await db.select().from(studentLog).where(and(eq(studentLog.class, row.class ?? String(cls)), eq(studentLog.emis, row.emis))).orderBy(sql`${studentLog.id} desc`).limit(50);
-    const letter = await getLetter(cls, row.id);
-    return { ...view(row, cls, user.role), letter: letter ? { fileName: letter.fileName, by: letter.by, at: letter.at } : null, logs: logs.map(l => ({ id: l.id, before: l.updateStatusBefore, after: l.updateStatusAfter, by: l.updatedBy, at: l.updatedAt, tag: l.tag1, remarks: l.remark1 })) };
+    const letters = await allLetters(cls, row.id);
+    return { ...view(row, cls, user.role), letters, logs: logs.map(l => ({ id: l.id, before: l.updateStatusBefore, after: l.updateStatusAfter, by: l.updatedBy, at: l.updatedAt, tag: l.tag1, remarks: l.remark1 })) };
   },
   // One step of the flowchart on one student (see workflow/transitions.js).
   async act({ user, params, body }) {
     const cls = await requireClass(user, parseClass(params.cls));
-    let saved = null;
+    let saved = [];
     try {
       await db.transaction(async tx => {
         await lockClass(tx, cls);
@@ -71,20 +71,22 @@ export const studentService = {
           st.prev = lg?.updateStatusBefore || '3A';
         }
         const plan = planAction(user.role, st, body?.action, body?.remarks);
-        if (plan.needsLetter) {
-          if (!body?.fileData) throw new HttpError('Upload the unwilling letter (PDF, JPG or PNG, under 3 MB)');
-          saved = await saveUpload(body.fileName, body.fileData);
+        if (plan.needsLetter) {                                   // Not Willing and Not Joined: both letters, together with the step
+          for (const k of Object.keys(KINDS)) if (!body?.letters?.[k]?.fileData) throw new HttpError(`Upload the ${KINDS[k]} (PDF, JPG or PNG, under 3 MB)`);
+          for (const k of Object.keys(KINDS)) saved.push({ kind: k, ...(await saveUpload(body.letters[k].fileName, body.letters[k].fileData)) });
         }
         await commit(tx, user, cls, row, { ...statusColumns(plan.after.code), tag2: plan.after.tag2 || null, tag1: plan.tag1, remark1: plan.remark1 });
-        if (saved) await putLetter(cls, row.id, { fileName: saved.name, stored: saved.stored, by: user.username, at: new Date().toISOString() });
+        for (const l of saved) await putLetter(cls, row.id, plan.tag1, l.kind, { fileName: l.name, stored: l.stored, by: user.username, at: new Date().toISOString() });
       });
-    } catch (e) { if (saved) await fs.unlink(path.join(UPLOADS, saved.stored)).catch(() => {}); throw e; }
+    } catch (e) { for (const l of saved) await fs.unlink(path.join(UPLOADS, l.stored)).catch(() => {}); throw e; }
     return { ok: true };
   },
-  // The unwilling letter file of one student (same access as the student).
-  async letter({ user, params }) {
-    const cls = await requireClass(user, parseClass(params.cls)), row = await load(db, user, cls, params.id), l = await getLetter(cls, row.id);
-    if (!l) throw new HttpError('No unwilling letter for this student', 404);
+  // One letter file of one student (same access as the student). ?stage=NOT_WILLING|NOT_JOINED &kind=HM|STUDENT (default: the student's Not Willing letter)
+  async letter({ user, params, query }) {
+    const stage = String(query?.stage || 'NOT_WILLING'), kind = String(query?.kind || 'STUDENT');
+    if (!Object.hasOwn(STAGES, stage) || !Object.hasOwn(KINDS, kind)) throw new HttpError('Unknown letter');
+    const cls = await requireClass(user, parseClass(params.cls)), row = await load(db, user, cls, params.id), l = await getLetter(cls, row.id, stage, kind);
+    if (!l) throw new HttpError('This letter has not been uploaded', 404);
     return { file: path.join(UPLOADS, l.stored), name: l.fileName };
   },
   // Correction by the super admin: put the student at any status, with a reason. The seat and the logs follow.

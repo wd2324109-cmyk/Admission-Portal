@@ -17,7 +17,7 @@ export const ACTIONS = {
   // Every status marking at the DMS (willing, not willing, reconsider, joined, not joined, TC request) is done by the DMS user only, not by the super admin.
   // Order of the DMS steps: Waiting (1A) -> Selected / Not Willing -> Joined / Not Joined. Joined / Not Joined are marked only on a Selected student (2A).
   JOINED_HM:   { label: 'Joined', roles: DMS_ONLY, from: s => s.code === '2A', to: { code: '3A' } },
-  NOT_JOINED:  { label: 'Not Joined', roles: DMS_ONLY, from: s => s.code === '2A', to: { code: '7A' }, needsRemarks: true },
+  NOT_JOINED:  { label: 'Not Joined', roles: DMS_ONLY, from: s => s.code === '2A', to: { code: '7A' }, needsRemarks: true, needsLetter: true },
   RC_READMIT:  { label: 'Re-admit student', roles: RC, from: s => s.code === '7A', to: { code: '3B' }, needsRemarks: true },
   RC_APPROVE_NOT_JOINED: { label: 'Approve Not Joined', roles: RC, from: s => s.code === '7A', to: { code: '7B' }, needsRemarks: true },
   RC_REJECT_NOT_JOINED: { label: 'Reject Not Joined', roles: RC, from: s => s.code === '7A', to: { code: '2A' }, needsRemarks: true },   // back to Selected: the DMS marks Joined / Not Joined again
