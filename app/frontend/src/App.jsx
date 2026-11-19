@@ -85,7 +85,7 @@ function Dashboard({ user, go }) {
   const split = k => d.byClass.map(r => `Class ${r.key}: ${r[k] || 0}`).join('  ·  ');
   return <>
     <div className="head"><h1>Dashboard</h1><span className="pill">{['SUPER_ADMIN', 'STATE'].includes(user.role) ? 'All districts' : user.region || user.district}</span></div>
-    {dms && <RequestNewList />}{user.role === 'SUPER_ADMIN' && <OpenRequestsNotice go={go} />}
+    {user.role === 'SUPER_ADMIN' && <OpenRequestsNotice go={go} />}
     <div className="grid stats">{keys.map(([k, l]) => <Stat key={k} icon={ICON[k][0]} color={ICON[k][1]} label={l} value={tot(k)} note={split(k)} />)}</div>
     <div className="grid two">
       <div className="panel"><h3>Overall share</h3><Donut parts={keys.map(([k, l, c]) => ({ l, c, v: tot(k) }))} /></div>
@@ -329,28 +329,25 @@ function Logs() {
 
 // ---- DMS: ask the super admin for a new list once most of the students are decided
 function RequestNewList() {
-  const [d, setD] = useState(null), [err, setErr] = useState(''), [msg, setMsg] = useState(''), [note, setNote] = useState({}), [busy, setBusy] = useState(false), [n, setN] = useState(0);
+  const [d, setD] = useState(null), [err, setErr] = useState(''), [msg, setMsg] = useState(''), [busy, setBusy] = useState(false), [n, setN] = useState(0);
   useEffect(() => { let stale = false; api('/list-requests').then(r => !stale && (setD(r), setErr(''))).catch(e => !stale && setErr(e.message)); return () => { stale = true; }; }, [n]);
-  if (!d) return err ? <p className="err" role="alert">{err}</p> : null;
-  if (!d.progress.length) return null;
   const raise = async cls => {
-    try { setBusy(true); setErr(''); setMsg(''); await api('/list-requests', { method: 'POST', body: { classLevel: cls, note: (note[cls] || '').trim() } }); setNote(x => ({ ...x, [cls]: '' })); setMsg(`Your request for Class ${cls} was sent to the super admin.`); setN(x => x + 1); }
+    try { setBusy(true); setErr(''); setMsg(''); await api('/list-requests', { method: 'POST', body: { classLevel: cls } }); setMsg(`Your request for Class ${cls} was sent to the super admin.`); setN(x => x + 1); }
     catch (e) { setErr(e.message); } finally { setBusy(false); }
   };
-  return <div className="panel" style={{ marginBottom: 16 }}><h3>Request a new list</h3>
-    <p><small>When most of your students are decided (no longer Waiting), you can ask the super admin to revise the list. They see your request, and the new students are added after your earlier lists.</small></p>
-    {d.progress.map(p => {
-      const open = d.rows.find(r => r.classLevel === p.classLevel && r.status === 'OPEN'), last = d.rows.find(r => r.classLevel === p.classLevel && r.status === 'DONE');
-      return <div key={p.classLevel} style={{ marginBottom: 14 }}>
-        <b>Class {p.classLevel}</b> · {p.total ? `${p.decided} of ${p.total} students decided (${p.percent}%)` : 'No students listed yet'}
-        {open ? <p><span className="badge PENDING">Request pending</span> <small>sent {ts(open.requestedAt)}, waiting for the super admin</small></p>
-          : <><div className="row2"><input aria-label={`Note for Class ${p.classLevel} (optional)`} placeholder="Note for the super admin (optional)" maxLength={300} value={note[p.classLevel] || ''} onChange={e => setNote(x => ({ ...x, [p.classLevel]: e.target.value }))} />
-            <button className="pri" disabled={busy || !p.canRequest} onClick={() => raise(p.classLevel)}>Request new list</button></div>
-            {!p.canRequest && p.reason && <small className="mute">{p.reason}</small>}
-            {last && <div><small className="mute">Last request completed {ts(last.doneAt)}.</small></div>}</>}
-      </div>;
-    })}
-    {msg && <p>{msg}</p>}{err && <p className="err" role="alert">{err}</p>}</div>;
+  return <>
+    <div className="head"><h1>Request New List</h1></div>
+    {err && <p className="err" role="alert">{err}</p>}{msg && <p>{msg}</p>}
+    {d && <div className="panel">{!d.progress.length && <p className="mute">No classes are assigned to your login.</p>}
+      {d.progress.map(p => {
+        const open = d.rows.find(r => r.classLevel === p.classLevel && r.status === 'OPEN');
+        return <div key={p.classLevel} style={{ marginBottom: 14 }}>
+          <b>Class {p.classLevel}</b> · {p.total ? `${p.decided} of ${p.total} students decided (${p.percent}%)` : 'No students listed yet'}
+          {open ? <p><span className="badge PENDING">Request pending</span> <small>sent {ts(open.requestedAt)}</small></p>
+            : <><div className="row2"><button className="pri" disabled={busy || !p.canRequest} onClick={() => raise(p.classLevel)}>Request new list</button></div>
+              {!p.canRequest && p.reason && <small className="mute">{p.reason}</small>}</>}
+        </div>;
+      })}</div>}</>;
 }
 
 // ---- Super admin: how many requests are waiting (shown on the dashboard)
@@ -371,9 +368,9 @@ function ListRequests() {
     <p><small>A DMS can ask for a new list once most of its students are decided. Revise the list (Import Data &amp; Lists: a new sheet is added after the earlier students), then mark the request done. Freeze a DMS login to stop it signing in while you work; Unfreeze lets it back in.</small></p>
     <div className="tabs">{[['OPEN', 'Waiting'], ['DONE', 'Done'], ['ALL', 'All']].map(([k, l]) => <button key={k} className={tab === k ? 'on' : ''} onClick={() => setTab(k)}>{l}</button>)}</div>
     <div className="panel">{err && <p className="err" role="alert">{err}</p>}
-      <table><thead><tr><th>Requested</th><th>DMS login</th><th>District</th><th>Class</th><th>Students decided</th><th>Note</th><th>Status</th><th>DMS login state</th><th></th></tr></thead>
+      <table><thead><tr><th>Requested</th><th>DMS login</th><th>District</th><th>Class</th><th>Students decided</th><th>Status</th><th>DMS login state</th><th></th></tr></thead>
         <tbody>{rows.map(r => <tr key={r.id}>
-          <td>{ts(r.requestedAt)}</td><td>{r.requestedBy}</td><td>{r.district}</td><td>{r.classLevel}</td><td>{r.total != null ? `${r.decided} of ${r.total} (${r.percent}%)` : '—'}</td><td>{r.note || '—'}</td>
+          <td>{ts(r.requestedAt)}</td><td>{r.requestedBy}</td><td>{r.district}</td><td>{r.classLevel}</td><td>{r.total != null ? `${r.decided} of ${r.total} (${r.percent}%)` : '—'}</td>
           <td>{r.status === 'OPEN' ? <span className="badge PENDING">Waiting</span> : <><span className="badge Admitted">Done</span><br /><small>{r.doneBy} · {ts(r.doneAt)}</small></>}</td>
           <td>{r.userId ? (r.frozen ? <span className="badge REJECTED">Frozen</span> : <span className="badge Admitted">Active</span>) : '—'}</td>
           <td><div className="row2">
@@ -434,7 +431,7 @@ function ChangePassword({ onClose, username }) {
 export default function App() {
   const [user, setUser] = useState(savedUser), [page, setPage] = useState('dash'), [pw, setPw] = useState(false), [mobileOpen, setMobileOpen] = useState(false);
   useEffect(() => { const h = e => { if (e.key === 'Escape') { document.querySelector('.modal')?.click(); setMobileOpen(false); } }; window.addEventListener('keydown', h); return () => window.removeEventListener('keydown', h); }, []);
-  const pageNames = { dash: 'Dashboard', students: 'Student Details', seats: 'Vacancy Management', tc: 'TC Requests', listreq: 'List Requests', import: 'Import Data & Lists', logs: 'Change History', users: 'Users & Access' };
+  const pageNames = { dash: 'Dashboard', students: 'Student Details', seats: 'Vacancy Management', tc: 'TC Requests', request: 'Request New List', listreq: 'List Requests', import: 'Import Data & Lists', logs: 'Change History', users: 'Users & Access' };
   useEffect(() => { document.title = `${user ? (pageNames[page] || 'Admission Portal') : 'Sign in'} · School Admissions Portal`; }, [page, user]);
   useEffect(() => {
     if (!user) return;
@@ -449,7 +446,7 @@ export default function App() {
   const logout = reason => { if (typeof reason === 'string' && reason) setLogoutReason(reason); api('/auth/logout', { method: 'POST' }).catch(() => {}).finally(() => { setToken(null); setUser(null); if (typeof reason === 'string' && reason) window.location.reload(); }); };
   const roleName = { SUPER_ADMIN: 'SE TEAM (SUPER ADMIN)', STATE: 'STATE REGIONAL COORDINATOR', REGION: 'REGIONAL COORDINATOR', DISTRICT: 'DMS (DISTRICT)' }[user.role];
   const body = page === 'dash' ? <Dashboard user={user} go={setPage} /> : page === 'students' ? <StudentDetails user={user} /> : page === 'seats' && !dms ? <SeatList user={user} /> : page === 'tc' ? <TcRequests user={user} />
-    : page === 'listreq' && admin ? <ListRequests /> : page === 'import' && canVac ? <ImportData user={user} /> : page === 'logs' && admin ? <Logs /> : page === 'users' && admin ? <UsersPage me={user} /> : <Dashboard user={user} go={setPage} />;
+    : page === 'request' && dms ? <RequestNewList /> : page === 'listreq' && admin ? <ListRequests /> : page === 'import' && canVac ? <ImportData user={user} /> : page === 'logs' && admin ? <Logs /> : page === 'users' && admin ? <UsersPage me={user} /> : <Dashboard user={user} go={setPage} />;
   return <div className={`shell ${mobileOpen ? 'menu-open' : ''}`}>
     <button className="side-scrim" aria-label="Close navigation" onClick={() => setMobileOpen(false)} />
     <aside className="side" aria-label="Main navigation">
@@ -458,6 +455,7 @@ export default function App() {
       <Nav k="dash" icon="seat" label="Dashboard" /><Nav k="students" icon="users" label="Student Details" />
       <div className="nav-caption">ADMISSION PROCESS</div>
       {!dms && <Nav k="seats" icon="seat" label="Vacancy Management" />}<Nav k="tc" icon="doc" label="TC Requests" />
+      {dms && <Nav k="request" icon="clock" label="Request New List" />}
       {admin && <Nav k="listreq" icon="clock" label="List Requests" />}
       {canVac && <Nav k="import" icon="up" label="Import Data & Lists" />}
       {admin && <><div className="nav-caption">ADMINISTRATION</div><Nav k="logs" icon="log" label="Change History" /><Nav k="users" icon="users" label="Users & Access" /></>}
