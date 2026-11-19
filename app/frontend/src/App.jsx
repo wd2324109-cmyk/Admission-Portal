@@ -150,6 +150,7 @@ function StudentDetails({ user }) {
   return <>
     <div className="head"><h1>Student Details</h1></div>
     <ClassTabs user={user} cls={cls} setCls={setCls} />
+    {user.role === 'DISTRICT' && <RequestNewList cls={cls} />}
     <div className="tabs">{(user.role === 'DISTRICT' ? DMS_KEYS.map(([k, l]) => [k, l]) : TABS).map(([k, l]) => <button key={k} className={tab === k ? 'on' : ''} onClick={() => setTab(k)}>{l}</button>)}</div>
     <div className="panel">
       <div className="row2"><input aria-label="Search name / EMIS" placeholder="Search name / EMIS" value={search} onChange={e => setSearch(e.target.value)} />
@@ -327,27 +328,21 @@ function Logs() {
       {!rows.length && !err && <p style={{ color: 'var(--mute)' }}>No entries.</p>}</div></>;
 }
 
-// ---- DMS: ask the super admin for a new list once most of the students are decided
-function RequestNewList() {
+// ---- DMS: inside Student Details, ask the super admin for a new list once most of the students of the chosen class are decided
+function RequestNewList({ cls }) {
   const [d, setD] = useState(null), [err, setErr] = useState(''), [msg, setMsg] = useState(''), [busy, setBusy] = useState(false), [n, setN] = useState(0);
-  useEffect(() => { let stale = false; api('/list-requests').then(r => !stale && (setD(r), setErr(''))).catch(e => !stale && setErr(e.message)); return () => { stale = true; }; }, [n]);
-  const raise = async cls => {
+  useEffect(() => { let stale = false; setMsg(''); api('/list-requests').then(r => !stale && (setD(r), setErr(''))).catch(e => !stale && setErr(e.message)); return () => { stale = true; }; }, [n, cls]);
+  const raise = async () => {
     try { setBusy(true); setErr(''); setMsg(''); await api('/list-requests', { method: 'POST', body: { classLevel: cls } }); setMsg(`Your request for Class ${cls} was sent to the super admin.`); setN(x => x + 1); }
     catch (e) { setErr(e.message); } finally { setBusy(false); }
   };
-  return <>
-    <div className="head"><h1>Request New List</h1></div>
-    {err && <p className="err" role="alert">{err}</p>}{msg && <p>{msg}</p>}
-    {d && <div className="panel">{!d.progress.length && <p className="mute">No classes are assigned to your login.</p>}
-      {d.progress.map(p => {
-        const open = d.rows.find(r => r.classLevel === p.classLevel && r.status === 'OPEN');
-        return <div key={p.classLevel} style={{ marginBottom: 14 }}>
-          <b>Class {p.classLevel}</b> · {p.total ? `${p.decided} of ${p.total} students decided (${p.percent}%)` : 'No students listed yet'}
-          {open ? <p><span className="badge PENDING">Request pending</span> <small>sent {ts(open.requestedAt)}</small></p>
-            : <><div className="row2"><button className="pri" disabled={busy || !p.canRequest} onClick={() => raise(p.classLevel)}>Request new list</button></div>
-              {!p.canRequest && p.reason && <small className="mute">{p.reason}</small>}</>}
-        </div>;
-      })}</div>}</>;
+  const p = d?.progress.find(x => x.classLevel === cls), open = d?.rows.find(r => r.classLevel === cls && r.status === 'OPEN');
+  if (!p) return err ? <p className="err" role="alert">{err}</p> : null;
+  return <div className="panel" style={{ marginBottom: 12 }}><div className="row2">
+    <span><b>New list</b> · {p.total ? `${p.decided} of ${p.total} students decided (${p.percent}%)` : 'No students listed yet'}</span>
+    {open ? <span className="badge PENDING">Request pending · sent {ts(open.requestedAt)}</span> : <button className="pri" disabled={busy || !p.canRequest} onClick={raise}>Request new list</button>}</div>
+    {!open && !p.canRequest && p.reason && <small className="mute">{p.reason}</small>}
+    {msg && <p>{msg}</p>}{err && <p className="err" role="alert">{err}</p>}</div>;
 }
 
 // ---- Super admin: how many requests are waiting (shown on the dashboard)
@@ -431,7 +426,7 @@ function ChangePassword({ onClose, username }) {
 export default function App() {
   const [user, setUser] = useState(savedUser), [page, setPage] = useState('dash'), [pw, setPw] = useState(false), [mobileOpen, setMobileOpen] = useState(false);
   useEffect(() => { const h = e => { if (e.key === 'Escape') { document.querySelector('.modal')?.click(); setMobileOpen(false); } }; window.addEventListener('keydown', h); return () => window.removeEventListener('keydown', h); }, []);
-  const pageNames = { dash: 'Dashboard', students: 'Student Details', seats: 'Vacancy Management', tc: 'TC Requests', request: 'Request New List', listreq: 'List Requests', import: 'Import Data & Lists', logs: 'Change History', users: 'Users & Access' };
+  const pageNames = { dash: 'Dashboard', students: 'Student Details', seats: 'Vacancy Management', tc: 'TC Requests', listreq: 'List Requests', import: 'Import Data & Lists', logs: 'Change History', users: 'Users & Access' };
   useEffect(() => { document.title = `${user ? (pageNames[page] || 'Admission Portal') : 'Sign in'} · School Admissions Portal`; }, [page, user]);
   useEffect(() => {
     if (!user) return;
@@ -446,7 +441,7 @@ export default function App() {
   const logout = reason => { if (typeof reason === 'string' && reason) setLogoutReason(reason); api('/auth/logout', { method: 'POST' }).catch(() => {}).finally(() => { setToken(null); setUser(null); if (typeof reason === 'string' && reason) window.location.reload(); }); };
   const roleName = { SUPER_ADMIN: 'SE TEAM (SUPER ADMIN)', STATE: 'STATE REGIONAL COORDINATOR', REGION: 'REGIONAL COORDINATOR', DISTRICT: 'DMS (DISTRICT)' }[user.role];
   const body = page === 'dash' ? <Dashboard user={user} go={setPage} /> : page === 'students' ? <StudentDetails user={user} /> : page === 'seats' && !dms ? <SeatList user={user} /> : page === 'tc' ? <TcRequests user={user} />
-    : page === 'request' && dms ? <RequestNewList /> : page === 'listreq' && admin ? <ListRequests /> : page === 'import' && canVac ? <ImportData user={user} /> : page === 'logs' && admin ? <Logs /> : page === 'users' && admin ? <UsersPage me={user} /> : <Dashboard user={user} go={setPage} />;
+    : page === 'listreq' && admin ? <ListRequests /> : page === 'import' && canVac ? <ImportData user={user} /> : page === 'logs' && admin ? <Logs /> : page === 'users' && admin ? <UsersPage me={user} /> : <Dashboard user={user} go={setPage} />;
   return <div className={`shell ${mobileOpen ? 'menu-open' : ''}`}>
     <button className="side-scrim" aria-label="Close navigation" onClick={() => setMobileOpen(false)} />
     <aside className="side" aria-label="Main navigation">
@@ -455,7 +450,6 @@ export default function App() {
       <Nav k="dash" icon="seat" label="Dashboard" /><Nav k="students" icon="users" label="Student Details" />
       <div className="nav-caption">ADMISSION PROCESS</div>
       {!dms && <Nav k="seats" icon="seat" label="Vacancy Management" />}<Nav k="tc" icon="doc" label="TC Requests" />
-      {dms && <Nav k="request" icon="clock" label="Request New List" />}
       {admin && <Nav k="listreq" icon="clock" label="List Requests" />}
       {canVac && <Nav k="import" icon="up" label="Import Data & Lists" />}
       {admin && <><div className="nav-caption">ADMINISTRATION</div><Nav k="logs" icon="log" label="Change History" /><Nav k="users" icon="users" label="Users & Access" /></>}
