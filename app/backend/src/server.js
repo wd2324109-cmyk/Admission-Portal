@@ -7,6 +7,7 @@ import { auth } from './common/auth.js';
 import { securityHeaders, apiHeaders, corsMiddleware } from './common/hardening.js';
 import { rateLimit } from './common/rateLimit.js';
 import { pool } from './db/index.js';
+import { describeProfile } from './db/profile.js';
 
 const app = express();
 app.disable('x-powered-by');
@@ -30,6 +31,7 @@ app.use(['/api/export', '/api/import', '/api/lists', '/api/rank'], heavy);
 const signedIn = writesOnly(auth);
 app.use('/api/import', signedIn, express.json({ limit: '25mb' }));
 app.use('/api/students', signedIn, express.json({ limit: '12mb' }));   // the two letters (up to 3 MB each) travel with the Not Willing / Not Joined step
+app.use('/api/documents', signedIn, express.json({ limit: '6mb' }));   // one document (up to 3 MB, sent as base64) per request
 app.use(express.json({ limit: '100kb' }));
 app.use('/api', apiHeaders);
 
@@ -56,7 +58,7 @@ if (fs.existsSync(path.join(WEB, 'index.html'))) {
 app.use(errorHandler);
 
 const port = process.env.PORT || 4000;
-const server = app.listen(port, () => console.log('API on :' + port));
+const server = app.listen(port, () => console.log('API on :' + port + '   database profile: ' + describeProfile()));
 // A failed background database call must not take the whole portal down: print the real reason and keep serving.
 process.on('unhandledRejection', e => console.error('\n!! Unhandled error (the server keeps running):', e?.message || e, '\n', e?.stack || ''));
 const stop = () => { server.close(() => pool.end().finally(() => process.exit(0))); setTimeout(() => process.exit(1), 10000).unref(); };

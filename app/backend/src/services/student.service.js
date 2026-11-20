@@ -48,7 +48,7 @@ export const studentService = {
     const where = and(scope(user, cls), g, byCode, q);
     const [rows, [{ n }]] = await Promise.all([
       db.select().from(T).where(where).orderBy(sql`${T.orank} asc nulls last`, asc(T.id)).limit(SIZE).offset((page - 1) * SIZE),
-      db.select({ n: sql`count(*)::int` }).from(T).where(where)]);
+      db.select({ n: sql`count(*)::int` }).from(T).where(where)]); 
     return { rows: rows.map(r => view(r, cls, user.role)), total: n, pages: Math.max(1, Math.ceil(n / SIZE)) };
   },
   async getById({ user, params }) {

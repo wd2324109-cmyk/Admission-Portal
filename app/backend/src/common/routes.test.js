@@ -6,7 +6,7 @@ process.env.NODE_ENV = 'test';
 const { default: api } = await import('../controllers/index.js');
 const { only } = await import('./auth.js');
 
-const ANY = 'any signed-in user', PUBLIC = 'public', ADMIN = ['SUPER_ADMIN'], NOT_DMS = ['SUPER_ADMIN', 'STATE', 'REGION'];
+const ANY = 'any signed-in user', PUBLIC = 'public', ADMIN = ['SUPER_ADMIN'], NOT_DMS = ['SUPER_ADMIN', 'STATE', 'REGION'], DOCS = ['DISTRICT', 'SUPER_ADMIN'];
 const EXPECT = {
   'POST /auth/login': PUBLIC,
   'POST /auth/logout': ANY, 'GET /auth/session': ANY, 'POST /auth/change-password': ANY,
@@ -16,7 +16,9 @@ const EXPECT = {
   'GET /students/:cls/:id/letter': ANY,                                 // the unwilling letter: limited to the caller's own students in the service
   'POST /students/:cls/:id/override': ADMIN,
   'GET /vacancies': NOT_DMS, 'GET /seats': NOT_DMS, 'GET /tc': ANY,
-  'POST /documents': ['DISTRICT'], 'POST /tc/letter': ['DISTRICT'], 'GET /documents/history': ADMIN,   // uploads: DMS only; upload history: super admin only
+  'GET /documents': DOCS, 'GET /documents/:cls/:id': DOCS, 'GET /documents/:cls/:id/:type/file': DOCS,   // Document Verification: the DMS and the super admin only (scope limited in the service)
+  'POST /documents/:cls/:id/:type': ['DISTRICT'],                                                           // only the DMS submits documents
+  'POST /documents/:cls/:id/:type/review': ADMIN,                                                           // only the super admin verifies / rejects
   'POST /rank/generate': ADMIN, 'POST /lists/generate': ADMIN,
   'POST /import/students': ADMIN, 'POST /import/vacancies': ADMIN,
   'GET /logs/students': ADMIN, 'GET /logs/vacancies': ADMIN,

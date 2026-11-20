@@ -2,13 +2,13 @@
 import assert from 'node:assert';
 import { getTableConfig } from 'drizzle-orm/pg-core';
 import * as S from '../schema/index.js';
-import { SPEC } from './spec.js';
+import { SPEC, LIVE_NAME } from './spec.js';
 
 const tables = Object.values(S).map(t => { try { return getTableConfig(t); } catch { return null; } }).filter(Boolean);
 const TYPE = { PgSerial: 'serial', PgText: 'text', PgInteger: 'integer', PgBoolean: 'boolean', PgTimestamp: 'timestamp' };
-assert.deepEqual(tables.map(t => t.name).sort(), SPEC.tables.map(t => t.name).sort(), 'the schema must define exactly the tables of the document');
+assert.deepEqual(tables.map(t => t.name).sort(), SPEC.tables.map(t => LIVE_NAME[t.name]).sort(), 'the schema must define exactly the tables of the document');
 for (const want of SPEC.tables) {
-  const have = tables.find(t => t.name === want.name);
+  const have = tables.find(t => t.name === LIVE_NAME[want.name]);
   assert.deepEqual(have.columns.map(c => c.name), want.columns.map(c => c.name), `${want.name}: columns differ from the document`);
   have.columns.forEach((c, i) => assert.equal(TYPE[c.columnType], want.columns[i].type, `${want.name}.${c.name}: type differs from the document`));
 }

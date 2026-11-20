@@ -1,5 +1,5 @@
 import { and, eq, sql } from 'drizzle-orm';
-import { students as S } from '../../schema/index.js';
+import { students as S, vacancies9th, vacancies10th, vacancies11th } from '../../schema/index.js';
 import { db } from '../../db/index.js';
 import { scope, userRegion } from '../../common/query.js';
 
@@ -20,7 +20,7 @@ export class DashboardServiceImpl extends DashboardService {
       db.select({ n: sql`count(*)::int` }).from(S).where(and(w, eq(S.willingStatus, 'UNWILLING'), eq(S.verificationStatus, 'PENDING'))),
       db.execute(sql`select count(*) filter (where "Vacancy_status" <> 'JOINED')::int as seats, count(*) filter (where "Vacancy_status" = 'JOINED')::int as admitted,
           count(distinct ("New_district", class_level, gender, medium, community)) filter (where "Vacancy_status" = 'SHORTFALL')::int as shortfall
-        from (select * from "Vacancies_9th" union all select * from "Vacancies_10th" union all select * from "Vacancies_11th") v
+        from (select * from ${vacancies9th} union all select * from ${vacancies10th} union all select * from ${vacancies11th}) v
         ${rc ? sql`where "New_district" = ${rc}` : sql``}`),
     ]);
     return ({ byClass, byDistrict, byCommunity, pendingVerification: pv[0].n, vacancy: vac.rows[0] });

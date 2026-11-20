@@ -4,14 +4,20 @@
   "scripts": {
     "dev": "node --watch src/server.js",
     "start": "node src/server.js",
+    "start:prod": "node src/server.js --profile=production",
     "db:setup": "node src/dbSetup.js",
+    "db:setup:prod": "node src/dbSetup.js --profile=production",
     "db:verify": "node src/dbVerify.js",
+    "db:verify:prod": "node src/dbVerify.js --profile=production",
     "db:where": "node src/dbWhere.js",
+    "db:where:prod": "node src/dbWhere.js --profile=production",
     "db:deploy": "node src/dbSetup.js && node src/dbVerify.js && node src/seed.js",
+    "db:deploy:prod": "node src/dbSetup.js --profile=production --apply && node src/dbVerify.js --profile=production",
     "seed": "node src/seed.js",
     "reset:superadmin": "node src/resetSuperadmin.js",
-    "test": "node src/spec/schema.test.js && node src/workflow/workflow.test.js && node src/workflow/listRequest.test.js && node src/common/security.test.js && node src/common/hardening.test.js && node src/common/routes.test.js",
-    "test:integration": "node test/workflow.integration.js"
+    "test": "node src/spec/schema.test.js && node src/workflow/workflow.test.js && node src/workflow/listRequest.test.js && node src/common/security.test.js && node src/common/hardening.test.js && node src/common/routes.test.js && node src/db/profile.test.js",
+    "test:integration": "node test/workflow.integration.js",
+    "db:ddl": "node src/dbDdl.js"
   },
   "dependencies": {
     "bcryptjs": "^2.4.3",
