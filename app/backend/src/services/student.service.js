@@ -11,7 +11,7 @@ import { logStudent } from '../common/logs.js';
 import { joinSeat, releaseSeat } from '../common/seats.js';
 import { lockClass } from '../common/locks.js';
 import { saveUpload } from '../common/upload.js';
-import { getLetter, allLetters, putLetter, KINDS, STAGES } from '../common/letters.js';
+import { getLetter, allLetters, putLetter, KINDS, STAGE_KINDS } from '../common/letters.js';
 import { UPLOADS } from '../common/paths.js';
 import { STATUS, GROUP_SQL, stateOf, groupOf, seatEffect, primary, statusColumns } from '../workflow/statuses.js';
 import { planAction, availableActions, VALID_CODES } from '../workflow/transitions.js';
@@ -71,9 +71,9 @@ export const studentService = {
           st.prev = lg?.updateStatusBefore || '3A';
         }
         const plan = planAction(user.role, st, body?.action, body?.remarks);
-        if (plan.needsLetter) {                                   // Not Willing and Not Joined: both letters, together with the step
-          for (const k of Object.keys(KINDS)) if (!body?.letters?.[k]?.fileData) throw new HttpError(`Upload the ${KINDS[k]} (PDF, JPG or PNG, under 3 MB)`);
-          for (const k of Object.keys(KINDS)) saved.push({ kind: k, ...(await saveUpload(body.letters[k].fileName, body.letters[k].fileData)) });
+        if (plan.needsLetter) {                                   // Not Willing / Not Joined: both letters; Request TC: the TC request letter - always together with the step
+          for (const k of plan.letters) if (!body?.letters?.[k]?.fileData) throw new HttpError(`Upload the ${KINDS[k]} (PDF, JPG or PNG, under 3 MB)`);
+          for (const k of plan.letters) saved.push({ kind: k, ...(await saveUpload(body.letters[k].fileName, body.letters[k].fileData)) });
         }
         await commit(tx, user, cls, row, { ...statusColumns(plan.after.code), tag2: plan.after.tag2 || null, tag1: plan.tag1, remark1: plan.remark1 });
         for (const l of saved) await putLetter(cls, row.id, plan.tag1, l.kind, { fileName: l.name, stored: l.stored, by: user.username, at: new Date().toISOString() });
@@ -81,10 +81,10 @@ export const studentService = {
     } catch (e) { for (const l of saved) await fs.unlink(path.join(UPLOADS, l.stored)).catch(() => {}); throw e; }
     return { ok: true };
   },
-  // One letter file of one student (same access as the student). ?stage=NOT_WILLING|NOT_JOINED &kind=HM|STUDENT (default: the student's Not Willing letter)
+  // One letter file of one student (same access as the student). ?stage=NOT_WILLING|NOT_JOINED|TC_REQUEST &kind=HM|STUDENT|TC (default: the student's Not Willing letter)
   async letter({ user, params, query }) {
-    const stage = String(query?.stage || 'NOT_WILLING'), kind = String(query?.kind || 'STUDENT');
-    if (!Object.hasOwn(STAGES, stage) || !Object.hasOwn(KINDS, kind)) throw new HttpError('Unknown letter');
+    const stage = String(query?.stage || 'NOT_WILLING'), kind = String(query?.kind || (stage === 'NOT_WILLING' ? 'STUDENT' : STAGE_KINDS[stage]?.[0]));
+    if (!Object.hasOwn(STAGE_KINDS, stage) || !STAGE_KINDS[stage].includes(kind)) throw new HttpError('Unknown letter');
     const cls = await requireClass(user, parseClass(params.cls)), row = await load(db, user, cls, params.id), l = await getLetter(cls, row.id, stage, kind);
     if (!l) throw new HttpError('This letter has not been uploaded', 404);
     return { file: path.join(UPLOADS, l.stored), name: l.fileName };

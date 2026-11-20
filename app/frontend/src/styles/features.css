@@ -57,3 +57,7 @@
 .notfound { min-height: 100vh; display: grid; place-items: center; padding: 24px; text-align: center; }
 .notfound__code { font-size: 88px; font-weight: 800; line-height: 1; color: var(--navy-700); }
 .notfound h1 { margin: 8px 0 6px; font-size: 22px; } .notfound p { margin: 0 0 22px; color: var(--muted); max-width: 440px; }
+/* Document dialog: student details first (no top rule on the first section), then the documents with a progress line. */
+.dialog__section--first { margin-top: 0; padding-top: 0; border-top: 0; }
+.docprogress { margin: 6px 0 10px; font-size: var(--fs-sm); color: var(--muted); } .docprogress--ready { color: var(--ok, #2a7d5f); }
+.docpick .letters__chosen { display: flex; }

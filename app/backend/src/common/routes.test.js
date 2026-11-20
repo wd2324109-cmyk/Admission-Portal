@@ -13,10 +13,11 @@ const EXPECT = {
   'GET /dashboard': ANY,
   'GET /students': ANY, 'GET /students/:cls/:id': ANY,                // always limited to the caller's own classes and districts in the service
   'POST /students/:cls/:id/action': ANY,                               // which step a role may do is decided by workflow/transitions.js (tested in workflow.test.js)
-  'GET /students/:cls/:id/letter': ANY,                                 // the unwilling letter: limited to the caller's own students in the service
+  'GET /students/:cls/:id/letter': ANY,                                 // the unwilling / TC request letters: limited to the caller's own students in the service
   'POST /students/:cls/:id/override': ADMIN,
   'GET /vacancies': NOT_DMS, 'GET /seats': NOT_DMS, 'GET /tc': ANY,
   'GET /documents': DOCS, 'GET /documents/:cls/:id': DOCS, 'GET /documents/:cls/:id/:type/file': DOCS,   // Document Verification: the DMS and the super admin only (scope limited in the service)
+  'POST /documents/:cls/:id': ['DISTRICT'],                                                                 // only the DMS submits documents (all of a student's documents together)
   'POST /documents/:cls/:id/:type': ['DISTRICT'],                                                           // only the DMS submits documents
   'POST /documents/:cls/:id/:type/review': ADMIN,                                                           // only the super admin verifies / rejects
   'POST /rank/generate': ADMIN, 'POST /lists/generate': ADMIN,

@@ -137,6 +137,17 @@ assert.deepEqual(availableActions('DISTRICT', S('2A', '3A')).map(a => a.key), ['
 assert.deepEqual(availableActions('DISTRICT', S('2A', '3B')).map(a => a.key), ['TC_REQUEST']);
 assert.deepEqual(availableActions('REGION', S('2A', '3A')).map(a => a.key), []);
 assert.deepEqual(availableActions('SUPER_ADMIN', S('2A', '3A')).map(a => a.key), []);
+// The TC request letter is submitted together with the request (one letter, plus the reason); Not Willing / Not Joined keep their two letters.
+assert.equal(planAction('DISTRICT', S('2A', '3A'), 'TC_REQUEST', 'reason').needsLetter, true);
+assert.deepEqual(planAction('DISTRICT', S('2A', '3A'), 'TC_REQUEST', 'reason').letters, ['TC']);
+assert.deepEqual(availableActions('DISTRICT', S('2A', '3A'))[0].letters, ['TC']);
+assert.deepEqual(planAction('DISTRICT', S('2A'), 'NOT_JOINED', 'x').letters, ['HM', 'STUDENT']);
+assert.equal(planAction('REGION', S('2A', '8A', 'TC-RC'), 'TC_RC_APPROVE').needsLetter, false, 'only the DMS request carries a letter');
+{
+  const { STAGE_KINDS, KINDS } = await import('../common/letters.js');
+  assert.deepEqual(STAGE_KINDS.TC_REQUEST, ['TC']); assert.equal(KINDS.TC, 'TC request letter');
+  for (const [key, a] of Object.entries((await import('./transitions.js')).ACTIONS)) for (const k of a.letters || []) assert(KINDS[k], `${key}: unknown letter kind ${k}`);
+}
 console.log('TC request rules OK');
 
 // --- Document Verification

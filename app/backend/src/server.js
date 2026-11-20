@@ -30,8 +30,8 @@ app.use(['/api/export', '/api/import', '/api/lists', '/api/rank'], heavy);
 // Request size limits: only the Excel imports need a big body, and only for a signed-in user.
 const signedIn = writesOnly(auth);
 app.use('/api/import', signedIn, express.json({ limit: '25mb' }));
-app.use('/api/students', signedIn, express.json({ limit: '12mb' }));   // the two letters (up to 3 MB each) travel with the Not Willing / Not Joined step
-app.use('/api/documents', signedIn, express.json({ limit: '6mb' }));   // one document (up to 3 MB, sent as base64) per request
+app.use('/api/students', signedIn, express.json({ limit: '12mb' }));   // the two letters (up to 3 MB each) travel with the Not Willing / Not Joined step, the TC request letter with Request TC
+app.use('/api/documents', signedIn, express.json({ limit: '20mb' }));   // up to 4 documents (3 MB each, sent as base64) in one submission
 app.use(express.json({ limit: '100kb' }));
 app.use('/api', apiHeaders);
 

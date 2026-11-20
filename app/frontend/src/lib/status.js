@@ -29,8 +29,9 @@ const noTc = list => list.filter(([k]) => k !== 'tc');
 export const DMS_TABS = noTc(DMS_GROUPS).map(([k, l]) => [k, l]);
 export const TABS = [['all', 'All'], ...noTc(GROUPS).map(([k, l]) => [k, l])];
 
-// Needed for Not Willing and for Not Joined.
-export const LETTER_KINDS = { HM: 'HM letter', STUDENT: 'Student unwilling letter' };
+// The letters that go with a step. Not Willing and Not Joined need the HM letter and the student's letter; Request TC needs the TC request letter.
+// (Which letters a step needs comes from the server with each available action: action.letters.)
+export const LETTER_KINDS = { HM: 'HM letter', STUDENT: 'Student unwilling letter', TC: 'TC request letter' };
 
 export const SEAT_TAG = { RESERVED: ['Reserved', 'info'], JOINED: ['Joined', 'ok'], VACANT: ['Vacant', 'outline'] };
 export const TC_STAGE = { JOINED: ['Joined · TC not requested', 'ok'], REGION: ['Waiting for the Regional Coordinator', 'warn'], STATE: ['Waiting for the State Regional Coordinator', 'info'], DONE: ['TC Issued', 'tc'] };

@@ -38,6 +38,7 @@ api.get('/tc', auth, json(tcService.list));
 // Willing letter, TC and Community certificate are mandatory, the PWD letter too for a PWD student (workflow/documents.js). Nobody else uses this screen.
 api.get('/documents', auth, DOCS, json(docsService.list));
 api.get('/documents/:cls/:id', auth, DOCS, json(docsService.get));
+api.post('/documents/:cls/:id', auth, only('DISTRICT'), json(docsService.submitAll));          // all the documents of one student together (what the screen uses)
 api.post('/documents/:cls/:id/:type', auth, only('DISTRICT'), json(docsService.submit));
 api.get('/documents/:cls/:id/:type/file', auth, DOCS, wrap(async (req, res) => { const f = await docsService.file(ctx(req)); res.download(f.file, f.name, e => e && !res.headersSent && res.status(404).json({ error: 'File is missing' })); }));
 api.post('/documents/:cls/:id/:type/review', auth, ADMIN, json(docsService.review));

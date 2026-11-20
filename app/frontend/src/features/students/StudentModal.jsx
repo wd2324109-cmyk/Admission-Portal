@@ -1,11 +1,12 @@
 import { useEffect, useState } from 'react';
-import { api, downloadFile } from '../../api/index.js';
-import { ALL_CODES, CODE, LETTER_KINDS, admitOf, stageOf } from '../../lib/status.js';
+import { api } from '../../api/index.js';
+import { ALL_CODES, CODE, LETTER_KINDS, stageOf } from '../../lib/status.js';
 import { toBase64 } from '../../lib/format.js';
 import { Alert, Modal, useConfirm } from '../../components/ui/index.js';
 import StatusBadge from './StatusBadge.jsx';
+import StudentInfo from './StudentInfo.jsx';
 
-const MAX_LETTER = 3 * 1024 * 1024;
+const MAX_LETTER = 3 * 1024 * 1024, NO_LETTERS = { HM: null, STUDENT: null, TC: null };
 // mode 'tc' (TC Requests screen): only the TC steps are offered. Otherwise (Student Details): every step except the TC ones,
 // so "Request TC" exists in the TC Requests screen alone.
 const isTcStep = a => a.key.startsWith('TC_');
@@ -13,7 +14,7 @@ const isTcStep = a => a.key.startsWith('TC_');
 // One student's record: details, the next allowed steps, the super admin's correction tool and the history.
 export default function StudentModal({ cls, id, user, onClose, onChange, mode = 'students' }) {
   const confirm = useConfirm();
-  const [s, setS] = useState(null), [err, setErr] = useState(''), [remarks, setRemarks] = useState(''), [ov, setOv] = useState({ code: '', remarks: '' }), [busy, setBusy] = useState(false), [letters, setLetters] = useState({ HM: null, STUDENT: null });
+  const [s, setS] = useState(null), [err, setErr] = useState(''), [remarks, setRemarks] = useState(''), [ov, setOv] = useState({ code: '', remarks: '' }), [busy, setBusy] = useState(false), [letters, setLetters] = useState(NO_LETTERS);
 
   const load = () => api(`/students/${cls}/${id}`).then(x => { setS(x); setOv(o => ({ ...o, code: x.state.code })); }).catch(e => setErr(e.message));
   useEffect(() => { load(); }, [cls, id]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -24,20 +25,22 @@ export default function StudentModal({ cls, id, user, onClose, onChange, mode = 
 
   const pickLetter = async (kind, f) => {
     if (!f) return setLetters(x => ({ ...x, [kind]: null }));
+    if (!/\.(pdf|jpe?g|png)$/i.test(f.name)) return setErr('The letter must be a PDF, JPG or PNG file');
     if (f.size > MAX_LETTER) return setErr('Each letter must be under 3 MB');
     try { const data = await toBase64(f); setErr(''); setLetters(x => ({ ...x, [kind]: { name: f.name, data } })); } catch (e) { setErr(e.message); }
   };
 
   const go = async a => {
-    if (a.key === 'TC_REQUEST' && !(await confirm({ title: 'Request a TC?', message: `Request a TC for ${s.name}?\n\nThe request goes to the Regional Coordinator, then to the State Regional Coordinator.`, confirmLabel: 'Request TC' }))) return;
+    const need = a.letters || [], isTc = a.key === 'TC_REQUEST';
     if (a.needsLetter) {
-      const miss = Object.entries(LETTER_KINDS).find(([k]) => !letters[k]);
-      if (miss) return setErr(`Upload the ${miss[1]} (PDF, JPG or PNG, under 3 MB) before submitting`);
-      if (!(await confirm({ title: 'Submit with letters?', message: `Submit "${a.label}" with the two letters?\n\nOnce submitted, the letters cannot be edited.`, confirmLabel: 'Submit' }))) return;
+      const miss = need.find(k => !letters[k]);
+      if (miss) return setErr(`Upload the ${LETTER_KINDS[miss]} (PDF, JPG or PNG, under 3 MB) before submitting`);
     }
+    if (isTc && !(await confirm({ title: 'Request a TC?', message: `Request a TC for ${s.name} with the TC request letter you added?\n\nThe request goes to the Regional Coordinator, then to the State Regional Coordinator. Once submitted, the letter cannot be edited.`, confirmLabel: 'Request TC' }))) return;
+    if (a.needsLetter && !isTc && !(await confirm({ title: 'Submit with letters?', message: `Submit "${a.label}" with the two letters?\n\nOnce submitted, the letters cannot be edited.`, confirmLabel: 'Submit' }))) return;
     run(async () => {
-      await api(`/students/${cls}/${id}/action`, { method: 'POST', body: { action: a.key, remarks, ...(a.needsLetter ? { letters: Object.fromEntries(Object.keys(LETTER_KINDS).map(k => [k, { fileName: letters[k].name, fileData: letters[k].data }])) } : {}) } });
-      setLetters({ HM: null, STUDENT: null });
+      await api(`/students/${cls}/${id}/action`, { method: 'POST', body: { action: a.key, remarks, ...(a.needsLetter ? { letters: Object.fromEntries(need.map(k => [k, { fileName: letters[k].name, fileData: letters[k].data }])) } : {}) } });
+      setLetters(NO_LETTERS);
     });
   };
 
@@ -46,30 +49,25 @@ export default function StudentModal({ cls, id, user, onClose, onChange, mode = 
     run(async () => { await api(`/students/${cls}/${id}/override`, { method: 'POST', body: ov }); setOv(o => ({ ...o, remarks: '' })); });
   };
 
-  const tcMode = mode === 'tc', acts = s.actions.filter(a => tcMode === isTcStep(a)), needsRemarks = acts.some(a => a.needsRemarks), needsLetter = acts.some(a => a.needsLetter), admin = user.role === 'SUPER_ADMIN' && !tcMode;
-  const rows = [
-    ['EMIS', s.emis], ['Class', s.classLevel], ['Admit status', admitOf(s)], ['Gender / Medium', `${s.gender} / ${s.medium}`], ['Community', s.community + (s.disabilityStatus ? ' (PWD)' : '')],
-    ['Father / Mother', `${s.fatherName || '—'} / ${s.motherName || '—'}`], ['District / Block', `${s.district || '—'} / ${s.block || '—'}`], ['School', s.schoolname], ['Phone', s.phone || '—'],
-    ['Address', [s.address, s.pincode].filter(Boolean).join(' - ') || '—'], ['Quarterly / Half-yearly', `${s.mark1 ?? '—'} / ${s.mark2 ?? '—'}`],
-    ['Overall rank', s.orank ?? '—'], ['Total (highest of two)', s.total ?? '—'], ['NMMS / TRUST / Other marks', [s.nmss, s.trust, s.otherMarks].map(v => v ?? '—').join(' / ')],
-    ['Allotted to', s.newSchoolName ? `${s.newSchoolName} (${s.newDistcName})` : '—'], ['Seat category', s.selectedCategory || '—'], ['Note', s.remark1 || '—'],
-    ...(s.letters || []).map(l => [`${l.label} (submitted, locked)`, <button type="button" className="btn btn--sm" onClick={() => downloadFile(`/students/${cls}/${id}/letter?stage=${l.stage}&kind=${l.kind}`).catch(e => setErr(e.message))}>{l.fileName}</button>]),
-  ];
+  // Request TC stays off until the TC request letter is added and the reason is written.
+  const tcWait = a => a.key === 'TC_REQUEST' && !((a.letters || []).every(k => letters[k]) && remarks.trim());
+  const tcMode = mode === 'tc', acts = s.actions.filter(a => tcMode === isTcStep(a)), needsRemarks = acts.some(a => a.needsRemarks), need = acts.find(a => a.needsLetter)?.letters || [], admin = user.role === 'SUPER_ADMIN' && !tcMode;
 
   return <Modal title={s.name} titleExtra={<StatusBadge r={s} />} width={780} onClose={onClose} footer={<button type="button" className="btn" onClick={onClose}>Close</button>}>
-    <table className="kv"><tbody>{rows.map(([k, v]) => <tr key={k}><th scope="row">{k}</th><td>{v}</td></tr>)}</tbody></table>
+    <StudentInfo s={s} cls={cls} id={id} onError={setErr} />
 
     {acts.length > 0 && <section className="dialog__section"><h3>{tcMode ? 'TC request' : 'Next step'}</h3>
-      {needsLetter && <div className="letters">
-        <p className="hint">Both letters are needed. You can change or remove a letter until you submit; after submitting it cannot be edited.</p>
-        {Object.entries(LETTER_KINDS).map(([k, label]) => <div className="letters__row" key={k}>
-          <label>{label} <span className="muted">(PDF, JPG or PNG, under 3 MB)</span>
+      {need.length > 0 && <div className="letters">
+        <p className="hint">{need.length > 1 ? 'Both letters are needed.' : tcMode ? 'The TC request letter must be submitted with the request.' : 'The letter is needed.'} You can change or remove a letter until you submit; after submitting it cannot be edited.</p>
+        {need.map(k => <div className="letters__row" key={k}>
+          <label>{LETTER_KINDS[k]} <span className="muted">(PDF, JPG or PNG, under 3 MB)</span>
             <input key={letters[k]?.name || 'none-' + k} type="file" accept=".pdf,.jpg,.jpeg,.png" onChange={e => pickLetter(k, e.target.files[0])} /></label>
           {letters[k] && <span className="letters__chosen">Chosen: <b>{letters[k].name}</b> <button type="button" className="btn btn--sm" onClick={() => pickLetter(k, null)}>Remove</button></span>}
         </div>)}
       </div>}
       {needsRemarks && <textarea rows="2" aria-label="Remarks" placeholder={tcMode ? 'Reason for the TC / remarks' : 'Remarks / reason'} value={remarks} onChange={e => setRemarks(e.target.value)} />}
-      <div className="toolbar">{acts.map(a => <button key={a.key} type="button" className={`btn ${/^NOT_|REJECT/.test(a.key) ? 'btn--danger' : 'btn--primary'}`} disabled={busy} onClick={() => go(a)}>{a.label}</button>)}</div>
+      <div className="toolbar">{acts.map(a => <button key={a.key} type="button" className={`btn ${/^NOT_|REJECT/.test(a.key) ? 'btn--danger' : 'btn--primary'}`} disabled={busy || tcWait(a)} onClick={() => go(a)}>{a.label}</button>)}</div>
+      {acts.some(tcWait) && <p className="hint">Add the TC request letter and write the reason to turn on the Request TC button.</p>}
     </section>}
 
     {tcMode && !acts.length && <p className="hint">{['3A', '3B'].includes(s.statusCode) ? 'Only the DMS can request a TC for a joined student.' : 'No TC step is waiting for you on this student.'}</p>}

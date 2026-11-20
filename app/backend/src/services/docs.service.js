@@ -81,6 +81,42 @@ export const docsService = {
     return { ok: true };
   },
 
+  // DMS: submit the documents of one student TOGETHER (the screen enables Submit only when every mandatory document is there).
+  // body.docs = { TYPE: { fileName, fileData } } for the documents that are new or replaced. After this call every mandatory document must exist and none may still be
+  // rejected; a verified document can not be replaced. All or nothing: if anything fails, no document is changed and no file is kept.
+  async submitAll({ user, params, body }) {
+    const cls = await requireClass(user, parseClass(params.cls));
+    const files = new Map(Object.entries(body?.docs || {}).filter(([, v]) => v?.fileData).map(([t, v]) => [typeOf(t), v]));
+    if (!files.size) throw new HttpError('Choose the documents to submit');
+    const types = [...files.keys()];
+    const check = (row, docs) => {
+      for (const type of types) planSubmit({ code: primary(stateOf(row)), student: row, type, doc: docs[type] });
+      const missing = requiredFor(row).filter(t => !files.has(t) && (!docs[t] || docs[t].status === 'REJECTED'));
+      if (missing.length) throw new HttpError(`Add ${missing.map(t => DOC_TYPES[t]).join(', ')} before submitting`, 400);
+    };
+    const pre = await loadStudent(db, user, cls, params.id);
+    check(pre, await getDocs(cls, pre.id));                                                                              // fail early, before any file is stored
+    const saved = [], replaced = [];
+    try {
+      for (const [type, f] of files) saved.push({ type, ...(await saveUpload(f.fileName, f.fileData)) });
+      await db.transaction(async tx => {
+        await lockClass(tx, cls);
+        const row = await loadStudent(tx, user, cls, params.id, true), docs = await getDocs(cls, row.id);
+        check(row, docs);                                                                                                 // again, now that the student row is locked
+        const now = new Date().toISOString(), next = { ...docs };
+        for (const up of saved) {
+          const old = docs[up.type], n = (old?.submissions || 0) + 1;
+          if (old?.stored) replaced.push(old.stored);
+          next[up.type] = { fileName: up.name, stored: up.stored, status: 'PENDING', submittedBy: user.username, submittedAt: now, submissions: n,
+            reviewedBy: null, reviewedAt: null, remarks: null, history: [...(old?.history || []), event(old ? 'RESUBMITTED' : 'SUBMITTED', user, { fileName: up.name, attempt: n })] };
+        }
+        await putDocs(cls, row.id, next);
+      });
+    } catch (e) { for (const up of saved) await removeStored(up.stored); throw e; }
+    for (const stored of replaced) await removeStored(stored);                                                           // the replaced files are no longer needed
+    return { ok: true, submitted: saved.length };
+  },
+
   // Super admin: verify (final) or reject (with a reason; the DMS submits again).
   async review({ user, params, body }) {
     const cls = await requireClass(user, parseClass(params.cls)), type = typeOf(params.type);
