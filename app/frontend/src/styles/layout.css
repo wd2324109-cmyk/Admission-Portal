@@ -1,0 +1,66 @@
+/* App shell: sidebar, top bar, page area. */
+.shell { display: grid; grid-template-columns: var(--sidebar-w) minmax(0, 1fr); min-height: 100vh; }
+.main { min-width: 0; display: flex; flex-direction: column; min-height: 100vh; }
+.page { flex: 1; padding: 26px var(--gutter) 34px; width: 100%; max-width: 1680px; margin: 0 auto; min-width: 0; }
+.footer { display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap; padding: 12px var(--gutter); border-top: 1px solid var(--line); background: var(--surface); color: var(--muted); font-size: var(--fs-xs); }
+.scrim { display: none; }
+
+/* Sidebar */
+.sidebar { position: sticky; top: 0; height: 100vh; height: 100dvh; display: flex; flex-direction: column; background: var(--navy-800); color: #d7e2ee; padding: 20px 14px 14px; overflow-y: auto; overflow-x: hidden; overscroll-behavior: contain; z-index: 30; scrollbar-width: thin; scrollbar-color: rgba(255, 255, 255, .28) transparent; }
+.sidebar > * { flex-shrink: 0; }
+.brand { display: flex; align-items: center; gap: 12px; padding: 2px 8px 18px; margin-bottom: 6px; border-bottom: 1px solid rgba(255, 255, 255, .14); }
+.brand img { width: 42px; height: 42px; padding: 4px; background: #fff; border-radius: var(--r-md); object-fit: contain; flex: none; }
+.brand strong { display: block; color: #fff; font-size: 15px; line-height: 1.25; }
+.brand small { display: block; margin-top: 2px; color: #b4c4d4; font-size: 11px; letter-spacing: .03em; }
+.sidebar__nav { flex: 1; padding-bottom: 12px; }
+.nav-caption { padding: 16px 12px 6px; color: #9db2c7; font-size: 11px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; }
+.nav { display: flex; align-items: center; gap: 12px; width: 100%; padding: 10px 12px; border: 0; border-radius: var(--r-md); background: none; color: #cfdbe7; font-size: var(--fs-sm); font-weight: 550; text-align: left; cursor: pointer; transition: background .15s, color .15s; }
+.nav span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.nav:hover { background: rgba(255, 255, 255, .09); color: #fff; }
+.nav.on { background: #fff; color: var(--navy-700); font-weight: 700; }
+.nav:focus-visible, .acct__btn:focus-visible { outline-color: #fff; }
+.sidebar__foot { border-top: 1px solid rgba(255, 255, 255, .14); }
+.side-security { display: flex; align-items: center; gap: 8px; padding: 10px 8px; color: #b4c4d4; font-size: 11.5px; }
+.status-dot { width: 7px; height: 7px; border-radius: 50%; background: #49b889; box-shadow: 0 0 0 3px rgba(73, 184, 137, .16); flex: none; }
+.me { display: flex; align-items: center; gap: 10px; padding: 8px 6px 12px; }
+.me__copy { min-width: 0; } .me__copy strong { display: block; color: #fff; font-size: var(--fs-xs); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.me__copy small { display: block; color: #b4c4d4; font-size: 10.5px; letter-spacing: .04em; }
+.avatar { width: 34px; height: 34px; display: grid; place-items: center; border-radius: 50%; background: #dce8f3; color: var(--navy-700); font-weight: 700; font-size: var(--fs-sm); text-transform: uppercase; flex: none; }
+.avatar--sm { width: 32px; height: 32px; background: var(--navy-100); }
+.acct { display: grid; gap: 8px; padding: 0 4px; }
+.acct__btn { padding: 9px 10px; border: 1px solid rgba(255, 255, 255, .24); border-radius: var(--r-sm); background: rgba(255, 255, 255, .07); color: #fff; font-size: var(--fs-xs); font-weight: 600; cursor: pointer; }
+.acct__btn:hover { background: rgba(255, 255, 255, .15); }
+.acct__btn--out { background: transparent; color: #f1d3d3; }
+.acct__btn--out:hover { background: rgba(185, 56, 56, .28); border-color: #c58a8a; }
+@media (max-height: 700px) { .nav { padding: 8px 12px; } .nav-caption { padding-top: 10px; } .side-security { display: none; } }
+
+/* Top bar */
+.topbar { position: sticky; top: 0; z-index: 10; display: flex; align-items: center; justify-content: space-between; gap: 16px; height: var(--topbar-h); padding: 0 var(--gutter); background: var(--surface); border-bottom: 1px solid var(--line); }
+.topbar__left, .topbar__right { display: flex; align-items: center; gap: 14px; min-width: 0; }
+.crumbs { display: flex; align-items: center; gap: 8px; min-width: 0; color: var(--muted); font-size: var(--fs-sm); white-space: nowrap; overflow: hidden; }
+.crumbs b { color: var(--ink); font-weight: 700; overflow: hidden; text-overflow: ellipsis; }
+.crumbs-short { display: none; font-size: var(--fs-lg); }
+.scope-chip { display: flex; align-items: center; gap: 8px; padding: 6px 11px; border: 1px solid var(--line); border-radius: var(--r-sm); background: var(--navy-50); color: var(--ink-2); font-size: var(--fs-xs); font-weight: 600; white-space: nowrap; }
+.topbar__user { display: flex; align-items: center; gap: 10px; padding-left: 14px; border-left: 1px solid var(--line); min-width: 0; }
+.topbar__user strong { display: block; font-size: var(--fs-xs); color: var(--ink); line-height: 1.3; }
+.topbar__user small { display: block; font-size: 10.5px; color: var(--muted); letter-spacing: .03em; }
+.menu-toggle { display: none; width: 38px; height: 38px; flex-direction: column; align-items: center; justify-content: center; gap: 4px; border: 1px solid var(--line-strong); border-radius: var(--r-sm); background: #fff; cursor: pointer; flex: none; }
+.menu-toggle span { display: block; width: 16px; height: 2px; background: var(--ink-2); border-radius: 1px; }
+.offline-banner { position: sticky; top: var(--topbar-h); z-index: 9; padding: 9px var(--gutter); background: #fff4d6; border-bottom: 1px solid #ecd48c; color: #6b4f00; font-size: var(--fs-sm); font-weight: 600; }
+
+/* Tablet and phone: the sidebar becomes a drawer */
+@media (max-width: 1050px) {
+  .shell { grid-template-columns: 1fr; }
+  .sidebar { position: fixed; inset: 0 auto 0 0; width: 280px; max-width: 86vw; transform: translateX(-102%); visibility: hidden; transition: transform .22s ease, visibility 0s linear .22s; box-shadow: 12px 0 35px rgba(13, 29, 46, .2); }
+  .shell--menu-open .sidebar { transform: none; visibility: visible; transition-delay: 0s; }
+  .shell--menu-open .scrim { display: block; position: fixed; inset: 0; z-index: 25; border: 0; background: rgba(10, 25, 41, .5); }
+  .menu-toggle { display: flex; }
+}
+@media (max-width: 680px) {
+  :root { --topbar-h: 58px; }
+  .crumbs { display: none; } .crumbs-short { display: block; }
+  .scope-chip, .topbar__user > div:last-child { display: none; }
+  .topbar__user { padding-left: 0; border-left: 0; }
+  .page { padding-top: 18px; }
+  .footer { flex-direction: column; gap: 2px; }
+}
