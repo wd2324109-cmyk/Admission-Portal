@@ -7,17 +7,15 @@ import StatusBadge from './StatusBadge.jsx';
 import StudentInfo from './StudentInfo.jsx';
 
 const MAX_LETTER = 3 * 1024 * 1024, NO_LETTERS = { HM: null, STUDENT: null, TC: null };
-// mode 'tc' (TC Requests screen): only the TC steps are offered. Otherwise (Student Details): every step except the TC ones,
-// so "Request TC" exists in the TC Requests screen alone.
+
 const isTcStep = a => a.key.startsWith('TC_');
 
-// One student's record: details, the next allowed steps, the super admin's correction tool and the history.
 export default function StudentModal({ cls, id, user, onClose, onChange, mode = 'students' }) {
   const confirm = useConfirm();
   const [s, setS] = useState(null), [err, setErr] = useState(''), [remarks, setRemarks] = useState(''), [ov, setOv] = useState({ code: '', remarks: '' }), [busy, setBusy] = useState(false), [letters, setLetters] = useState(NO_LETTERS);
 
   const load = () => api(`/students/${cls}/${id}`).then(x => { setS(x); setOv(o => ({ ...o, code: x.state.code })); }).catch(e => setErr(e.message));
-  useEffect(() => { load(); }, [cls, id]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { load(); }, [cls, id]);
 
   if (!s) return <Modal title="Student record" onClose={onClose}>{err ? <Alert>{err}</Alert> : <p className="muted">Loading…</p>}</Modal>;
 
@@ -49,7 +47,6 @@ export default function StudentModal({ cls, id, user, onClose, onChange, mode = 
     run(async () => { await api(`/students/${cls}/${id}/override`, { method: 'POST', body: ov }); setOv(o => ({ ...o, remarks: '' })); });
   };
 
-  // Request TC stays off until the TC request letter is added and the reason is written.
   const tcWait = a => a.key === 'TC_REQUEST' && !((a.letters || []).every(k => letters[k]) && remarks.trim());
   const tcMode = mode === 'tc', acts = s.actions.filter(a => tcMode === isTcStep(a)), needsRemarks = acts.some(a => a.needsRemarks), need = acts.find(a => a.needsLetter)?.letters || [], admin = user.role === 'SUPER_ADMIN' && !tcMode;
 
@@ -58,23 +55,20 @@ export default function StudentModal({ cls, id, user, onClose, onChange, mode = 
 
     {acts.length > 0 && <section className="dialog__section"><h3>{tcMode ? 'TC request' : 'Next step'}</h3>
       {need.length > 0 && <div className="letters">
-        <p className="hint">{need.length > 1 ? 'Both letters are needed.' : tcMode ? 'The TC request letter must be submitted with the request.' : 'The letter is needed.'} You can change or remove a letter until you submit; after submitting it cannot be edited.</p>
         {need.map(k => <div className="letters__row" key={k}>
           <label>{LETTER_KINDS[k]} <span className="muted">(PDF, JPG or PNG, under 3 MB)</span>
             <input key={letters[k]?.name || 'none-' + k} type="file" accept=".pdf,.jpg,.jpeg,.png" onChange={e => pickLetter(k, e.target.files[0])} /></label>
           {letters[k] && <span className="letters__chosen">Chosen: <b>{letters[k].name}</b> <button type="button" className="btn btn--sm" onClick={() => pickLetter(k, null)}>Remove</button></span>}
         </div>)}
       </div>}
-      {needsRemarks && <textarea rows="2" aria-label="Remarks" placeholder={tcMode ? 'Reason for the TC / remarks' : 'Remarks / reason'} value={remarks} onChange={e => setRemarks(e.target.value)} />}
+      {needsRemarks && <textarea rows="2" aria-label="Remarks" value={remarks} onChange={e => setRemarks(e.target.value)} />}
       <div className="toolbar">{acts.map(a => <button key={a.key} type="button" className={`btn ${/^NOT_|REJECT/.test(a.key) ? 'btn--danger' : 'btn--primary'}`} disabled={busy || tcWait(a)} onClick={() => go(a)}>{a.label}</button>)}</div>
-      {acts.some(tcWait) && <p className="hint">Add the TC request letter and write the reason to turn on the Request TC button.</p>}
     </section>}
 
-    {tcMode && !acts.length && <p className="hint">{['3A', '3B'].includes(s.statusCode) ? 'Only the DMS can request a TC for a joined student.' : 'No TC step is waiting for you on this student.'}</p>}
 
     {admin && <section className="dialog__section"><h3>Correction (super admin)</h3>
       <div className="toolbar"><select aria-label="Status" value={ov.code} onChange={e => setOv({ ...ov, code: e.target.value })}>{ALL_CODES.map(c => <option key={c} value={c}>{c ? CODE[c] : 'Not listed (clear)'}</option>)}</select></div>
-      <textarea rows="2" aria-label="Reason for the correction (required)" placeholder="Reason for the correction (required)" value={ov.remarks} onChange={e => setOv({ ...ov, remarks: e.target.value })} />
+      <textarea rows="2" aria-label="Reason for the correction (required)" value={ov.remarks} onChange={e => setOv({ ...ov, remarks: e.target.value })} />
       <div className="toolbar"><button type="button" className="btn btn--danger" disabled={busy} onClick={correct}>Apply correction</button></div>
     </section>}
 

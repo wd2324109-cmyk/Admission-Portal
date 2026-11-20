@@ -1,8 +1,3 @@
-// The letters that go with a step: "Not Willing" and "Not Joined" need the HM letter and the student's unwilling letter (two letters),
-// "TC request" needs the TC request letter (one letter).
-// The files live in the uploads folder like the other uploads; a small record per letter says which file belongs to which student and step.
-// A letter is FINAL once the step is submitted: nothing here edits or deletes one. (If the same step is submitted again later, e.g. after a
-// reconsideration, the new letter becomes the current one and the earlier record is kept in `previous`; its file is never removed.)
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { UPLOADS } from './paths.js';
@@ -13,14 +8,13 @@ export const STAGE_KINDS = { NOT_WILLING: ['HM', 'STUDENT'], NOT_JOINED: ['HM', 
 
 const DIR = path.join(UPLOADS, 'letters');
 const fileOf = (cls, id, stage, kind) => path.join(DIR, `${+cls}-${+id}-${stage}-${kind}.json`);
-const legacyFile = (cls, id) => path.join(DIR, `${+cls}-${+id}.json`);     // the single unwilling letter of the earlier version = Not Willing / student letter
+const legacyFile = (cls, id) => path.join(DIR, `${+cls}-${+id}.json`);
 const read = async f => { try { return JSON.parse(await fs.readFile(f, 'utf8')); } catch (e) { if (e.code === 'ENOENT') return null; throw e; } };
 
 export async function getLetter(cls, id, stage = 'NOT_WILLING', kind = 'STUDENT') {
   return (await read(fileOf(cls, id, stage, kind))) ?? (stage === 'NOT_WILLING' && kind === 'STUDENT' ? read(legacyFile(cls, id)) : null);
 }
 
-/** Every letter the student has: [{ stage, kind, label, fileName, by, at }]. */
 export async function allLetters(cls, id) {
   const out = [];
   for (const stage of Object.keys(STAGES)) for (const kind of STAGE_KINDS[stage]) {

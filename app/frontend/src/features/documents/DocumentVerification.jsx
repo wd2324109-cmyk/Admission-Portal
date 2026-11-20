@@ -10,16 +10,13 @@ import DocumentsModal from './DocumentsModal.jsx';
 const EMPTY = { rows: [], pages: 1, total: 0 };
 const DocChip = ({ type, d }) => { const [label, tone] = d ? DOC_STATUS[d.status] || [d.status, 'neutral'] : ['Missing', 'neutral']; return <Badge tone={tone}>{DOC_SHORT[type] || type}: {label}</Badge>; };
 
-// Joined students and their documents. Willing letter, TC and Community certificate are mandatory for every student (PWD letter too for a PWD student).
-// The DMS submits, the super admin verifies or rejects; a verified document is final.
 export default function DocumentVerification({ user }) {
   const dms = user.role === 'DISTRICT', admin = user.role === 'SUPER_ADMIN';
   const [cls, setCls] = useState(firstClass(user)), [search, setSearch] = useState(''), [state, setState] = useState(admin ? 'PENDING' : ''), [open, setOpen] = useState(null);
   const q = useDebounced(search), [page, setPage] = usePage(cls, q, state);
   const { data, error, reload } = useFetch(() => api(`/documents?class=${cls}&state=${state}&search=${encodeURIComponent(q)}&page=${page}`), [cls, q, state, page], EMPTY);
-  const note = `Joined students${dms ? ' of your district' : ''}. ${dms ? 'Submit the Willing letter, TC and Community certificate of every student, and the PWD letter of a PWD student. You can change a document and submit it again until the super admin verifies it.' : 'Open a student to verify or reject each document the DMS submitted. A verified document cannot be changed.'}`;
   return <>
-    <PageHeader title="Document Verification" note={note} />
+    <PageHeader title="Document Verification" />
     <div className="filters"><ClassTabs user={user} cls={cls} onChange={setCls} /></div>
     <div className="filters"><Segmented label="Document state" items={DOC_TABS} value={state} onChange={setState} /></div>
     <section className="panel">

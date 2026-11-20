@@ -14,8 +14,8 @@ import { AuthService } from '../auth.service.js';
 
 const byUser = makeLimiter({ max: 8 }), byIp = makeLimiter({ max: 30 });
 const resetByIp = makeLimiter({ max: 20 });
-const byPwChange = makeLimiter({ max: 5 });                         // wrong "current password" guesses, per account
-const DUMMY = bcrypt.hashSync('not-a-real-password', 12);           // same cost as real hashes, so unknown users take as long as known ones
+const byPwChange = makeLimiter({ max: 5 });
+const DUMMY = bcrypt.hashSync('not-a-real-password', 12);
 export class AuthServiceImpl extends AuthService {
   async login({ body, ip, agent }) {
     const { username, password } = body || {};
@@ -48,7 +48,6 @@ export class AuthServiceImpl extends AuthService {
     return { ok: true };
   }
 
-
   async session({ user }) {
     const { sid, ...profile } = user;
     return { ok: true, user: profile };
@@ -79,7 +78,6 @@ export class AuthServiceImpl extends AuthService {
     return { ok: true, token: signToken({ ...profile, sid, t: Date.now(), pv: pwStamp(newHash) }) };
   }
 
-  // TEST ONLY: set a new password by username, no email/OTP. Disabled unless ENABLE_TEST_PASSWORD_RESET=true and NODE_ENV != production.
   async testResetPassword({ body, ip }) {
     if (!TEST_RESET) throw new HttpError('Not found', 404);
     const key = `reset|${ip}`;

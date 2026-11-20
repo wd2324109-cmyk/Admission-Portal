@@ -1,4 +1,3 @@
-// Shows which database the app really connects to and what the users table looks like THERE.   npm run db:where
 import 'dotenv/config';
 import pg from 'pg';
 import { describeProfile, SCHEMA } from './db/profile.js';

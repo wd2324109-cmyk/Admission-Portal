@@ -4,14 +4,14 @@ const row = { Regional_centre: 'TIRUPPUR', District: 'COIMBATORE', school_name: 
   Gender: 'Boy', Disability_status: 'No', Community: 'BCM', Medium: 'English', TOTAL: 285, REGNO: 5385080, ORANK: 268475, PHONE_NUMBER: 9865923650, Select_Status: '', Selected_category: '', Admit_status: '' };
 const r = mapStudentRow(row, 9).value;
 assert.deepEqual([r.regno, r.name, r.classLevel, r.gender, r.disability, r.total, r.orank, r.community, r.emisNo], [5385080, 'ARSATH M', 9, 'Boy', false, 285, 268475, 'BCM', '2016847655']);
-assert.deepEqual([r.selectStatus, r.selectedCategory], ['', '']);                                        
+assert.deepEqual([r.selectStatus, r.selectedCategory], ['', '']);
 const sel = mapStudentRow({ ...row, Select_Status: 'Selected-Phase-1', Selected_category: 'BCM', Admit_status: '' }, 9).value;
-assert.deepEqual([sel.selectStatus, sel.selectedCategory, sel.admitStatus], ['', 'BCM', '']);                                                         
+assert.deepEqual([sel.selectStatus, sel.selectedCategory, sel.admitStatus], ['', 'BCM', '']);
 const adm = mapStudentRow({ ...row, Select_Status: 'Selected-Phase-1', Selected_category: 'BCM', Admit_status: 'Admitted' }, 9).value;
-assert.deepEqual([adm.selectStatus, adm.admitStatus], ['Selected-Phase-1', '']);                                                    
+assert.deepEqual([adm.selectStatus, adm.admitStatus], ['Selected-Phase-1', '']);
 assert.equal(mapStudentRow({ ...row, Select_Status: 'Selected-Phase-1', Admit_status: 'Not Admitted' }, 9).value.admitStatus, 'Not Admitted');
 assert.equal(mapStudentRow({ ...row, Disability_status: 'Yes' }, 10).value.disability, true);
-assert.equal(mapStudentRow({ ...row, class: 10 }, 9).value.classLevel, 10);                                       
+assert.equal(mapStudentRow({ ...row, class: 10 }, 9).value.classLevel, 10);
 assert(mapStudentRow({ ...row, TOTAL: '' }, 9).error.includes('total'));
 assert(mapStudentRow({ ...row, Gender: 'X' }, 9).error.includes('Gender'));
 assert(mapStudentRow({ ...row, regional_centre: ' erode ' }, 9).value.regionalCentre === 'ERODE');

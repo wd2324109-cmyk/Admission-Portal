@@ -6,7 +6,6 @@ import ListPanel from './ListPanel.jsx';
 const STUDENT_COLUMNS = 'district, block, Udise, school_type, Schoolname, Emis, Name, Dob, Gender, community, medium, Disability_status, Disability_desc, Father_name, Mother_name, Phone, address, pincode, mark1-quertly, mark2-half, Total-highest of two, pass, nmss, Trust (Trust is the last column). The status columns are filled by the portal: select_status gets the status code and admit_status its description. Emis is a whole number up to 2,147,483,647.';
 const VACANCY_COLUMNS = 'New_district, New_udise_type, New_udise_code, New_school_name, Group_code, Group_desc, gender, medium, community (GT-PWD, GT, BC, BCM, MBC, SC, SCA, ST), vacancies, admitted. One sheet row becomes one seat row per vacancy.';
 
-// Import: <n>th_master_sheet and <n>th_vacancy_sheet, plus the State Enrollment Team's rank / list buttons.
 export default function ImportData({ user }) {
   const [cls, setCls] = useState(9), admin = user.role === 'SUPER_ADMIN', th = `${cls}th`;
   return <>

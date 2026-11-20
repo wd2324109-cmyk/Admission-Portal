@@ -1,4 +1,3 @@
-// First-run logins: a super admin (the State Enrollment Team) and a state coordinator (State Regional Coordinator).  npm run seed
 import bcrypt from 'bcryptjs';
 import crypto from 'node:crypto';
 import { db, pool, users, access } from './db/index.js';

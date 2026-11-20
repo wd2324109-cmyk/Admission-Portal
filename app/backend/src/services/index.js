@@ -1,4 +1,3 @@
-                                                           
 import { AuthServiceImpl } from './impl/auth.service.impl.js';
 import { DashboardServiceImpl } from './impl/dashboard.service.impl.js';
 import { StudentServiceImpl } from './impl/student.service.impl.js';

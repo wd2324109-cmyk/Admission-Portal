@@ -13,12 +13,10 @@ async function loadClass(user, cls) {
   return { seats, students: students.map(r => norm(r, cls)), T };
 }
 
-// Vacancy reference of a seat: community/medium/gender/001. The number counts the seats of the same group (district + school + community + medium + gender) in order.
-// It is worked out when the list is shown, so the Vacancy_Ref_no column of the database (which holds the joined student's EMIS) is not changed.
 export const vacancyRef = (r, n) => [r.community, r.medium, r.gender, String(n).padStart(3, '0')].map(v => String(v ?? '').trim()).join('/');
 
 export const vacancyService = {
-  // Per seat group: seats, joined, held for students on the list / selected, and open (the balance the next list can fill).
+
   async cells({ user, query }) {
     const classes = query.class ? [await requireClass(user, parseClass(query.class))] : await classesOf(user), out = [];
     for (const cls of classes) {
@@ -28,7 +26,7 @@ export const vacancyService = {
     }
     return out;
   },
-  // Seat by seat: JOINED seats name the student (by EMIS); the first open seats of a group are RESERVED for the best-ranked students holding a place.
+
   async seats({ user, query }) {
     const cls = await requireClass(user, parseClass(query.class)), { seats, students, T } = await loadClass(user, cls);
     const joinedStudents = seats.some(s => s.vacancyRefNo != null) ? await db.select().from(T).where(sql`${T.emis} in (select "Vacancy_Ref_no" from ${seatTable(cls)} where "Vacancy_Ref_no" is not null)`) : [];

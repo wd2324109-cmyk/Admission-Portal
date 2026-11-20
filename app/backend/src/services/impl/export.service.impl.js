@@ -12,7 +12,6 @@ const toBuffer = (rows, sheet) => { const wb = XLSX.utils.book_new(); XLSX.utils
 const day = () => new Date().toISOString().slice(0, 10);
 const classOf = q => { const c = q.class ? +q.class : null; if (c !== null && ![9, 10].includes(c)) throw new HttpError('class must be 9 or 10'); return c; };
 
-                                                                                                          
 export class ExportServiceImpl extends ExportService {
   async master({ user, query }) {
     const c = classOf(query);

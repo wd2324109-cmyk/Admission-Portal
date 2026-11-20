@@ -10,8 +10,6 @@ export function makeLimiter({ max = 8, windowMs = 15 * 60 * 1000 } = {}) {
   };
 }
 
-// Express middleware: at most `max` requests per `windowMs` per client IP (in memory, per process).
-// Behind a proxy, set TRUST_PROXY so req.ip is the real client and not the proxy.
 export function rateLimit({ max, windowMs = 60 * 1000, message = 'Too many requests. Please slow down and try again shortly.' } = {}) {
   const lim = makeLimiter({ max, windowMs });
   return (req, res, next) => {

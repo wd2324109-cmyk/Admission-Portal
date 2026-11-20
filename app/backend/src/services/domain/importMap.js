@@ -6,8 +6,7 @@ const lookup = row => {
 };
 const cap = s => String(s).trim().toLowerCase().replace(/^./, c => c.toUpperCase());
 const num = v => (v === '' || isNaN(+v) ? null : +v);
-                                                                                                                                 
-                                                                                                        
+
 const classOf = (g, dflt) => +g('class_level', 'class', 'class_applied') || dflt;
 
 export function mapStudentRow(row, dflt) {
@@ -18,8 +17,7 @@ export function mapStudentRow(row, dflt) {
     community: String(g('community')).toUpperCase(), medium: cap(g('medium')), disability: /^y/i.test(String(g('disability_status'))),
     total: num(g('total')), orank: num(g('orank')), phone: String(g('phone_number', 'phone')),
     selectStatus: String(g('select_status')), selectedCategory: String(g('selected_category')), admitStatus: String(g('admit_status')) };
-                                                                                                            
-                                                                                                                                    
+
   if (v.admitStatus === 'Admitted') { v.selectStatus = v.selectStatus || 'Selected-Phase-1'; v.admitStatus = ''; }
   else if (!v.admitStatus) v.selectStatus = '';
   const miss = ['regno', 'name', 'district', 'regionalCentre', 'community', 'medium', 'total', 'orank'].filter(k => v[k] === null || v[k] === '');

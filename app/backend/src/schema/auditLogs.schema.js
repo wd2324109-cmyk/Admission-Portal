@@ -1,6 +1,5 @@
 import { pgTable, serial, text, integer, boolean, timestamp, uniqueIndex, index, jsonb } from 'drizzle-orm/pg-core';
 
-                                                                                                                                       
 export const auditLogs = pgTable('audit_logs', {
   id: serial('id').primaryKey(), at: timestamp('at').defaultNow().notNull(),
   actor: text('actor').notNull(), role: text('role'), action: text('action').notNull(), level: text('level').notNull().default('INFO'),

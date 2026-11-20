@@ -1,6 +1,3 @@
-// One signed-in device per user, kept in the document's own column: users.session_id.
-// Signing in writes a new session_id, which signs the user out everywhere else. The idle timeout is kept in memory
-// (there is no last-seen column in the document): a server restart simply starts the idle clock again.
 import crypto from 'node:crypto';
 import { eq } from 'drizzle-orm';
 import { users } from '../schema/index.js';
@@ -9,7 +6,7 @@ import { isFrozen, FROZEN_MSG } from './freeze.js';
 
 export const IDLE_SECONDS = +process.env.SESSION_IDLE_SECONDS || Math.max(1, +process.env.SESSION_IDLE_MINUTES || 30) * 60;
 const IDLE_MS = IDLE_SECONDS * 1000;
-const lastSeen = new Map();                                        // session id -> time of the last request
+const lastSeen = new Map();
 
 export const SESSION_MSG = {
   SESSION_ENDED: 'Your session has ended (you signed out, signed in on another device, or the password was changed). Please sign in again.',

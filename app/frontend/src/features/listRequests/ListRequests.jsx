@@ -4,7 +4,6 @@ import { useFetch } from '../../hooks/useFetch.js';
 import { ts } from '../../lib/format.js';
 import { Alert, Badge, Empty, PageHeader, Segmented, Table, useConfirm } from '../../components/ui/index.js';
 
-// Super admin: the DMS requests, with Freeze / Unfreeze for the DMS login.
 export default function ListRequests() {
   const confirm = useConfirm();
   const [tab, setTab] = useState('OPEN'), [busy, setBusy] = useState(false), [err, setErr] = useState('');

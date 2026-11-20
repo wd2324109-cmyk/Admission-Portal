@@ -1,7 +1,6 @@
 import { api } from '../../api/index.js';
 import { useFetch } from '../../hooks/useFetch.js';
 
-// Super admin: how many DMS requests are waiting (shown on the dashboard).
 export default function OpenRequestsNotice({ go }) {
   const { data } = useFetch(() => api('/list-requests?status=OPEN'), []);
   const n = data?.rows?.length || 0;

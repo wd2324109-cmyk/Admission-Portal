@@ -6,7 +6,7 @@ export const vacancies = pgTable('vacancies', {
   classLevel: integer('class_level').notNull(),
   gender: text('gender').notNull(),
   medium: text('medium').notNull(),
-  community: text('community').notNull(),   
+  community: text('community').notNull(),
   admitted: integer('admitted').notNull().default(0),
   vacancies: integer('vacancies').notNull().default(0),
   filled: integer('filled'), balance: integer('balance'), status: text('status').default(''),

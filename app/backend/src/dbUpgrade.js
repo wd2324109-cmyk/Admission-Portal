@@ -10,7 +10,7 @@ const required = [
   `ALTER TABLE users DROP COLUMN IF EXISTS session_started_at`,
   `ALTER TABLE users DROP COLUMN IF EXISTS session_last_seen`,
   `ALTER TABLE users DROP COLUMN IF EXISTS session_ip`,
-  // sessions are kept in memory and documents on disk: these two tables are never used
+
   `DROP TABLE IF EXISTS user_sessions`,
   `DROP TABLE IF EXISTS student_documents`,
   `ALTER TABLE students ADD COLUMN IF NOT EXISTS replaces_regno integer`,
@@ -38,7 +38,7 @@ const required = [
   `CREATE INDEX IF NOT EXISTS audit_at_idx ON audit_logs (at)`,
   `CREATE INDEX IF NOT EXISTS audit_regno_idx ON audit_logs (regno)`,
   `CREATE INDEX IF NOT EXISTS audit_actor_idx ON audit_logs (actor)`,
-  // Password reset requests (user asks, super admin approves, user sets a new password with a one-time code)
+
   `CREATE TABLE IF NOT EXISTS password_resets (
      id serial PRIMARY KEY, user_id integer NOT NULL REFERENCES users (id) ON DELETE CASCADE, username text NOT NULL,
      status text NOT NULL DEFAULT 'PENDING', requested_at timestamp NOT NULL, requested_ip text,
@@ -56,7 +56,6 @@ const required = [
   `ALTER TABLE users DROP CONSTRAINT IF EXISTS users_role_chk`,
   once(`ALTER TABLE users ADD CONSTRAINT users_role_chk CHECK (role IN ('SUPER_ADMIN', 'STATE', 'REGION', 'DISTRICT')) NOT VALID`),
 
-  // The seat list ("this seat is reserved for this person"): a view over the vacancy rows + students. Rebuilt on every upgrade.
   `DROP VIEW IF EXISTS seats; ${SEATS_VIEW_SQL}`,
 ];
 const optional = [
@@ -68,7 +67,7 @@ const optional = [
   `CREATE INDEX IF NOT EXISTS students_emis_trgm ON students USING gin (emis_no gin_trgm_ops)`,
 ];
 try {
-  const m = await migrateVacancies(pool);                                  // vacancy tables of the document; converts an old `vacancies` table if there is one
+  const m = await migrateVacancies(pool);
   if (m.seats) console.log(`Vacancies converted: ${m.cells} rows became ${m.seats} seats (one row per seat).`);
   for (const q of required) await pool.query(q);
   for (const q of optional) { try { await pool.query(q); } catch (e) { console.warn('Skipped (optional):', q.slice(0, 60).replace(/\s+/g, ' '), '-', e.message); } }

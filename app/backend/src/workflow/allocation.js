@@ -1,11 +1,3 @@
-// Section 3 / Section 5 - "Generate student list as per State Roster & forward to DMS" and "Compute balance vacancies".
-//
-// For every seat group (a "cell": DMS district + school + class + gender + medium + community) the balance is
-//     open seats (Vacancy_status VACANT)  minus  seats already held by a student on the list / selected / pending approval.
-// The best-ranked eligible students of the same district, gender and medium fill the balance and become 1A (Waiting).
-// "Eligible" = never listed, OR waiting after reconsideration (1B). Students who are 6A (not reconsidered) or 7B are never
-// considered again; students already 1A / 2A are not touched (they already hold a place). This is the loop
-// "All vacancies filled? No -> generate a fresh list" of the flowchart.
 import { norm, stateOf, holdsSeat } from './statuses.js';
 
 export const COMMUNITY_ORDER = ['GT-PWD', 'GT', 'BC', 'BCM', 'MBC', 'SC', 'SCA', 'ST'];
@@ -15,7 +7,6 @@ const rankOf = s => (Number.isInteger(s.orank) ? s.orank : Number.MAX_SAFE_INTEG
 export const seatCellKey = (s, cls) => [up(s.newDistrict), up(s.newUdiseCode), +(s.classLevel ?? cls), up(s.gender), up(s.medium), up(s.community)].join('|');
 export const studentCellKey = (st, cls) => [up(st.newDistcName), up(st.newUdiseCode), +cls, up(st.gender), up(st.medium), up(st.selectedCategory)].join('|');
 
-/** Groups the seats of one class into cells and counts, per cell: seats, joined, vacant and held (students on the list / selected / pending approval). */
 export function buildCells(students, seats, cls) {
   const cells = new Map();
   for (const r of seats) {
@@ -32,7 +23,6 @@ export function buildCells(students, seats, cls) {
   return ordered;
 }
 
-/** Plans a list. students are normalised students of ONE class; seats are the rows of that class's Vacancies table. Pure: changes nothing. */
 export function planList(students, seats, cls) {
   const ordered = buildCells(students, seats, cls);
   const pool = students.filter(st => { const s = stateOf(st); return !s.code || s.code === '1B'; });

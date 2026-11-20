@@ -3,8 +3,6 @@ import Modal from './Modal.jsx';
 
 const Ctx = createContext(null);
 
-// `const confirm = useConfirm(); if (!(await confirm({ title, message, confirmLabel, danger }))) return;`
-// replaces the browser's window.confirm with a dialog that matches the portal.
 export function ConfirmProvider({ children }) {
   const [req, setReq] = useState(null);
   const confirm = useCallback(opts => new Promise(res => setReq({ ...opts, res })), []);

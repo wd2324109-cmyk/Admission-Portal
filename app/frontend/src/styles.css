@@ -97,8 +97,6 @@ button.bad{background:var(--bad);box-shadow:none}button.bad:hover:not(:disabled)
 
 .linkbtn{background:none;border:0;padding:0;color:var(--pri,#4f6af0);text-decoration:underline;cursor:pointer;font:inherit;box-shadow:none}
 
-
-/* Government enterprise redesign — presentation layer only */
 :root{
   --bg:#f3f6fa;--card:#fff;--ink:#1d2b3d;--mute:#64748b;--line:#e1e7ef;
   --pri:#173b63;--pri2:#28577f;--ok:#147a55;--warn:#a96d12;--bad:#b93838;
@@ -222,7 +220,6 @@ button:not(.nav):not(.acct-btn):not(.menu-toggle):not(.eye){border-radius:7px}
 }
 @media(max-width:390px){.stats{grid-template-columns:1fr}.topbar-avatar{width:30px;height:30px}}
 
-/* ---- Security and resilience UI ---- */
 .session-chip{color:#2f6b4f;background:#f2faf6;border-color:#cfe8dc}
 .login-notice{margin:16px 0 0;padding-top:14px;border-top:1px solid var(--line);color:#6b7b8c;font-size:11px;line-height:1.55}
 .caps-hint{display:block;margin-top:6px;color:#9a6700;font-weight:600;font-size:12px}
@@ -237,14 +234,12 @@ button:not(.nav):not(.acct-btn):not(.menu-toggle):not(.eye){border-radius:7px}
 @media(prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important;scroll-behavior:auto!important}}
 @media print{.side,.topbar,.app-footer,.offline-banner,.idle-modal{display:none!important}.shell{display:block}}
 
-/* ---- Password reset requests ---- */
 .login-sub{margin:0 0 6px;font-size:16px;color:#20364b}
 .login-links{margin:14px 0 0;text-align:center;font-size:13px}
 .code-input{letter-spacing:.14em;font-weight:700;text-transform:uppercase;font-variant-numeric:tabular-nums}
 .code-box{margin:14px 0;padding:18px 12px;text-align:center;font:700 28px/1.2 ui-monospace,SFMono-Regular,Consolas,monospace;letter-spacing:.14em;color:#173b63;background:#f3f7fb;border:1px dashed #9db4c9;border-radius:8px;user-select:all}
 .nav-badge{margin-left:auto;min-width:20px;padding:1px 7px;border-radius:10px;background:#e8a317;color:#1d2b3d;font-style:normal;font-size:11px;font-weight:750;text-align:center}
 
-/* ---- Sidebar: scrolls and adapts to browser height/width ---- */
 .side{height:100vh;height:100dvh;overflow-y:auto;overflow-x:hidden;overscroll-behavior:contain;scrollbar-width:thin;scrollbar-color:rgba(255,255,255,.28) transparent}
 .side>*{flex-shrink:0}
 .side::-webkit-scrollbar{width:6px}.side::-webkit-scrollbar-thumb{background:rgba(255,255,255,.28);border-radius:6px}.side::-webkit-scrollbar-track{background:transparent}
@@ -252,7 +247,6 @@ button:not(.nav):not(.acct-btn):not(.menu-toggle):not(.eye){border-radius:7px}
 @media(max-height:760px){.side{padding-top:14px;padding-bottom:10px;gap:3px}.brand{padding-bottom:14px;margin-bottom:4px}.nav-caption{padding:11px 12px 4px}.nav{padding:8px 12px}.side-security{padding:8px 10px}.me{padding:8px 7px}}
 @media(max-height:560px){.side-security{display:none}}
 
-/* ---- Show everything, no cropping: let wide tables and long values wrap instead of being cut off or hidden behind a sideways scroll ---- */
 .page-content{max-width:none}
 .main,.page-content,.panel{min-width:0}
 th{white-space:normal;vertical-align:bottom}
@@ -269,7 +263,6 @@ td{overflow-wrap:anywhere;word-break:normal;vertical-align:top}
 small.mute{display:block;margin-top:4px}
 .docpick{min-width:240px}.docpick input[type=file]{width:100%;max-width:100%}
 
-/* the student popup must sit above the top bar (z-index 10) and the sidebar (20), or its header is hidden behind them */
 .modal{z-index:100}.idle-modal{z-index:200}
 
 .docrow{border:1px solid var(--line);border-radius:8px;padding:12px 14px;margin:10px 0}.docrow .docpick{margin-top:8px}.docrow label{display:block;font-size:13px}.docrow details{margin-top:8px}

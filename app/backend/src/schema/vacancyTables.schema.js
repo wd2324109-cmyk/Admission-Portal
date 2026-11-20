@@ -1,9 +1,6 @@
 import { serial, text, integer, timestamp } from 'drizzle-orm/pg-core';
 import { table } from './table.js';
 
-// Vacancies_9th / _10th / _11th (14 columns each) and VACANCY_logs (17 columns), exactly as in the database document.
-// ONE ROW PER SEAT. A seat a student has joined has that student's EMIS in Vacancy_Ref_no and Vacancy_status JOINED;
-// an open seat has no reference and Vacancy_status VACANT. New_district is the district of the District Model School.
 const seatColumns = () => ({
   id: serial('id').primaryKey(),
   newDistrict: text('New_district'), newUdiseType: text('New_udise_type'), newUdiseCode: text('New_udise_code'), newSchoolName: text('New_school_name'),

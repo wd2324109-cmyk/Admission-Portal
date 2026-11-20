@@ -1,5 +1,3 @@
-// The two database profiles produce the right table names and SQL (no database needed).   node src/db/profile.test.js
-// Each profile is checked in its own process, because the profile is read once when the app starts.
 import assert from 'node:assert';
 import { execFileSync } from 'node:child_process';
 

@@ -18,16 +18,15 @@ assert(r2.selections.length <= declined.length);
 assert(r2.selections.every(x => /Phase-1$/.test(x.selectStatus)), 'replacements keep region latest phase');
 console.log('OK');
 
-                                                                                                            
 r2.selections.forEach(x => Object.assign(by.get(x.regno), x));
 r2.replacedRegnos.forEach(n => (by.get(n).admitStatus = 'Not Admitted (Replaced)'));
 const r3 = runRound([...by.values()], vacs, 'replacement');
 assert.equal(r3.selections.length, 0, 'replacement must be idempotent');
-                                                                        
+
 const seatHolders = [...by.values()].filter(s => s.selectStatus);
 assert.equal(new Set(seatHolders.map(s => s.regno)).size, seatHolders.length);
 assert(seatHolders.every(s => s.selectedCategory !== 'GT-PWD' || s.disability), 'PWD seats only for disabled students');
-                                                                                                                      
+
 const cellOf = s => [s.regionalCentre, s.classLevel, s.gender, s.medium].join('|');
 for (const s of seatHolders.filter(x => x.selectedCategory === 'GT')) {
   const better = students.filter(o => !o.selectStatus && cellOf(o) === cellOf(s) && (o.total > s.total || (o.total === s.total && o.orank < s.orank)));
@@ -38,7 +37,6 @@ console.log('Idempotence + merit-order checks OK');
 assert(r2.selections.every(x => x.replacesRegno && by.get(x.replacesRegno).admitStatus.startsWith('Not Admitted')), 'every replacement points at the seat it took');
 console.log('Replacement links OK');
 
-                                                                                                        
 const tcStudent = by.get(r.selections[15].regno); tcStudent.admitStatus = 'TC Issued';
 const r4 = runRound([...by.values()], vacs, 'replacement');
 assert(r4.selections.length <= 1 && r4.replacedRegnos.length === r4.selections.length);

@@ -17,7 +17,7 @@ export class VerificationServiceImpl extends VerificationService {
   }
 
   async verify({ user, params, query, body }) {
-    const { decision, remarks = '' } = body || {};                                 
+    const { decision, remarks = '' } = body || {};
     if (!['ACCEPTED', 'REJECTED'].includes(decision)) throw new HttpError('Invalid decision');
     const id = +params.id || 0;
     const [pre] = await db.select({ classLevel: S.classLevel }).from(S).where(eq(S.id, id));

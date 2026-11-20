@@ -1,8 +1,6 @@
 import { serial, text, integer, boolean, timestamp } from 'drizzle-orm/pg-core';
 import { table } from './table.js';
 
-// 1.3 Student_LOG - change history of student records for all classes (42 columns).
-// One row per change: the student as it is AFTER the change, plus the status before / after, who and when.
 export const studentLog = table('Student_LOG', {
   id: serial('id').primaryKey(),
   district: text('district'), block: text('block'), udise: text('Udise'), schoolType: text('school_type'), schoolname: text('Schoolname'),

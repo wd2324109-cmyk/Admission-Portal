@@ -1,4 +1,3 @@
-// Section 2 (overall rank) and Sections 3 / 5 (generate the student list) - the work of the State Enrollment Team.
 import { eq, sql } from 'drizzle-orm';
 import { db } from '../db/index.js';
 import { HttpError } from '../common/http.js';
@@ -31,7 +30,6 @@ export const listService = {
     });
   },
 
-  // Generates the next student list for a class. Run it as often as needed: each run fills only the balance (see workflow/allocation.js).
   async generate({ user, body }) {
     const cls = parseClass(body?.classLevel), T = studentTable(cls), V = seatTable(cls), preview = !!body?.preview;
     return db.transaction(async tx => {

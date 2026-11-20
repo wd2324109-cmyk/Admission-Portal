@@ -8,15 +8,14 @@ import { SeatService } from '../seat.service.js';
 
 const STATUSES = ['RESERVED', 'ADMITTED', 'VACANT'], SIZE = 50;
 
-// One row per seat: who it is reserved for (or taken by), or that it is vacant. Read-only: the `seats` view is built from students + vacancies.
 export class SeatServiceImpl extends SeatService {
   async list({ user, query }) {
-    const rc = await userRegion(user);                                    // regional / district users see their own regional centre's seats
+    const rc = await userRegion(user);
     const cls = +query.class, status = String(query.status || '').toUpperCase(), term = String(query.search || '').trim(), page = page1(query.page);
     if (query.class && ![9, 10].includes(cls)) throw new HttpError('class must be 9 or 10');
     if (status && !STATUSES.includes(status)) throw new HttpError('Invalid status');
     const base = and(rc ? eq(Z.regionalCentre, rc) : undefined, query.class ? eq(Z.classLevel, cls) : undefined);
-    // A district user may not learn who the seat holders from OTHER districts are: their search only matches their own students.
+
     const find = term ? sql`(${Z.studentName} ilike ${'%' + likeEsc(term) + '%'} or ${Z.regno}::text = ${term})` : undefined;
     const mine = user.role === 'DISTRICT' ? sql`${Z.studentDistrict} = ${user.district}` : undefined;
     const where = and(base, status ? eq(Z.status, status) : undefined, find, term ? mine : undefined);

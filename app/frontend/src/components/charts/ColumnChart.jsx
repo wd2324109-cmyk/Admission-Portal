@@ -1,4 +1,3 @@
-// Grouped columns, one group per row (class), one column per status group. Missing values count as 0.
 const W = 520, H = 260, L = 40, B = 36, T = 16;
 const nice = m => { const p = 10 ** Math.floor(Math.log10(m)); return Math.ceil(m / p) * p; };
 

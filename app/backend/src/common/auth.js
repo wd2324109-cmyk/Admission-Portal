@@ -2,7 +2,6 @@ import jwt from 'jsonwebtoken';
 import crypto from 'node:crypto';
 import { checkSession, SESSION_MSG } from './session.js';
 
-
 const isProd = process.env.NODE_ENV === 'production';
 let secret = process.env.JWT_SECRET;
 if (!secret || secret.length < 32) {
@@ -12,7 +11,7 @@ if (!secret || secret.length < 32) {
   console.warn(`WARNING: ${why}. Generate one with: ${fix}`);
   if (!secret) secret = crypto.randomBytes(48).toString('hex');
 } else if (isProd && (/\s/.test(secret) || new Set(secret).size < 12)) {
-  // A readable phrase (spaces, few distinct characters) is guessable offline from any token. Random hex/base64 passes.
+
   console.error('JWT_SECRET looks like a typed phrase, not a random key. Generate one with: node -e "console.log(require(\'crypto\').randomBytes(48).toString(\'hex\'))"');
   process.exit(1);
 } else if (/\s/.test(secret) || new Set(secret).size < 12) {
@@ -43,6 +42,6 @@ export const auth = async (req, res, next) => {
 };
 export const only = (...roles) => {
   const guard = (req, res, next) => roles.includes(req.user?.role) ? next() : res.status(403).json({ error: 'Forbidden' });
-  guard.roles = roles;   // lets routes.test.js check which roles each route allows
+  guard.roles = roles;
   return guard;
 };

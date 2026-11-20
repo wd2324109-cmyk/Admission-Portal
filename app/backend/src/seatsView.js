@@ -1,10 +1,3 @@
-// The `seats` view: the seat list the Vacancies page shows, one row per seat, saying who each seat is for.
-//
-// Seats are real stored rows (Vacancies_9th / _10th / _11th, one row per seat, see schema/vacancyTables.schema.js); this view only
-// reads them, adds the student's name, and shows which open seats are reserved for a selected student. It stores nothing.
-//   JOINED seat  -> ADMITTED: the student is found by the EMIS in Vacancy_Ref_no (no EMIS = a seat filled before the portal was used)
-//   open seat    -> RESERVED when a selected student who has not decided yet is waiting for it (best rank gets the first open seat), else VACANT
-// Seat numbers are the position of the row in its cell (regional centre, class, gender, medium, community), so they never move.
 export const SEATS_VIEW_SQL = `
 CREATE VIEW seats AS
 WITH stored AS (

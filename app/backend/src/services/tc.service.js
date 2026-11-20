@@ -1,8 +1,3 @@
-// Section 6, last part: the TC Requests screen.
-// It lists every JOINED student (3A, 3B) of the caller's scope, so the DMS can open one and request a TC, together with the students whose TC
-// is on its way (8A: waiting for the Regional Coordinator, then for the State Regional Coordinator) or issued (8B).
-// The request and the approvals themselves are student actions (TC_REQUEST, TC_RC_APPROVE / TC_RC_REJECT, TC_STATE_APPROVE / TC_STATE_REJECT in workflow/transitions.js);
-// this only lists them. A TC is requested ONLY from this screen (the Student Details screen offers no TC step).
 import { and, asc, ilike, or, sql } from 'drizzle-orm';
 import { db } from '../db/index.js';
 import { requireClass, scope } from '../common/access.js';
@@ -11,7 +6,7 @@ import { likeEsc } from '../common/query.js';
 import { view } from './student.service.js';
 
 const SIZE = 25;
-// tcStage: JOINED = joined, no TC requested yet; REGION / STATE = waiting for that coordinator; DONE = TC issued.
+
 export const TC_STAGE_SQL = {
   JOINED: `select_status in ('3A','3B')`,
   REGION: `(select_status = '8A' and coalesce(tag2,'') <> 'TC-SRC')`,

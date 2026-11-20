@@ -1,17 +1,11 @@
-// Security and resilience helpers used by the shell: idle sign-out, offline notice, error boundary,
-// password strength guidance and a caps-lock hint. None of them change what the backend enforces;
-// they make the secure behaviour visible and keep the browser side tidy.
 import { Component, useEffect, useRef, useState } from 'react';
 import { api, lastApiCall } from './api.js';
 
-// Keep this in step with SESSION_IDLE_MINUTES on the server (default 30).
 export const IDLE_MINUTES = Math.max(2, +import.meta.env.VITE_IDLE_MINUTES || 30);
 const LIMIT = IDLE_MINUTES * 60 * 1000, WARN = Math.min(2 * 60 * 1000, LIMIT / 2);
 
 const fmt = s => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
 
-// Signs the person out after a period without any activity. Two minutes before that, a dialog offers
-// to stay signed in. While the person is working, a quiet request keeps the server session alive.
 export function IdleGuard({ onExpire }) {
   const [left, setLeft] = useState(null), last = useRef(Date.now()), warned = useRef(false), expire = useRef(onExpire), stay = useRef(null);
   expire.current = onExpire;
@@ -47,11 +41,10 @@ export function OfflineBanner() {
   return off ? <div className="offline-banner" role="status">You are offline. Changes cannot be saved until the connection returns.</div> : null;
 }
 
-// A rendering error should never leave a blank page or show internals to the user.
 export class ErrorBoundary extends Component {
   state = { failed: false };
   static getDerivedStateFromError() { return { failed: true }; }
-  componentDidCatch() { /* intentionally silent: no stack traces in the browser console of a public build */ }
+  componentDidCatch() {  }
   render() {
     if (!this.state.failed) return this.props.children;
     return <main className="nf"><div><div className="code" aria-hidden="true">!</div><h1>Something went wrong</h1>
@@ -60,7 +53,6 @@ export class ErrorBoundary extends Component {
   }
 }
 
-// Mirrors the server's rules (10 to 72 bytes, must not contain the username) and adds advisory strength hints.
 export const passwordChecks = (pw = '', username = '') => {
   const p = String(pw), bytes = new TextEncoder().encode(p).length;
   return [
@@ -87,7 +79,6 @@ export function PasswordMeter({ value, username }) {
   </div>;
 }
 
-// Warns when Caps Lock is on while typing a password.
 export function useCapsLock() {
   const [on, setOn] = useState(false);
   const handlers = { onKeyDown: e => setOn(!!e.getModifierState?.('CapsLock')), onKeyUp: e => setOn(!!e.getModifierState?.('CapsLock')), onBlur: () => setOn(false) };

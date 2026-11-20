@@ -1,4 +1,3 @@
-// The Drizzle schema must match the database document exactly (no database needed).   node src/spec/schema.test.js
 import assert from 'node:assert';
 import { getTableConfig } from 'drizzle-orm/pg-core';
 import * as S from '../schema/index.js';

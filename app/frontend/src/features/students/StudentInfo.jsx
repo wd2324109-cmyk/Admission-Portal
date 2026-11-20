@@ -1,8 +1,6 @@
 import { downloadFile } from '../../api/index.js';
 import { admitOf } from '../../lib/status.js';
 
-// The details of one student (as returned by GET /students/:cls/:id), shown first in the student, TC request and document dialogs.
-// showLetters: also list the letters already submitted with a step (Not Willing / Not Joined / TC request), each as a download button.
 export default function StudentInfo({ s, cls, id, onError = () => {}, showLetters = true }) {
   const rows = [
     ['EMIS', s.emis], ['Class', s.classLevel], ['Admit status', admitOf(s)], ['Gender / Medium', `${s.gender} / ${s.medium}`], ['Community', s.community + (s.disabilityStatus ? ' (PWD)' : '')],

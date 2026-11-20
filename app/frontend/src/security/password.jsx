@@ -1,6 +1,5 @@
 import { useState } from 'react';
 
-// Mirrors the server's rules (10 to 72 bytes, must not contain the username) and adds advisory strength hints.
 export const passwordChecks = (pw = '', username = '') => {
   const p = String(pw), bytes = new TextEncoder().encode(p).length;
   return [
@@ -27,7 +26,6 @@ export function PasswordMeter({ value, username }) {
   </div>;
 }
 
-// Warns when Caps Lock is on while typing a password.
 export function useCapsLock() {
   const [on, setOn] = useState(false);
   const handlers = { onKeyDown: e => setOn(!!e.getModifierState?.('CapsLock')), onKeyUp: e => setOn(!!e.getModifierState?.('CapsLock')), onBlur: () => setOn(false) };

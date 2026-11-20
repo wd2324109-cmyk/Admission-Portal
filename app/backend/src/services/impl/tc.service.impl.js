@@ -13,8 +13,6 @@ import { lockClass, lockStudent } from '../../common/locks.js';
 import { latestTc, TC_SNAP, TC_STAGES, stageOfRole, rejectedBy, visibleTo } from '../../common/tc.js';
 import { TcService } from '../tc.service.js';
 
-
-
 const view = (t, s) => ({ id: s.id, studentId: s.id, reason: t.reason, letterName: t.letterName, status: t.status, requestedBy: t.requestedBy, requestedAt: t.requestedAt,
   stage: t.stage, rejectedLevel: rejectedBy(t),
   rcBy: t.rcBy ?? null, rcAt: t.rcAt ?? null, rcRemarks: t.rcRemarks ?? null, scBy: t.scBy ?? null, scAt: t.scAt ?? null, scRemarks: t.scRemarks ?? null,
@@ -62,12 +60,6 @@ export class TcServiceImpl extends TcService {
     return { file: path.join(UPLOADS, t.letterPath), name: t.letterName };
   }
 
-
-
-
-
-
-
   async review({ user, params, body }) {
     const { decision, remarks = '' } = body || {};
     if (!['APPROVED', 'REJECTED'].includes(decision)) throw new HttpError('Invalid decision');
@@ -100,13 +92,12 @@ export class TcServiceImpl extends TcService {
         return;
       }
 
-
       if (ok && s.admitStatus !== 'Admitted') throw new HttpError('The student is no longer in Admitted status, so the TC cannot be approved');
       let seats = [];
       await tx.update(T).set({ status: decision, stage: 'DONE', rejectedLevel: ok ? null : 'ADMIN', reviewedBy: user.username, reviewedAt: now, reviewRemarks: note }).where(eq(T.id, t.id));
       if (ok) await tx.update(S).set({ admitStatus: 'TC Issued' }).where(eq(S.id, s.id));
       if (ok) {
-        seats = await releaseSeat(tx, s, user);                                                  // the student's EMIS leaves the seat; the seat is open again
+        seats = await releaseSeat(tx, s, user);
         await tx.insert(statusLogs).values({ studentId: s.id, field: 'admitStatus', oldValue: 'Admitted', newValue: 'TC Issued', remarks: note, changedBy: user.username });
       }
       await audit(tx, { user }, { action: `TC_${decision}`, regno: s.regno, message: `TC ${ok ? 'approved' : 'not approved'} by ${who} for ${s.name}: ${note.slice(0, 80)}`,

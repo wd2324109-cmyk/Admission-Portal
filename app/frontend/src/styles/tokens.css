@@ -1,20 +1,19 @@
-/* Design tokens: the only place colours, sizes and spacing are defined. */
 :root {
-  /* Brand */
+
   --navy-900: #0f2740; --navy-800: #142f4d; --navy-700: #173b63; --navy-600: #28577f; --navy-100: #e4ecf4; --navy-50: #f1f5f9;
-  /* Neutrals */
+
   --bg: #f3f6fa; --surface: #ffffff; --ink: #1d2b3d; --ink-2: #35475a; --muted: #5b6b7e; --line: #dfe6ee; --line-strong: #c5d0dc;
-  /* Status (text on tinted background, both pass 4.5:1) */
+
   --ok: #14663f; --ok-bg: #e3f4ec; --info: #1d4f8c; --info-bg: #e4edf8; --warn: #8a5a00; --warn-bg: #fdf3da;
   --bad: #a52a2a; --bad-bg: #fbe7e7; --tc: #4b4a8a; --tc-bg: #ecebf8;
   --focus: #2b6cb0;
-  /* Shape and depth */
+
   --r-sm: 6px; --r-md: 8px; --r-lg: 10px;
   --shadow: 0 1px 2px rgba(15, 39, 64, .05), 0 3px 10px rgba(15, 39, 64, .04);
   --shadow-lg: 0 18px 55px rgba(12, 31, 49, .24);
-  /* Type scale */
+
   --fs-xs: 12px; --fs-sm: 13px; --fs-md: 14px; --fs-lg: 16px; --fs-xl: 22px;
   --font: Inter, "Noto Sans", "Segoe UI", system-ui, -apple-system, sans-serif;
-  /* Layout */
+
   --sidebar-w: 264px; --topbar-h: 64px; --gutter: clamp(16px, 3vw, 40px);
 }

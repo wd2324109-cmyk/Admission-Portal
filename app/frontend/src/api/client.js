@@ -1,14 +1,10 @@
-// API client. One place for every network call: timeouts, friendly errors, 401 handling, safe file handling.
 import { getToken, setToken, setLogoutReason } from './session.js';
 
 const API = (import.meta.env.VITE_API_URL || '').replace(/\/$/, '') + '/api';
 
-// Time of the last request that reached the server. The idle guard uses it to keep the server session
-// alive only while the person is actually working.
 let lastApiAt = Date.now();
 export const lastApiCall = () => lastApiAt;
 
-// Imports, exports and selection runs can legitimately take a while; everything else should answer quickly.
 const SLOW = /^\/(import|export|selection)/;
 const timeoutFor = path => (SLOW.test(path) ? 180000 : 45000);
 
@@ -46,7 +42,6 @@ export async function api(path, opts = {}) {
   return data;
 }
 
-// A blob: URL runs with this site's own origin, so only ever open real documents (PDF or image), never HTML or script.
 const SAFE_TYPES = ['application/pdf', 'image/png', 'image/jpeg'];
 const safeBlob = b => { if (!SAFE_TYPES.includes(b.type)) throw new Error('This file type cannot be opened here.'); return b; };
 
@@ -67,7 +62,6 @@ export async function fileBlob(path) {
   return safeBlob(await (await getFile(path, 'Could not load file')).blob());
 }
 
-// Only a plain file name from the server is used: no path segments, no control characters.
 const cleanName = n => String(n || '').replace(/[\\/:*?"<>|\u0000-\u001f]/g, '_').slice(0, 120) || 'download.xlsx';
 
 export async function downloadFile(path) {

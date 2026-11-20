@@ -1,20 +1,11 @@
-                                                                                                             
-                                                                
 export const COMMUNITY_ORDER = ['GT-PWD', 'GT', 'BC', 'BCM', 'MBC', 'SC', 'SCA', 'ST'];
-const meritSort = (a, b) => b.total - a.total || a.orank - b.orank;                           
+const meritSort = (a, b) => b.total - a.total || a.orank - b.orank;
 const phaseNum = s => { const m = /(\d+)/.exec(s || ''); return m ? +m[1] : null; };
 export const cellKey = (o, comm) => [o.regionalCentre, o.classLevel, o.gender, o.medium, comm].join('|');
 
-   
-                                                                           
-                                                                                                                
-                                                                                                                  
-                                                                       
-                                                                                      
-   
 export function runRound(students, vacancies, mode = 'initial') {
   const eligible = students.filter(s => !s.selectStatus && !s.admitStatus);
-  const latest = {};                                   
+  const latest = {};
   for (const s of students) {
     const p = phaseNum(s.selectStatus);
     const k = `${s.regionalCentre}|${s.classLevel}`;
@@ -22,7 +13,7 @@ export function runRound(students, vacancies, mode = 'initial') {
   }
   const inLatest = s => phaseNum(s.selectStatus) !== null && phaseNum(s.selectStatus) === latest[`${s.regionalCentre}|${s.classLevel}`];
   const pending = students.filter(s => s.selectStatus && !s.admitStatus && inLatest(s));
-                                                                                                 
+
   const notAdmitted = students.filter(s => (s.admitStatus === 'Not Admitted' || s.admitStatus === 'TC Issued') && inLatest(s));
 
   const order = [...vacancies].sort((a, b) =>
@@ -48,7 +39,7 @@ export function runRound(students, vacancies, mode = 'initial') {
     chosen.forEach((s, i) => {
       taken.add(s.regno);
       selections.push({ regno: s.regno, selectStatus: `Selected-Phase-${phase}`, selectedCategory: v.community,
-        replacesRegno: mode === 'replacement' ? declined[i].regno : null });                                                        
+        replacesRegno: mode === 'replacement' ? declined[i].regno : null });
     });
     if (mode === 'replacement') declined.slice(0, chosen.length).forEach(s => replaced.add(s.regno));
 

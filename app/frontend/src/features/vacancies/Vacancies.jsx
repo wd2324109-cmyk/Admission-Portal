@@ -8,7 +8,6 @@ import { Alert, Badge, ClassTabs, Empty, PageHeader, Pager, Segmented, Table } f
 
 const SEAT_FILTERS = [['', 'All'], ['RESERVED', 'Reserved'], ['JOINED', 'Joined'], ['VACANT', 'Vacant']];
 
-// Seat groups (district / school / gender / medium / community) and the seat-by-seat register.
 export default function Vacancies({ user }) {
   const [cls, setCls] = useState(firstClass(user)), [mode, setMode] = useState('groups'), [tab, setTab] = useState(''), [search, setSearch] = useState(''), [dlErr, setDlErr] = useState('');
   const q = useDebounced(search), [page, setPage] = usePage(cls, tab, q, mode);

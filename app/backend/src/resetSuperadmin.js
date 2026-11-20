@@ -1,11 +1,3 @@
-// Recovery for a forgotten SUPER ADMIN password. Run on the server (it needs the database settings in .env), so only
-// someone with server access can use it. Other users get a new password from a super admin on the Users page.
-//
-//   npm run reset:superadmin                      (resets "superadmin"; you are asked for the new password)
-//   npm run reset:superadmin -- other_admin       (a different super admin account)
-//   NEW_SUPERADMIN_PASSWORD=... npm run reset:superadmin     (non-interactive)
-//
-// Signed-in sessions of that account stop working at once: they are tied to the old password.
 import 'dotenv/config';
 import readline from 'node:readline';
 import bcrypt from 'bcryptjs';

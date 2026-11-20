@@ -1,6 +1,5 @@
 import { pgTable, text, integer, timestamp, index } from 'drizzle-orm/pg-core';
 
-
 export const userSessions = pgTable('user_sessions', {
   id: text('id').primaryKey(),
   userId: integer('user_id').notNull(),

@@ -12,7 +12,6 @@ import { lockClass, lockStudent } from '../../common/locks.js';
 import { getDocs, putDocs, listDocIds, getManyDocs } from '../../common/docstore.js';
 import { DocumentService, DOC_TYPES, REQUIRED_DOCS } from '../document.service.js';
 
-
 const did = (s, t) => `${s.id}-${DOC_TYPES.indexOf(t)}`;
 const parse = id => { const [a, b] = String(id).split('-'); return [+a || 0, DOC_TYPES[+b]]; };
 const okDoc = (docs, t) => docs[t] && docs[t].status !== 'REJECTED';
@@ -22,7 +21,6 @@ const summary = docs => {
     pending: all.filter(d => d.status === 'PENDING').length, rejected: all.filter(d => d.status === 'REJECTED').length };
 };
 const entry = (name, stored, user) => ({ fileName: name, filePath: stored, status: 'PENDING', uploadedBy: user.username, uploadedAt: new Date().toISOString() });
-
 
 async function withDocs(user, extra) {
   const ids = await listDocIds(), rows = [];
@@ -40,8 +38,6 @@ export class DocumentServiceImpl extends DocumentService {
         reviewedBy: d.reviewedBy ?? null, reviewedAt: d.reviewedAt ?? null, remarks: d.remarks ?? null, regno: s.regno, name: s.name, classLevel: s.classLevel, district: s.district })))
       .filter(r => !query.status || r.status === query.status).sort((a, b) => String(b.uploadedAt).localeCompare(String(a.uploadedAt)));
   }
-
-
 
   async upload({ user, body }) {
     const { studentId, docType, fileName, fileData } = body || {};

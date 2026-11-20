@@ -14,17 +14,17 @@ import { StudentService } from '../student.service.js';
 
 export class StudentServiceImpl extends StudentService {
   async list({ user, query }) {
-    const { class: c, view = 'all', search = '' } = query, size = 25, page = page1(query.page);                                                                 
+    const { class: c, view = 'all', search = '' } = query, size = 25, page = page1(query.page);
     const VIEWS = {
       pending: sql`${S.selectStatus} = '' and ${S.admitStatus} = '' and ${S.willingStatus} is distinct from 'UNWILLING'`,
-      selected: sql`${S.selectStatus} <> '' and ${S.admitStatus} = ''`,                                                                                           
+      selected: sql`${S.selectStatus} <> '' and ${S.admitStatus} = ''`,
       joined: eq(S.admitStatus, 'Admitted'), admitted: eq(S.admitStatus, 'Admitted'),
-      notjoined: sql`((${S.selectStatus} = '' and ${S.admitStatus} = '' and ${S.willingStatus} = 'UNWILLING') or ${S.admitStatus} like 'Not Admitted%')`,                                                              
+      notjoined: sql`((${S.selectStatus} = '' and ${S.admitStatus} = '' and ${S.willingStatus} = 'UNWILLING') or ${S.admitStatus} like 'Not Admitted%')`,
       tc: sql`${S.admitStatus} like 'TC Issued%'`,
     };
-    const viewW = Object.hasOwn(VIEWS, view) ? VIEWS[view] : undefined;      // own keys only: '__proto__' / 'constructor' are not views
+    const viewW = Object.hasOwn(VIEWS, view) ? VIEWS[view] : undefined;
     const term = String(search).trim();
-    const q = term ? or(ilike(S.name, `%${likeEsc(term)}%`), ilike(S.emisNo, `%${likeEsc(term)}%`)) : undefined;                                                                                                          
+    const q = term ? or(ilike(S.name, `%${likeEsc(term)}%`), ilike(S.emisNo, `%${likeEsc(term)}%`)) : undefined;
 
     const done = query.docsOpen ? await idsAllVerified(REQUIRED_DOCS) : [];
     const docsOpen = done.length ? notInArray(S.id, done) : undefined;
@@ -80,7 +80,7 @@ export class StudentServiceImpl extends StudentService {
       }
       if (!Object.keys(patch).length) throw new HttpError('Nothing to update');
       await tx.update(S).set(patch).where(eq(S.id, s.id));
-      const seats = patch.admitStatus === 'Admitted' ? await joinSeat(tx, s, user) : [];       // the student's EMIS goes on a seat of their cell
+      const seats = patch.admitStatus === 'Admitted' ? await joinSeat(tx, s, user) : [];
       for (const f of ['admitStatus', 'willingStatus']) if (patch[f] !== undefined && patch[f] !== s[f])
         await tx.insert(statusLogs).values({ studentId: s.id, field: f, oldValue: s[f], newValue: patch[f], changedBy: user.username });
       const action = patch.admitStatus === 'Admitted' ? 'ADMIT' : patch.admitStatus === 'Not Admitted' ? 'NOT_ADMIT' : patch.willingStatus === 'UNWILLING' ? 'UNWILLING' : 'WILLING';
@@ -162,7 +162,7 @@ export class StudentServiceImpl extends StudentService {
       if (s.admitStatus !== 'Admitted') throw new HttpError('Only admitted students can have their admission revoked', 400);
       if (['PENDING', 'APPROVED'].includes((await latestTc(tx, s.id))?.status)) throw new HttpError('This student has a pending or approved TC request', 409);
       await tx.update(S).set({ admitStatus: '' }).where(eq(S.id, s.id));
-      const seats = await releaseSeat(tx, s, user);                                            // the seat is open again
+      const seats = await releaseSeat(tx, s, user);
       await tx.insert(statusLogs).values({ studentId: s.id, field: 'admitStatus', oldValue: 'Admitted', newValue: '(selected, pending)', remarks, changedBy: user.username });
       await audit(tx, { user }, { action: 'REVOKE_ADMISSION', regno: s.regno, message: `${s.name}: admission revoked, vacancy restored - ${remarks}`,
         undo: { students: [before(s)], seats } });

@@ -25,7 +25,6 @@ export class UserServiceImpl extends UserService {
     let target;
     await db.transaction(async tx => {
 
-
       const admins = await tx.select({ id: users.id, username: users.username }).from(users).where(eq(users.role, 'SUPER_ADMIN')).orderBy(users.id).for('update');
       const [t] = await tx.select().from(users).where(eq(users.id, id)).for('update');
       if (!t) throw new HttpError('User not found', 404);

@@ -1,11 +1,3 @@
-// Aligns the database with the database document (10 tables), for the profile you run it with.
-//
-//  TEST (npm run db:setup)       creates any missing table, adds missing columns, adds indexes. --drop-legacy also drops every table that is not in the document.
-//  PRODUCTION (npm run db:setup:prod)   NEVER creates a schema or a table. It only ALTERs (rename / add / retype columns, never DROP) the existing core.* tables, and only a table that has no rows.
-//                                       A table with data is left untouched (differences are reported). Without --apply it only prints the plan.
-//      npm run db:setup:prod                  plan only (changes nothing)
-//      npm run db:setup:prod -- --apply       run the plan, in ONE transaction (all or nothing)
-//      npm run db:setup:prod -- --apply --indexes   ... and also create the indexes of spec/ddl.js
 import 'dotenv/config';
 import pg from 'pg';
 import { createSchema, createTables, addMissingColumns, INDEXES } from './spec/ddl.js';

@@ -2,7 +2,6 @@ import { useState } from 'react';
 import { api } from '../../api/index.js';
 import { Alert, Table, useConfirm } from '../../components/ui/index.js';
 
-// State Enrollment Team tools: overall rank, preview and generation of the next student list.
 export default function ListPanel({ cls }) {
   const confirm = useConfirm();
   const [busy, setBusy] = useState(false), [res, setRes] = useState(null), [err, setErr] = useState('');

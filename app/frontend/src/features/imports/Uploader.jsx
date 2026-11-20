@@ -3,7 +3,6 @@ import { api } from '../../api/index.js';
 import { toBase64 } from '../../lib/format.js';
 import { Alert, Table, useConfirm } from '../../components/ui/index.js';
 
-// One spreadsheet import (students or vacancies) with its result report and any new logins created.
 export default function Uploader({ title, hint, columns, path, cls, canReplace, modes }) {
   const confirm = useConfirm();
   const [file, setFile] = useState(null), [replace, setReplace] = useState(false), [mode, setMode] = useState('replace'), [busy, setBusy] = useState(false), [res, setRes] = useState(null), [err, setErr] = useState('');

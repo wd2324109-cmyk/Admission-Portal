@@ -1,6 +1,3 @@
-// The submitted documents of a student, one small record file per student: uploads/docs/<class>-<id>.json
-// ({ TYPE: { fileName, stored, status, submittedBy, submittedAt, submissions, reviewedBy, reviewedAt, remarks, history: [...] } }).
-// The files themselves are in the uploads folder (like the letters). When S3 is connected, only this module and saveUpload() change.
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { UPLOADS } from './paths.js';
@@ -21,7 +18,6 @@ export async function putDocs(cls, id, docs) {
   await fs.rename(tmp, f);
 }
 
-/** Map(id -> docs) for many students (a few at a time). */
 export async function getManyDocs(cls, ids) {
   const out = new Map(), list = [...ids];
   for (let i = 0; i < list.length; i += LIMIT)

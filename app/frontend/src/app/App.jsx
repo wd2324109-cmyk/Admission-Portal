@@ -7,7 +7,6 @@ import { visibleRoutes } from './routes.jsx';
 import Sidebar from './Sidebar.jsx';
 import Topbar from './Topbar.jsx';
 
-// Application shell: session, menu and the current screen. Screens themselves live under features/.
 export default function App() {
   const [user, setUser] = useState(savedUser), [page, setPage] = useState('dash'), [pwOpen, setPwOpen] = useState(false), [menuOpen, setMenuOpen] = useState(false);
   const routes = user ? visibleRoutes(user) : [];
@@ -15,7 +14,6 @@ export default function App() {
 
   useEffect(() => { document.title = `${user && route ? route.label : 'Sign in'} · School Admissions Portal`; }, [user, route]);
 
-  // Escape closes the mobile menu.
   useEffect(() => {
     if (!menuOpen) return;
     const h = e => { if (e.key === 'Escape') setMenuOpen(false); };
@@ -23,7 +21,6 @@ export default function App() {
     return () => window.removeEventListener('keydown', h);
   }, [menuOpen]);
 
-  // Coming back to the tab confirms the session is still valid.
   useEffect(() => {
     if (!user) return;
     const vis = () => document.visibilityState === 'visible' && api('/auth/session').catch(() => {});

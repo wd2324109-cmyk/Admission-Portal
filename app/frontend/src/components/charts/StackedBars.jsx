@@ -1,6 +1,5 @@
 import Legend from './Legend.jsx';
 
-// Horizontal stacked bars, top 8 rows by total.
 export default function StackedBars({ title, rows, keys }) {
   const v = (r, k) => Number(r[k]) || 0, sum = r => keys.reduce((a, [k]) => a + v(r, k), 0);
   const list = rows.filter(r => sum(r) > 0).sort((a, b) => sum(b) - sum(a)).slice(0, 8), max = Math.max(1, ...list.map(sum));

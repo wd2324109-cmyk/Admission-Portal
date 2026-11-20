@@ -8,8 +8,6 @@ const EyeIcon = ({ off }) => <svg viewBox="0 0 24 24" aria-hidden="true">{off
   ? <><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19M14.12 14.12a3 3 0 1 1-4.24-4.24" /><path d="M1 1l22 22" /></>
   : <><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" /><circle cx="12" cy="12" r="3" /></>}</svg>;
 
-
-// ---- Sign in (passwords are reset by a super admin on the Users page)
 function Login({ onLogin }) {
   const [f, setF] = useState({ username: '', password: '' }), [err, setErr] = useState(peekLogoutReason), [show, setShow] = useState(false), [busy, setBusy] = useState(false), [caps, capsOn] = useCapsLock();
   useEffect(() => { clearLogoutReason(); }, []);
@@ -41,9 +39,9 @@ const Stat = ({ icon, color, label, value, note }) => <div className="card stat"
   <div><span>{label}</span><b>{value.toLocaleString()}</b>{note && <small>{note}</small>}</div></div>;
 
 const KEYS = [['notlisted', 'Not listed', '#9aa5bd'], ['waiting', 'Waiting', '#e8a317'], ['selected', 'Selected', '#3b5bdb'], ['joined', 'Joined', '#12a36b'], ['notwilling', 'Not Willing', '#e5484d'], ['notjoined', 'Not Joined', '#ff8f6b'], ['tc', 'TC', '#7c4dff']];
-// The DMS (DISTRICT) works with five groups: Pending, Selected, Joined, Not Willing, Not Joined (a student marked Not Joined shows there as "Not Joined - Pending" until the RC approves). TC is only a Dashboard count: a TC is requested in the TC Requests tab.
+
 const DMS_KEYS = KEYS.filter(([k]) => k !== 'notlisted').map(([k, l, c]) => [k, k === 'waiting' ? 'Pending' : l, c]);
-const tabKeys = keys => keys.filter(([k]) => k !== 'tc');   // Student Details has no TC tab
+const tabKeys = keys => keys.filter(([k]) => k !== 'tc');
 const keysFor = user => (user.role === 'DISTRICT' ? DMS_KEYS : KEYS);
 const ICON = { notlisted: ['users', 'blue'], waiting: ['clock', 'amber'], selected: ['star', 'blue'], joined: ['ok', 'green'], notwilling: ['no', 'red'], notjoined: ['no', 'red'], tc: ['doc', 'violet'] };
 const Legend = ({ keys }) => <div style={{ display: 'flex', gap: 14, fontSize: 12, color: 'var(--mute)', marginBottom: 12, flexWrap: 'wrap' }}>{keys.map(([k, l, c]) =>
@@ -76,7 +74,6 @@ function Stacked({ title, rows, keys }) {
       <div className="bar">{keys.map(([k, l, c]) => <i key={k} title={`${l}: ${r[k]}`} style={{ width: `${(100 * r[k]) / max}%`, background: c }} />)}</div></div>)}</div>;
 }
 
-
 function Dashboard({ user, go }) {
   const [d, setD] = useState(null), [err, setErr] = useState('');
   useEffect(() => { api('/dashboard').then(setD).catch(e => setErr(e.message)); }, []);
@@ -96,17 +93,15 @@ function Dashboard({ user, go }) {
     {!dms && <div className="panel" style={{ marginTop: 16 }}><h3>Seats</h3><p>{d.vacancy.seats} seats · {d.vacancy.joined} joined · {d.vacancy.open} open</p></div>}</>;
 }
 
-// ---- Students: the flowchart statuses (1A 1B 2A 6A / 3A 3B 7A 7B 8A 8B)
 const CODE = { '1A': 'Waiting', '1B': 'Waiting (reconsidered)', '2A': 'Selected', '6A': 'Not Willing', '3A': 'Joined by HM', '3B': 'Joined by RC', '7A': 'Not Joined - Pending', '7B': 'Not Joined - Approved', '8A': 'TC-Waiting', '8B': 'TC Issued' };
 const GROUP_CLASS = { notlisted: 'PENDING', waiting: 'PENDING', selected: 'Selected', notwilling: 'NotAdmitted', joined: 'Admitted', notjoined: 'NotAdmitted', tc: 'TCIssued' };
 const StatusBadge = ({ r }) => <span className={`badge ${r.statusCode === '7A' ? 'PENDING' : GROUP_CLASS[r.group] || ''}`}>{r.statusCode ? CODE[r.statusCode] : 'Not listed'}</span>;
 const TABS = [['all', 'All'], ['notlisted', 'Not listed'], ['waiting', 'Waiting'], ['selected', 'Selected'], ['joined', 'Joined'], ['notwilling', 'Not Willing'], ['notjoined', 'Not Joined']];
-const LETTER_KINDS = { HM: 'HM letter', STUDENT: 'Student unwilling letter' };   // needed for Not Willing and for Not Joined
+const LETTER_KINDS = { HM: 'HM letter', STUDENT: 'Student unwilling letter' };
 const ALL_CODES = ['', '1A', '1B', '2A', '6A', '3A', '3B', '7A', '7B', '8A', '8B'];
-// select_status = the status code (every one of the ten); admit_status = the description of that code.
+
 const selectOf = r => r.selectStatus || '—', admitOf = r => (r.statusCode ? CODE[r.statusCode] : r.admitStatus) || '—', stageOf = c => CODE[c] || c || 'start';
 
-// mode 'tc' (TC Requests tab): only the TC steps are offered. Otherwise (Student Details): every step except the TC ones, so "Request TC" exists in the TC Requests tab alone.
 const isTcStep = a => a.key.startsWith('TC_');
 function StudentModal({ cls, id, user, onClose, onChange, mode = 'students' }) {
   const [s, setS] = useState(null), [err, setErr] = useState(''), [remarks, setRemarks] = useState(''), [ov, setOv] = useState({ code: '', remarks: '' }), [busy, setBusy] = useState(false), [letters, setLetters] = useState({ HM: null, STUDENT: null });
@@ -161,7 +156,7 @@ function StudentDetails({ user }) {
     api(`/students?class=${cls}&view=${tab}&status=${status}&search=${encodeURIComponent(q)}&page=${page}`).then(d => { if (!stale) { setData(d); setListErr(''); } }).catch(e => !stale && setListErr(e.message));
     return () => { stale = true; };
   }, [cls, tab, q, status, page, reload]);
-  // DMS: from the Pending or Selected tab a student is marked Joined in one click; Not joined opens the record because a reason is required.
+
   return <>
     <div className="head"><h1>Student Details</h1></div>
     <ClassTabs user={user} cls={cls} setCls={setCls} />
@@ -181,7 +176,6 @@ function StudentDetails({ user }) {
     {open && <StudentModal cls={cls} id={open} user={user} onClose={() => setOpen(null)} onChange={() => setReload(n => n + 1)} />}</>;
 }
 
-// ---- Vacancies: per seat group, and seat by seat
 const SEAT_TAG = { RESERVED: ['Reserved', 'RESERVED'], JOINED: ['Joined', 'Admitted'], VACANT: ['Vacant', 'VACANT'] };
 function SeatList({ user }) {
   const [cls, setCls] = useState(firstClass(user)), [mode, setMode] = useState('groups'), [tab, setTab] = useState(''), [search, setSearch] = useState(''), [q, setQ] = useState(''), [page, setPage] = useState(1);
@@ -212,10 +206,6 @@ function SeatList({ user }) {
     </div></>;
 }
 
-// ---- Document Verification: the JOINED students and their documents.
-// Willing letter, Transfer Certificate (TC) and Community certificate are mandatory for every student; the PWD letter too when the student is PWD.
-// The DMS submits the documents. Until a document is verified the DMS can change it and submit it again, as many times as it wants.
-// The super admin verifies (or rejects, with a reason) each document; a verified document is final and cannot be changed.
 IC.doc = IC.doc || 'M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8zM14 2v6h6M16 13H8M16 17H8';
 const DOC_NAMES = { WILLING: 'Willing letter', TC: 'Transfer Certificate (TC)', COMMUNITY: 'Community certificate', PWD: 'PWD letter' };
 const DOC_SHORT = { WILLING: 'Willing letter', TC: 'TC', COMMUNITY: 'Community', PWD: 'PWD letter' };
@@ -299,8 +289,6 @@ function DocumentVerification({ user }) {
     {open && <DocumentsModal cls={cls} id={open} user={user} onClose={() => setOpen(null)} onChange={() => setReload(n => n + 1)} />}</>;
 }
 
-// ---- TC requests: the ONLY place where a TC is requested. Every joined student is listed; the DMS selects View and requests the TC.
-// Then the Regional Coordinator approves, then the State Regional Coordinator.
 IC.doc = 'M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8zM14 2v6h6M16 13H8M16 17H8';
 const TC_STAGE = { JOINED: ['Joined · TC not requested', 'Admitted'], REGION: ['Waiting for the Regional Coordinator', 'PENDING'], STATE: ['Waiting for the State Regional Coordinator', 'RCAPPROVED'], DONE: ['TC Issued', 'SCAPPROVED'] };
 const TC_TABS = [['', 'All'], ['JOINED', 'Joined'], ['REGION', 'Waiting for RC'], ['STATE', 'Waiting for State RC'], ['DONE', 'TC Issued']];
@@ -329,7 +317,6 @@ function TcRequests({ user }) {
     {open && <StudentModal mode="tc" cls={cls} id={open} user={user} onClose={() => setOpen(null)} onChange={() => setN(x => x + 1)} />}</>;
 }
 
-// ---- Import: 9th_master_sheet, 9th_vacancy_sheet, 10th_master_sheet, 10th_vacancy_sheet (and the State Enrollment Team's rank / list buttons)
 const b64 = f => new Promise((ok, no) => { const r = new FileReader(); r.onload = () => ok(r.result.split(',')[1]); r.onerror = no; r.readAsDataURL(f); });
 function Uploader({ title, hint, path, cls, canReplace, modes }) {
   const [file, setFile] = useState(null), [replace, setReplace] = useState(false), [mode, setMode] = useState('replace'), [busy, setBusy] = useState(false), [res, setRes] = useState(null), [err, setErr] = useState('');
@@ -382,7 +369,6 @@ function ImportData({ user }) {
     </div></>;
 }
 
-// ---- History: the two log tables of the database document
 IC.log = 'M4 6h16M4 12h16M4 18h10';
 const ts = d => (d ? new Date(d).toLocaleString([], { dateStyle: 'medium', timeStyle: 'medium' }) : '—');
 function Logs() {
@@ -402,7 +388,6 @@ function Logs() {
       {!rows.length && !err && <p style={{ color: 'var(--mute)' }}>No entries.</p>}</div></>;
 }
 
-// ---- DMS: inside Student Details, ask the super admin for a new list once most of the students of the chosen class are decided
 function RequestNewList({ cls }) {
   const [d, setD] = useState(null), [err, setErr] = useState(''), [msg, setMsg] = useState(''), [busy, setBusy] = useState(false), [n, setN] = useState(0);
   useEffect(() => { let stale = false; setMsg(''); api('/list-requests').then(r => !stale && (setD(r), setErr(''))).catch(e => !stale && setErr(e.message)); return () => { stale = true; }; }, [n, cls]);
@@ -419,7 +404,6 @@ function RequestNewList({ cls }) {
     {msg && <p>{msg}</p>}{err && <p className="err" role="alert">{err}</p>}</div>;
 }
 
-// ---- Super admin: how many requests are waiting (shown on the dashboard)
 function OpenRequestsNotice({ go }) {
   const [n, setN] = useState(0);
   useEffect(() => { let stale = false; api('/list-requests?status=OPEN').then(r => !stale && setN(r.rows.length)).catch(() => {}); return () => { stale = true; }; }, []);
@@ -427,7 +411,6 @@ function OpenRequestsNotice({ go }) {
   return <div className="panel" style={{ marginBottom: 16 }}><div className="row2"><span><b>{n}</b> DMS {n === 1 ? 'request is' : 'requests are'} waiting for a new list.</span><button className="pri" onClick={() => go('listreq')}>Open List Requests</button></div></div>;
 }
 
-// ---- Super admin: the requests, with Freeze / Unfreeze for the DMS login
 function ListRequests() {
   const [rows, setRows] = useState([]), [tab, setTab] = useState('OPEN'), [err, setErr] = useState(''), [n, setN] = useState(0), [busy, setBusy] = useState(false);
   useEffect(() => { let stale = false; api(`/list-requests?status=${tab === 'ALL' ? '' : tab}`).then(r => !stale && (setRows(r.rows), setErr(''))).catch(e => !stale && setErr(e.message)); return () => { stale = true; }; }, [tab, n]);
@@ -451,7 +434,6 @@ function ListRequests() {
       {!rows.length && !err && <p style={{ color: 'var(--mute)' }}>No requests in this view.</p>}</div></>;
 }
 
-// ---- Users: create, new password, class access (the users and access tables)
 function UsersPage({ me }) {
   const [rows, setRows] = useState([]), [err, setErr] = useState(''), [n, setN] = useState(0), [shown, setShown] = useState(null), [f, setF] = useState({ username: '', role: 'DISTRICT', district: '', region: '', classes: [9, 10] });
   useEffect(() => { let stale = false; api('/users').then(r => !stale && (setRows(r), setErr(''))).catch(e => !stale && setErr(e.message)); return () => { stale = true; }; }, [n]);
@@ -496,7 +478,6 @@ function ChangePassword({ onClose, username }) {
   </div></div>;
 }
 
-
 export default function App() {
   const [user, setUser] = useState(savedUser), [page, setPage] = useState('dash'), [pw, setPw] = useState(false), [mobileOpen, setMobileOpen] = useState(false);
   useEffect(() => { const h = e => { if (e.key === 'Escape') { document.querySelector('.modal')?.click(); setMobileOpen(false); } }; window.addEventListener('keydown', h); return () => window.removeEventListener('keydown', h); }, []);
@@ -509,7 +490,7 @@ export default function App() {
     return () => document.removeEventListener('visibilitychange', vis);
   }, [user]);
   if (!user) return <Login onLogin={setUser} />;
-  const admin = user.role === 'SUPER_ADMIN', dms = user.role === 'DISTRICT', canVac = admin;       // the DMS sees Dashboard, Student Details, Document Verification and TC Requests only
+  const admin = user.role === 'SUPER_ADMIN', dms = user.role === 'DISTRICT', canVac = admin;
   const Nav = ({ k, icon, label }) => <button className={`nav ${page === k ? 'on' : ''}`} aria-current={page === k ? 'page' : undefined} onClick={() => { setPage(k); setMobileOpen(false); }}>
     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d={IC[icon]} /></svg><span>{label}</span></button>;
   const logout = reason => { if (typeof reason === 'string' && reason) setLogoutReason(reason); api('/auth/logout', { method: 'POST' }).catch(() => {}).finally(() => { setToken(null); setUser(null); if (typeof reason === 'string' && reason) window.location.reload(); }); };

@@ -1,7 +1,3 @@
-// PRODUCTION ONLY. Brings the EXISTING tables of schema core in line with the database document by ALTERing them. It never creates a schema or a table.
-// A table is altered only when it has NO rows. A table with data is left untouched and its differences are only reported.
-// Per empty table: a column spelled differently (case only) is RENAMED, a missing column is ADDED, a column of the wrong type is retyped. Nothing is ever dropped: a column the document does not have is kept and only reported.
-// (ALTER cannot reorder columns; verify ignores column order on the production profile.)
 import { SPEC, LIVE_NAME } from './spec/spec.js';
 import { qualified, SCHEMA } from './db/profile.js';
 
@@ -19,8 +15,8 @@ export async function planProduction(pool) {
     const rows = (await pool.query(`select count(*)::int as n from ${full}`)).rows[0].n;
     const sql = [], notes = [];
     const unmatched = new Map(live.map(c => [c.column_name, c]));
-    const want = t.columns.filter(c => !unmatched.delete(c.name));          // document columns not present under their exact name
-    // columns present with the exact name: check the type
+    const want = t.columns.filter(c => !unmatched.delete(c.name));
+
     for (const c of t.columns) {
       const l = live.find(x => x.column_name === c.name);
       if (l && l.data_type !== PG_TYPE[c.type]) {

@@ -1,5 +1,3 @@
-// Compares the live database with the database document: every table and column must exist with the right type, in order,
-// and there must be NO extra table, view or column. Exit code 1 when anything differs.   npm run db:verify
 import 'dotenv/config';
 import pg from 'pg';
 import { SPEC, PG_TYPE, LIVE_NAME } from './spec/spec.js';

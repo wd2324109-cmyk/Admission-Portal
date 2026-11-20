@@ -2,8 +2,6 @@ import { Icon } from '../components/ui/index.js';
 import { ROLE_NAME } from '../lib/status.js';
 import { asset } from '../lib/format.js';
 
-// Defined at module level on purpose: a component declared inside another is re-created on every render,
-// which resets keyboard focus after each click.
 function NavItem({ route, active, onSelect }) {
   return <button type="button" className={`nav ${active ? 'on' : ''}`} aria-current={active ? 'page' : undefined} onClick={() => onSelect(route.key)}>
     <Icon n={route.icon} size={18} /><span>{route.label}</span>

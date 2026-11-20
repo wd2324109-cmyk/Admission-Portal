@@ -8,7 +8,6 @@ const CLASSES = [9, 10];
 const toggle = (arr, c) => (arr.includes(c) ? arr.filter(x => x !== c) : [...arr, c].sort((a, b) => a - b));
 const BLANK = { username: '', role: 'DISTRICT', district: '', region: '', classes: [9, 10] };
 
-// Users & access: create logins, issue new passwords, freeze DMS logins and set class access (users and access tables).
 export default function Users({ me }) {
   const confirm = useConfirm();
   const { data, error, reload } = useFetch(() => api('/users'), [], []);

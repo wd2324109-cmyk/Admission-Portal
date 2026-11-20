@@ -1,6 +1,5 @@
 import { STATUS, statusColumns } from './statuses.js';
-// Excel row -> database row (9th_master_sheet / 10th_master_sheet and 9th_vacancy_sheet / 10th_vacancy_sheet). Header names are matched ignoring case, spaces, dashes and underscores, and the column names of the
-// database document are accepted exactly ("mark1-quertly", "Total-highest of two", "Other marks" ...) as well as friendlier ones.
+
 const key = k => String(k).toLowerCase().replace(/[^a-z0-9]/g, '');
 const lookup = row => { const m = {}; for (const [k, v] of Object.entries(row)) m[key(k)] = v;
   return (...names) => { for (const n of names) { const v = m[key(n)]; if (v !== undefined && v !== null && String(v).trim() !== '') return typeof v === 'string' ? v.trim() : v; } return ''; }; };
@@ -9,7 +8,7 @@ const cap = s => String(s).trim().toLowerCase().replace(/^./, c => c.toUpperCase
 const int = v => (v === '' || !Number.isFinite(+v) || !Number.isInteger(+v) ? null : +v);
 const txt = v => (v === '' ? null : String(v));
 const GENDER = { boy: 'Boy', male: 'Boy', m: 'Boy', b: 'Boy', girl: 'Girl', female: 'Girl', f: 'Girl', g: 'Girl' };
-export const INT_MAX = 2147483647;                                // Emis is an INTEGER in the database document
+export const INT_MAX = 2147483647;
 const emisOf = g => { const e = int(g('Emis', 'emis_no', 'emisno', 'emis_id')); return e !== null && e > 0 && e <= INT_MAX ? e : null; };
 
 export function mapStudentRow(row, cls) {
@@ -20,7 +19,7 @@ export function mapStudentRow(row, cls) {
     phone: txt(g('Phone', 'phone_number')), address: txt(g('address')), pincode: txt(g('pincode')), pass: txt(g('pass')), orank: int(g('orank')) };
   Object.assign(v, { fatherName: txt(g('Father_name')), motherName: txt(g('Mother_name')), mark1Quarterly: int(g('mark1-quertly', 'mark1-quarterly', 'mark1', 'quarterly')), mark2Half: int(g('mark2-half', 'mark2', 'half_yearly')),
     totalHighest: int(g('Total-highest of two', 'total_highest', 'total')), nmss: int(g('nmss', 'nmms')), trust: txt(g('Trust')), otherMarks: int(g('Other marks', 'other_marks')) });
-  // select_status holds every status code (1A 1B 2A 6A 3A 3B 7A 7B 8A 8B); admit_status is ALWAYS the description of that code, whatever the sheet says.
+
   const code = String(g('select_status', 'selectstatus')).toUpperCase();
   if (code && !STATUS[code]) return { error: `select_status must be one of ${Object.keys(STATUS).join(', ')} (or empty)` };
   Object.assign(v, statusColumns(code), { selectedCategory: txt(g('selected_category')), newDistcName: txt(String(g('New_distc_name')).toUpperCase()), newUdiseType: txt(g('New_udise_type')),

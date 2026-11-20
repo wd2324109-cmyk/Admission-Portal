@@ -2,7 +2,6 @@ import assert from 'node:assert';
 import { rateLimit } from './rateLimit.js';
 import { securityHeaders, apiHeaders, corsMiddleware } from './hardening.js';
 
-// Minimal request/response stand-ins, enough for middleware that only sets headers or answers early.
 const makeRes = () => {
   const h = {};
   const res = { statusCode: 200, body: undefined, ended: false, headers: h,
@@ -13,7 +12,6 @@ const makeRes = () => {
 };
 const run = (mw, req) => { const res = makeRes(); let passed = false; mw(req, res, () => { passed = true; }); return { res, passed }; };
 
-// ---- rateLimit: the (max+1)th request in a window is refused with 429 + Retry-After, per client IP
 const lim = rateLimit({ max: 3, windowMs: 80 });
 for (let i = 0; i < 3; i++) assert.equal(run(lim, { ip: '1.1.1.1' }).passed, true, `request ${i + 1} should pass`);
 const blocked = run(lim, { ip: '1.1.1.1' });
@@ -26,7 +24,6 @@ await new Promise(r => setTimeout(r, 120));
 assert.equal(run(lim, { ip: '1.1.1.1' }).passed, true, 'the window resets');
 assert.equal(run(rateLimit({ max: 1 }), {}).passed, true, 'a missing ip does not crash');
 
-// ---- security headers
 let { res, passed } = run(securityHeaders({}), {});
 assert(passed);
 for (const [k, v] of Object.entries({ 'x-content-type-options': 'nosniff', 'x-frame-options': 'DENY', 'referrer-policy': 'no-referrer',
@@ -36,13 +33,11 @@ assert.equal(res.headers['strict-transport-security'], undefined, 'no HSTS outsi
 ({ res } = run(securityHeaders({ NODE_ENV: 'production' }), {}));
 assert(/max-age=31536000/.test(res.headers['strict-transport-security']), 'HSTS in production');
 
-// ---- API responses: never cached, never a page
 ({ res, passed } = run(apiHeaders, {}));
 assert(passed);
 assert.equal(res.headers['cache-control'], 'no-store');
 assert.equal(res.headers['content-security-policy'], "default-src 'none'; frame-ancestors 'none'");
 
-// ---- CORS: off by default, exact origins only
 assert.equal(corsMiddleware({}), null, 'no CORS_ORIGIN means no CORS at all');
 const cors = corsMiddleware({ CORS_ORIGIN: 'https://admissions.example.gov.in, https://www.example.gov.in' });
 const preflight = origin => run(cors, { method: 'OPTIONS', headers: { origin, 'access-control-request-method': 'POST' } }).res;
@@ -55,7 +50,6 @@ assert.equal(r.headers['access-control-allow-origin'], undefined, 'other origins
 r = preflight('https://admissions.example.gov.in.evil.com');
 assert.equal(r.headers['access-control-allow-origin'], undefined, 'look-alike origins are refused');
 
-// ---- "*" must stop a production start, and only warn elsewhere
 const realExit = process.exit, realErr = console.error, realWarn = console.warn;
 let exited = null, warned = false;
 process.exit = c => { exited = c; throw new Error('exit'); }; console.error = () => {}; console.warn = () => { warned = true; };

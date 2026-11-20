@@ -2,17 +2,14 @@ import { useEffect, useRef, useState } from 'react';
 import { api, lastApiCall } from '../api/index.js';
 import { Modal } from '../components/ui/index.js';
 
-// Keep this in step with SESSION_IDLE_MINUTES on the server (default 30).
 export const IDLE_MINUTES = Math.max(2, +import.meta.env.VITE_IDLE_MINUTES || 30);
 const LIMIT = IDLE_MINUTES * 60 * 1000, WARN = Math.min(2 * 60 * 1000, LIMIT / 2);
 const fmt = s => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
 
-// Signs the person out after a period without any activity. Two minutes before that, a dialog offers
-// to stay signed in. While the person is working, a quiet request keeps the server session alive.
 export default function IdleGuard({ onExpire }) {
   const [left, setLeft] = useState(null), last = useRef(Date.now()), warned = useRef(false), done = useRef(false), expire = useRef(onExpire);
   expire.current = onExpire;
-  // The timer ticks every second; a slow sign-out request must not trigger a second, third… sign-out.
+
   const finish = msg => { if (done.current) return; done.current = true; expire.current(msg); };
 
   useEffect(() => {

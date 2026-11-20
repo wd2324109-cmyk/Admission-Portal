@@ -19,19 +19,16 @@ if (corsMw) app.use(corsMw);
 if (process.env.NODE_ENV === 'production' && !process.env.TRUST_PROXY)
   console.warn('WARNING: TRUST_PROXY is not set. Behind nginx/Render every visitor looks like the proxy, so the sign-in and rate limits would apply to everyone together. Set TRUST_PROXY=true.');
 
-// Rate limits (per client IP, in memory). The overall limit is only a safety net against floods, so it is generous:
-// a whole office can share one IP. Expensive endpoints (Excel import/export, selection run, uploads) get a smaller budget.
 const WINDOW = 60 * 1000;
 app.use('/api', rateLimit({ max: +process.env.API_RATE_LIMIT_PER_MIN || 2000, windowMs: WINDOW }));
 const heavy = rateLimit({ max: +process.env.HEAVY_RATE_LIMIT_PER_MIN || 60, windowMs: WINDOW, message: 'Too many import, export or upload requests. Please wait a minute and try again.' });
 const writesOnly = mw => (req, res, next) => (req.method === 'GET' || req.method === 'HEAD' || req.method === 'OPTIONS' ? next() : mw(req, res, next));
 app.use(['/api/export', '/api/import', '/api/lists', '/api/rank'], heavy);
 
-// Request size limits: only the Excel imports need a big body, and only for a signed-in user.
 const signedIn = writesOnly(auth);
 app.use('/api/import', signedIn, express.json({ limit: '25mb' }));
-app.use('/api/students', signedIn, express.json({ limit: '12mb' }));   // the two letters (up to 3 MB each) travel with the Not Willing / Not Joined step, the TC request letter with Request TC
-app.use('/api/documents', signedIn, express.json({ limit: '20mb' }));   // up to 4 documents (3 MB each, sent as base64) in one submission
+app.use('/api/students', signedIn, express.json({ limit: '12mb' }));
+app.use('/api/documents', signedIn, express.json({ limit: '20mb' }));
 app.use(express.json({ limit: '100kb' }));
 app.use('/api', apiHeaders);
 
@@ -40,9 +37,6 @@ app.get('/api/health', async (req, res) => {
 });
 app.use('/api', api);
 app.use('/api', notFound);
-
-
-
 
 const WEB = path.resolve(process.env.FRONTEND_DIST || path.join(process.cwd(), '..', 'frontend', 'dist'));
 if (fs.existsSync(path.join(WEB, 'index.html'))) {
@@ -59,7 +53,7 @@ app.use(errorHandler);
 
 const port = process.env.PORT || 4000;
 const server = app.listen(port, () => console.log('API on :' + port + '   database profile: ' + describeProfile()));
-// A failed background database call must not take the whole portal down: print the real reason and keep serving.
+
 process.on('unhandledRejection', e => console.error('\n!! Unhandled error (the server keeps running):', e?.message || e, '\n', e?.stack || ''));
 const stop = () => { server.close(() => pool.end().finally(() => process.exit(0))); setTimeout(() => process.exit(1), 10000).unref(); };
 process.on('SIGTERM', stop); process.on('SIGINT', stop);

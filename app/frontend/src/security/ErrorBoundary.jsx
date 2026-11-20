@@ -1,10 +1,9 @@
 import { Component } from 'react';
 
-// A rendering error should never leave a blank page or show internals to the user.
 export default class ErrorBoundary extends Component {
   state = { failed: false };
   static getDerivedStateFromError() { return { failed: true }; }
-  componentDidCatch() { /* intentionally silent: no stack traces in the browser console of a public build */ }
+  componentDidCatch() {  }
   render() {
     if (!this.state.failed) return this.props.children;
     return <main className="notfound"><div>

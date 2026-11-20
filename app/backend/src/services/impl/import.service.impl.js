@@ -35,7 +35,7 @@ export class ImportServiceImpl extends ImportService {
         await tx.delete(S).where(eq(S.classLevel, +classLevel));
       }
       for (const c of chunks(good)) inserted += (await tx.insert(S).values(c).onConflictDoNothing({ target: S.regno }).returning({ r: S.regno })).length;
-                                                                                                            
+
       const wanted = [...new Set(good.map(s => `district|${s.district}`)), ...new Set(good.map(s => `region|${s.regionalCentre}`))];
       for (const w of wanted) {
         const [kind, name] = w.split('|'), username = `${kind}_${slug(name)}`, password = randPw();
@@ -66,7 +66,7 @@ export class ImportServiceImpl extends ImportService {
       if (n) throw new HttpError('Admissions have already started for this class; vacancies can no longer be replaced');
       const T = seatTable(+classLevel);
       await tx.delete(T);
-      // one row per seat: a community with 5 vacancies becomes 5 rows
+
       for (const c of chunks(good.flatMap(seatRowsOf), 500)) await tx.insert(T).values(c);
     });
     const seatCount = good.reduce((n, c) => n + c.admitted + c.vacancies, 0);

@@ -1,19 +1,12 @@
-// API client. Same exports and endpoint paths as before, hardened:
-//  - the sign-in token lives in sessionStorage (cleared when the tab closes), never in persistent localStorage
-//  - every request has a timeout, so a stalled network cannot leave the screen hanging
-//  - clear messages for offline, timeout and rate-limit (429) cases
-//  - documents open with noopener and their temporary blob: URLs are released afterwards
 const API = (import.meta.env.VITE_API_URL || '').replace(/\/$/, '') + '/api';
 
-// sessionStorage can be blocked (private mode, strict policies): fall back to memory instead of crashing.
 const mem = new Map();
 const store = (() => { try { const k = '__probe'; sessionStorage.setItem(k, '1'); sessionStorage.removeItem(k); return sessionStorage; } catch { return null; } })();
 const read = k => (store ? store.getItem(k) : mem.get(k) ?? null);
 const write = (k, v) => { if (store) store.setItem(k, v); else mem.set(k, v); };
 const drop = k => { if (store) store.removeItem(k); else mem.delete(k); };
 
-// Older versions kept the token in localStorage, where it survived browser restarts. Remove any leftover copy.
-try { localStorage.removeItem('token'); localStorage.removeItem('user'); } catch { /* ignore */ }
+try { localStorage.removeItem('token'); localStorage.removeItem('user'); } catch {  }
 
 let token = read('token');
 export const hasToken = () => !!token;
@@ -25,12 +18,9 @@ export const peekLogoutReason = () => read('logoutReason') || '';
 export const clearLogoutReason = () => drop('logoutReason');
 export const setLogoutReason = msg => write('logoutReason', msg);
 
-// Time of the last request that reached the server. The idle guard uses it to keep the server session alive
-// only while the person is actually working.
 let lastApiAt = Date.now();
 export const lastApiCall = () => lastApiAt;
 
-// Imports, exports and selection runs can legitimately take a while; everything else should answer quickly.
 const SLOW = /^\/(import|export|selection)/;
 const timeoutFor = path => (SLOW.test(path) ? 180000 : 45000);
 
@@ -68,7 +58,6 @@ export async function api(path, opts = {}) {
   return data;
 }
 
-// A blob: URL runs with this site's own origin, so only ever open real documents (PDF or image), never HTML or script.
 const SAFE_TYPES = ['application/pdf', 'image/png', 'image/jpeg'];
 const safeBlob = b => { if (!SAFE_TYPES.includes(b.type)) throw new Error('This file type cannot be opened here.'); return b; };
 
@@ -89,7 +78,6 @@ export async function fileBlob(path) {
   return safeBlob(await (await getFile(path, 'Could not load file')).blob());
 }
 
-// Only a plain file name from the server is used: no path segments, no control characters.
 const cleanName = n => String(n || '').replace(/[\\/:*?"<>|\u0000-\u001f]/g, '_').slice(0, 120) || 'download.xlsx';
 
 export async function downloadFile(path) {

@@ -1,22 +1,11 @@
-// Document Verification: the papers of a JOINED student (3A / 3B).
-//
-//   Mandatory for every student : Willing letter, Transfer Certificate (TC), Community certificate
-//   Also mandatory for a PWD    : PWD letter
-//
-// The DMS user submits each document. The super admin verifies (or rejects, with a reason) each one.
-//   PENDING  - submitted, waiting for the super admin.            The DMS may replace it, as often as it wants.
-//   REJECTED - the super admin sent it back (reason given).       The DMS may resubmit, as often as it wants.
-//   VERIFIED - the super admin accepted it.                        FINAL: nothing can change it any more.
 import { HttpError } from '../common/http.js';
 
 export const DOC_TYPES = { WILLING: 'Willing letter', TC: 'Transfer Certificate (TC)', COMMUNITY: 'Community certificate', PWD: 'PWD letter' };
 export const BASE_DOCS = ['WILLING', 'TC', 'COMMUNITY'];
 export const JOINED = ['3A', '3B'];
 
-/** The documents this student must submit (the PWD letter only when the student is PWD). */
 export const requiredFor = student => [...BASE_DOCS, ...(student?.disabilityStatus ? ['PWD'] : [])];
 
-// Overall state of a student's documents. The first rule that fits wins.
 export const STATES = {
   VERIFIED: 'Verified',
   PENDING: 'Awaiting verification',
@@ -25,7 +14,6 @@ export const STATES = {
   NOT_SUBMITTED: 'Not submitted',
 };
 
-/** docs = { TYPE: record }, required = the types needed. Returns the counts and the overall state. */
 export function summarize(docs = {}, required = BASE_DOCS) {
   const st = t => docs[t]?.status;
   const c = { total: required.length,
@@ -35,7 +23,6 @@ export function summarize(docs = {}, required = BASE_DOCS) {
   return { ...c, state };
 }
 
-/** May the DMS submit (or replace / resubmit) this document now? Throws if not. */
 export function planSubmit({ code, student, type, doc }) {
   if (!Object.hasOwn(DOC_TYPES, type)) throw new HttpError('Unknown document');
   if (!JOINED.includes(code)) throw new HttpError('Documents are submitted only for joined students', 409);
@@ -44,7 +31,6 @@ export function planSubmit({ code, student, type, doc }) {
   return { resubmission: !!doc };
 }
 
-/** May the super admin verify / reject this document now? Throws if not. */
 export function planReview({ doc, decision, remarks }) {
   if (!['VERIFIED', 'REJECTED'].includes(decision)) throw new HttpError('Choose Verify or Reject');
   if (!doc) throw new HttpError('This document has not been submitted', 404);

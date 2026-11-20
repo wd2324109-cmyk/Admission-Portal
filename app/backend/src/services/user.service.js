@@ -13,7 +13,7 @@ const ROLE = ['SUPER_ADMIN', 'STATE', 'REGION', 'DISTRICT'];
 const classList = v => [...new Set((Array.isArray(v) ? v : []).map(Number).filter(c => CLASSES.includes(c)))].sort();
 
 export async function setAccess(tx, username, classes) {
-  await tx.delete(access).where(and(eq(access.user, username), eq(access.tag, ACTIVE)));      // only the class rows: a FROZEN row stays
+  await tx.delete(access).where(and(eq(access.user, username), eq(access.tag, ACTIVE)));
   if (classes.length) await tx.insert(access).values(classes.map(c => ({ user: username, classLevel: String(c), tag: ACTIVE })));
 }
 
@@ -46,14 +46,14 @@ export const userService = {
     await db.update(users).set({ passwordHash: bcrypt.hashSync(password, 10), sessionId: null }).where(eq(users.id, u.id));
     return { ok: true, username: u.username, password };
   },
-  // Freeze / unfreeze a DMS login. A frozen DMS is signed out at once and cannot sign in until it is unfrozen.
+
   async freeze({ params }) {
     const [u] = await db.select().from(users).where(eq(users.id, +params.id || 0));
     if (!u) throw new HttpError('User not found', 404);
     if (u.role !== 'DISTRICT') throw new HttpError('Only a DMS (district) login can be frozen', 409);
     await db.transaction(async tx => {
-      await tx.insert(access).values({ user: u.username, classLevel: ALL_CLASSES, tag: FROZEN }).onConflictDoNothing();   // already frozen: nothing to do
-      await tx.update(users).set({ sessionId: null }).where(eq(users.id, u.id));                                          // signs the DMS out everywhere
+      await tx.insert(access).values({ user: u.username, classLevel: ALL_CLASSES, tag: FROZEN }).onConflictDoNothing();
+      await tx.update(users).set({ sessionId: null }).where(eq(users.id, u.id));
     });
     if (u.sessionId) forget(u.sessionId);
     forgetFrozen();

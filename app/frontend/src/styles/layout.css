@@ -1,11 +1,9 @@
-/* App shell: sidebar, top bar, page area. */
 .shell { display: grid; grid-template-columns: var(--sidebar-w) minmax(0, 1fr); min-height: 100vh; }
 .main { min-width: 0; display: flex; flex-direction: column; min-height: 100vh; }
 .page { flex: 1; padding: 26px var(--gutter) 34px; width: 100%; max-width: 1680px; margin: 0 auto; min-width: 0; }
 .footer { display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap; padding: 12px var(--gutter); border-top: 1px solid var(--line); background: var(--surface); color: var(--muted); font-size: var(--fs-xs); }
 .scrim { display: none; }
 
-/* Sidebar */
 .sidebar { position: sticky; top: 0; height: 100vh; height: 100dvh; display: flex; flex-direction: column; background: var(--navy-800); color: #d7e2ee; padding: 20px 14px 14px; overflow-y: auto; overflow-x: hidden; overscroll-behavior: contain; z-index: 30; scrollbar-width: thin; scrollbar-color: rgba(255, 255, 255, .28) transparent; }
 .sidebar > * { flex-shrink: 0; }
 .brand { display: flex; align-items: center; gap: 12px; padding: 2px 8px 18px; margin-bottom: 6px; border-bottom: 1px solid rgba(255, 255, 255, .14); }
@@ -34,7 +32,6 @@
 .acct__btn--out:hover { background: rgba(185, 56, 56, .28); border-color: #c58a8a; }
 @media (max-height: 700px) { .nav { padding: 8px 12px; } .nav-caption { padding-top: 10px; } .side-security { display: none; } }
 
-/* Top bar */
 .topbar { position: sticky; top: 0; z-index: 10; display: flex; align-items: center; justify-content: space-between; gap: 16px; height: var(--topbar-h); padding: 0 var(--gutter); background: var(--surface); border-bottom: 1px solid var(--line); }
 .topbar__left, .topbar__right { display: flex; align-items: center; gap: 14px; min-width: 0; }
 .crumbs { display: flex; align-items: center; gap: 8px; min-width: 0; color: var(--muted); font-size: var(--fs-sm); white-space: nowrap; overflow: hidden; }
@@ -48,7 +45,6 @@
 .menu-toggle span { display: block; width: 16px; height: 2px; background: var(--ink-2); border-radius: 1px; }
 .offline-banner { position: sticky; top: var(--topbar-h); z-index: 9; padding: 9px var(--gutter); background: #fff4d6; border-bottom: 1px solid #ecd48c; color: #6b4f00; font-size: var(--fs-sm); font-weight: 600; }
 
-/* Tablet and phone: the sidebar becomes a drawer */
 @media (max-width: 1050px) {
   .shell { grid-template-columns: 1fr; }
   .sidebar { position: fixed; inset: 0 auto 0 0; width: 280px; max-width: 86vw; transform: translateX(-102%); visibility: hidden; transition: transform .22s ease, visibility 0s linear .22s; box-shadow: 12px 0 35px rgba(13, 29, 46, .2); }

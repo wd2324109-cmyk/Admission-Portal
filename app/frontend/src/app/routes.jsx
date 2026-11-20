@@ -1,5 +1,3 @@
-// Route table: the single place that says which screens exist, who may open them and where they appear in the menu.
-// To add a screen: create it under features/, then add one entry here. Nothing else needs to change.
 import Dashboard from '../features/dashboard/Dashboard.jsx';
 import StudentDetails from '../features/students/StudentDetails.jsx';
 import Vacancies from '../features/vacancies/Vacancies.jsx';

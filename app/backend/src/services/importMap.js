@@ -1,5 +1,3 @@
-                                                                                                           
-                                                                                                                            
 const key = k => String(k).toLowerCase().replace(/[^a-z0-9]/g, '');
 const COMMUNITIES = ['GT-PWD', 'GT', 'BC', 'BCM', 'MBC', 'SC', 'SCA', 'ST'];
 const lookup = row => {
@@ -8,8 +6,7 @@ const lookup = row => {
 };
 const cap = s => String(s).trim().toLowerCase().replace(/^./, c => c.toUpperCase());
 const num = v => (v === '' || isNaN(+v) ? null : +v);
-                                                                                                                                 
-                                                                                                        
+
 const classOf = (g, dflt) => +g('class_level', 'class', 'class_applied') || dflt;
 
 export function mapStudentRow(row, dflt) {

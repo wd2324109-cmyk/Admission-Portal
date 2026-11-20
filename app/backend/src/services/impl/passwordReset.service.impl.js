@@ -11,10 +11,6 @@ import { generateCode, hashCode, codeMatches } from '../../common/resetCode.js';
 import { endAllSessions } from '../../common/session.js';
 import { PasswordResetService } from '../passwordReset.service.js';
 
-// Flow: the user asks (public, rate limited, never reveals whether a username exists) -> a super admin approves, which
-// creates a one-time code shown to the super admin only -> the super admin passes the code to the user -> the user sets a new
-// password with username + code. Nothing changes the password until a super admin has approved. Super admin accounts cannot
-// be reset online at all (there is nobody above them to approve): see src/resetSuperadmin.js.
 const OPEN = ['PENDING', 'APPROVED'];
 const CODE_MS = Math.max(5, +process.env.PASSWORD_RESET_CODE_MINUTES || 60) * 60 * 1000;
 const MAX_WRONG_CODES = 5, HOUR = 60 * 60 * 1000;
@@ -45,7 +41,7 @@ export class PasswordResetServiceImpl extends PasswordResetService {
           await tx.insert(R).values({ userId: u.id, username: u.username, requestedAt: new Date(), requestedIp: String(ip).slice(0, 64) });
           await audit(tx, null, { action: 'PASSWORD_RESET_REQUESTED', actor: u.username, message: `Password reset requested from ${ip}` });
         });
-      } catch (e) { if (e?.code !== '23505') throw e; }          // two requests at the same instant: the unique index keeps one
+      } catch (e) { if (e?.code !== '23505') throw e; }
     }
     return { ok: true, message: GENERIC };
   }
@@ -55,7 +51,7 @@ export class PasswordResetServiceImpl extends PasswordResetService {
     const rows = await db.select({ id: R.id, username: R.username, status: R.status, requestedAt: R.requestedAt, requestedIp: R.requestedIp,
       decidedBy: R.decidedBy, decidedAt: R.decidedAt, decisionRemarks: R.decisionRemarks, expiresAt: R.expiresAt, completedAt: R.completedAt,
       role: users.role, region: users.region, district: users.district })
-      .from(R).leftJoin(users, eq(users.id, R.userId)).orderBy(desc(R.id)).limit(200);       // never returns the code or its hash
+      .from(R).leftJoin(users, eq(users.id, R.userId)).orderBy(desc(R.id)).limit(200);
     return { pending: rows.filter(r => r.status === 'PENDING').length, rows };
   }
 
@@ -72,7 +68,7 @@ export class PasswordResetServiceImpl extends PasswordResetService {
       await tx.update(R).set({ status: 'APPROVED', decidedBy: user.username, decidedAt: new Date(), codeHash: hashCode(code, KEY), expiresAt, attempts: 0 }).where(eq(R.id, id));
       await audit(tx, { user }, { action: 'PASSWORD_RESET_APPROVED', level: 'WARN', message: `Approved password reset for ${u.username}; the one-time code is valid for ${Math.round(CODE_MS / 60000)} minutes` });
     });
-    return { ok: true, username, code, expiresAt: expiresAt.toISOString() };      // the only time the code is ever visible
+    return { ok: true, username, code, expiresAt: expiresAt.toISOString() };
   }
 
   async reject({ user, params, body }) {
@@ -106,7 +102,7 @@ export class PasswordResetServiceImpl extends PasswordResetService {
         await audit(tx, null, { action: 'PASSWORD_RESET_FAILED', level: 'WARN', actor: u.username, message: `Wrong reset code from ${ip}${locked ? '; the request is now locked' : ''}` });
         failed = true; return;
       }
-      checkNewPassword(pw, u.username);                          // a weak password is refused without using up the code
+      checkNewPassword(pw, u.username);
       const hash = await bcrypt.hash(String(pw), 12);
       await tx.update(users).set({ passwordHash: hash }).where(eq(users.id, u.id));
       await tx.update(R).set({ status: 'COMPLETED', completedAt: new Date(), codeHash: null }).where(eq(R.id, r.id));

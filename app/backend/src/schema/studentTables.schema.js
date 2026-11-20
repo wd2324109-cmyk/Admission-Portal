@@ -1,9 +1,6 @@
 import { serial, text, integer, boolean } from 'drizzle-orm/pg-core';
 import { table } from './table.js';
 
-// Students_master_9th / _10th / _11th, column for column as in the database document.
-// Odd names such as "mark1-quertly" and "Total-highest of two" are kept EXACTLY as the document spells them (PostgreSQL
-// allows them when quoted, and Drizzle always quotes). See WORKFLOW-AND-DATABASE.md if you want to rename them.
 const common = () => ({
   id: serial('id').primaryKey(),
   district: text('district'), block: text('block'), udise: text('Udise'), schoolType: text('school_type'), schoolname: text('Schoolname'),
@@ -15,7 +12,7 @@ const status = () => ({
   newDistcName: text('New_distc_name'), newUdiseType: text('New_udise_type'), newUdiseCode: text('New_udise_code'), newSchoolName: text('New_school_name'),
   tag1: text('tag1'), remark1: text('remark1'), tag2: text('tag2'),
 });
-// 9th and 10th share the same layout; the document gives only the 9th a remark2 column.
+
 const upper = () => ({
   ...common(), fatherName: text('Father_name'), motherName: text('Mother_name'), phone: text('Phone'), address: text('address'), pincode: text('pincode'),
   mark1Quarterly: integer('mark1-quertly'), mark2Half: integer('mark2-half'), totalHighest: integer('Total-highest of two'), pass: text('pass'),

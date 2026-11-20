@@ -1,5 +1,3 @@
-// Four Excel sheets only: 9th_master_sheet and 10th_master_sheet (students), 9th_vacancy_sheet and 10th_vacancy_sheet (vacancy positions).
-// The class comes from the sheet the user chose (classLevel 9 or 10). Class 11 and the separate DGE / Kalai Thiruvizha sheets are not used.
 import bcrypt from 'bcryptjs';
 import { sql } from 'drizzle-orm';
 import { users } from '../schema/index.js';
@@ -20,9 +18,7 @@ const brief = rejected => ({ rejected: rejected.slice(0, 20), rejectedCount: rej
 const anyStatus = (tx, T) => tx.select({ n: sql`count(*)::int` }).from(T).where(sql`coalesce(${T.selectStatus},'') <> ''`).then(r => r[0].n);
 
 export const importService = {
-  // 9th_master_sheet / 10th_master_sheet -> Students_master_9th / _10th (marks, NMMS, TRUST, other marks, select_status and admit_status all come from this one sheet)
-  // A new sheet is APPENDED to the students already there (students whose EMIS exists are skipped, nobody is changed or removed). The newly listed students
-  // (rows that arrive with a select_status) become the next "List n", written to Student_LOG like a generated list, so the DMS sees them after the earlier lists.
+
   async students({ user, body }) {
     const cls = parseClass(body?.classLevel), T = studentTable(cls), rows = sheet(body), good = [], rejected = [], seen = new Set();
     rows.forEach((r, i) => { const m = mapStudentRow(r, cls); if (m.error) rejected.push({ row: i + 2, reason: m.error }); else if (seen.has(m.value.emis)) rejected.push({ row: i + 2, reason: `duplicate EMIS ${m.value.emis} in the file` }); else { seen.add(m.value.emis); good.push(m.value); } });
@@ -44,7 +40,6 @@ export const importService = {
     return { imported: inserted, skippedExisting: good.length - inserted, listNumber, ...brief(rejected) };
   },
 
-  // 9th_vacancy_sheet / 10th_vacancy_sheet -> Vacancies_9th / _10th, one row per seat
   async vacancies({ user, body }) {
     const cls = parseClass(body?.classLevel), V = seatTable(cls), T = studentTable(cls), rows = sheet(body), mode = body?.mode === 'append' ? 'append' : 'replace';
     const mine = user.role === 'DISTRICT' ? districtsOf(user) : null, good = [], rejected = [];
@@ -58,7 +53,7 @@ export const importService = {
         await tx.delete(V);
       }
       for (const c of chunks(good.flatMap(seatRowsOf), 500)) await tx.insert(V).values(c);
-      if (user.role === 'SUPER_ADMIN') for (const d of new Set(good.map(g => g.newDistrict))) {                       // a DMS login for every district that furnished vacancies
+      if (user.role === 'SUPER_ADMIN') for (const d of new Set(good.map(g => g.newDistrict))) {
         const username = `dms_${slug(d)}`, password = randPw();
         const added = await tx.insert(users).values({ username, passwordHash: bcrypt.hashSync(password, 10), role: 'DISTRICT', district: d }).returning({ u: users.username }).onConflictDoNothing();
         if (added.length) { newUsers.push({ username, password, role: 'DISTRICT', scope: d }); await setAccess(tx, username, [cls]); }

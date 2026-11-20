@@ -29,7 +29,7 @@ async function load(tx, user, cls, id, lock = false) {
   if (!row || !inScope(user, row)) throw new HttpError('Student not found', 404);
   return row;
 }
-// Writes the change, moves the seat if the flowchart says so, and logs it. before/after are student rows.
+
 async function commit(tx, user, cls, row, patch) {
   const T = studentTable(cls), [after] = await tx.update(T).set(pick(cls, patch)).where(eq(T.id, row.id)).returning();
   const eff = seatEffect(stateOf(row), stateOf(after));
@@ -44,11 +44,11 @@ export const studentService = {
     const cls = await requireClass(user, parseClass(query.class)), T = studentTable(cls), term = String(query.search || '').trim();
     const g = Object.hasOwn(GROUP_SQL, query.view) ? sql.raw(GROUP_SQL[query.view]) : undefined, page = Math.max(1, parseInt(query.page, 10) || 1);
     const q = term ? or(ilike(T.name, `%${likeEsc(term)}%`), sql`${T.emis}::text like ${likeEsc(term) + '%'}`) : undefined;
-    const code = String(query.status || '').toUpperCase(), byCode = Object.hasOwn(STATUS, code) ? eq(T.selectStatus, code) : undefined;      // exact select_status filter; view=all (or none) = every status
+    const code = String(query.status || '').toUpperCase(), byCode = Object.hasOwn(STATUS, code) ? eq(T.selectStatus, code) : undefined;
     const where = and(scope(user, cls), g, byCode, q);
     const [rows, [{ n }]] = await Promise.all([
       db.select().from(T).where(where).orderBy(sql`${T.orank} asc nulls last`, asc(T.id)).limit(SIZE).offset((page - 1) * SIZE),
-      db.select({ n: sql`count(*)::int` }).from(T).where(where)]); 
+      db.select({ n: sql`count(*)::int` }).from(T).where(where)]);
     return { rows: rows.map(r => view(r, cls, user.role)), total: n, pages: Math.max(1, Math.ceil(n / SIZE)) };
   },
   async getById({ user, params }) {
@@ -57,7 +57,7 @@ export const studentService = {
     const letters = await allLetters(cls, row.id);
     return { ...view(row, cls, user.role), letters, logs: logs.map(l => ({ id: l.id, before: l.updateStatusBefore, after: l.updateStatusAfter, by: l.updatedBy, at: l.updatedAt, tag: l.tag1, remarks: l.remark1 })) };
   },
-  // One step of the flowchart on one student (see workflow/transitions.js).
+
   async act({ user, params, body }) {
     const cls = await requireClass(user, parseClass(params.cls));
     let saved = [];
@@ -65,13 +65,13 @@ export const studentService = {
       await db.transaction(async tx => {
         await lockClass(tx, cls);
         const row = await load(tx, user, cls, params.id, true), st = stateOf(row);
-        // For a TC rejection the student goes back to the Joined code he had before the TC request (3A or 3B).
+
         if (st.code === '8A') {
           const [lg] = await tx.select().from(studentLog).where(and(eq(studentLog.class, row.class ?? String(cls)), eq(studentLog.emis, row.emis), eq(studentLog.updateStatusAfter, '8A'), inArray(studentLog.updateStatusBefore, ['3A', '3B']))).orderBy(sql`${studentLog.id} desc`).limit(1);
           st.prev = lg?.updateStatusBefore || '3A';
         }
         const plan = planAction(user.role, st, body?.action, body?.remarks);
-        if (plan.needsLetter) {                                   // Not Willing / Not Joined: both letters; Request TC: the TC request letter - always together with the step
+        if (plan.needsLetter) {
           for (const k of plan.letters) if (!body?.letters?.[k]?.fileData) throw new HttpError(`Upload the ${KINDS[k]} (PDF, JPG or PNG, under 3 MB)`);
           for (const k of plan.letters) saved.push({ kind: k, ...(await saveUpload(body.letters[k].fileName, body.letters[k].fileData)) });
         }
@@ -81,7 +81,7 @@ export const studentService = {
     } catch (e) { for (const l of saved) await fs.unlink(path.join(UPLOADS, l.stored)).catch(() => {}); throw e; }
     return { ok: true };
   },
-  // One letter file of one student (same access as the student). ?stage=NOT_WILLING|NOT_JOINED|TC_REQUEST &kind=HM|STUDENT|TC (default: the student's Not Willing letter)
+
   async letter({ user, params, query }) {
     const stage = String(query?.stage || 'NOT_WILLING'), kind = String(query?.kind || (stage === 'NOT_WILLING' ? 'STUDENT' : STAGE_KINDS[stage]?.[0]));
     if (!Object.hasOwn(STAGE_KINDS, stage) || !STAGE_KINDS[stage].includes(kind)) throw new HttpError('Unknown letter');
@@ -89,7 +89,7 @@ export const studentService = {
     if (!l) throw new HttpError('This letter has not been uploaded', 404);
     return { file: path.join(UPLOADS, l.stored), name: l.fileName };
   },
-  // Correction by the super admin: put the student at any status, with a reason. The seat and the logs follow.
+
   async override({ user, params, body }) {
     const cls = await requireClass(user, parseClass(params.cls)), code = String(body?.code ?? ''), note = String(body?.remarks || '').trim();
     if (!VALID_CODES.includes(code)) throw new HttpError('Unknown status code');

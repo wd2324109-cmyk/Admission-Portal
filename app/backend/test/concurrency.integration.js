@@ -1,5 +1,3 @@
-
-
 import assert from 'node:assert/strict';
 import pg from 'pg';
 import 'dotenv/config';
@@ -16,7 +14,6 @@ let pass = 0; const ok = (name) => console.log('  ok -', name, ++pass && '');
 const U = process.env.DISTRICT_USER, P = process.env.DISTRICT_PW, A = 'superadmin', AP = process.env.ADMIN_PW;
 console.log('Multi-device session tests');
 
-
 const burst = await Promise.all(Array.from({ length: 10 }, () => login(U, P)));
 assert.equal(burst.filter(r => r.status === 200).length, 10);
 const toks = burst.map(r => r.body.token);
@@ -24,11 +21,9 @@ assert.equal(new Set(toks).size, 10); ok('10 simultaneous logins on one account 
 const used = await Promise.all(toks.map(t => call('/dashboard', { token: t })));
 assert(used.every(r => r.status === 200)); ok('all 10 devices can use the portal at the same time');
 
-
 await call('/auth/logout', { token: toks[0], method: 'POST' });
 assert.equal((await call('/auth/session', { token: toks[0] })).status, 401); ok('logged-out device is rejected');
 assert((await Promise.all(toks.slice(1).map(t => call('/auth/session', { token: t })))).every(r => r.status === 200)); ok('the other 9 devices are unaffected');
-
 
 const idle = +process.env.SESSION_IDLE_SECONDS || 0; assert(idle >= 2 && idle <= 10, 'run both the API and this test with SESSION_IDLE_SECONDS=8 (any value from 2 to 10)');
 const keep = toks.slice(2);
@@ -37,7 +32,6 @@ const states = [await call('/auth/session', { token: toks[1] }), ...await Promis
 assert.equal(states.filter(r => r.status === 401 && r.body.code === 'SESSION_EXPIRED').length, 1);
 assert.equal(states.filter(r => r.status === 200).length, 8); ok('one idle device expired, 8 others keep working');
 assert.equal((await call('/auth/session', { token: toks[1] })).status, 401); ok('an expired device stays refused (cannot come back with the same token)');
-
 
 const live = toks.slice(1).filter((_, i) => states[i].status === 200);
 const NEWPW = P + 'x1!';
@@ -48,7 +42,6 @@ assert.equal((await call('/auth/session', { token: live[0] })).status, 401); ok(
 assert((await Promise.all(live.slice(1).map(t => call('/auth/session', { token: t })))).every(r => r.status === 401)); ok('all other devices signed out after password change');
 assert.equal((await login(U, P)).status, 401); assert.equal((await login(U, NEWPW)).status, 200); ok('new password works, old does not');
 await call('/auth/change-password', { token: (await login(U, NEWPW)).body.token, method: 'POST', body: { currentPassword: NEWPW, newPassword: P } });
-
 
 const [d1, d2] = [(await login(U, P)).body.token, (await login(U, P)).body.token];
 const race = await Promise.all([d1, d2].map((t, i) => call('/auth/change-password', { token: t, method: 'POST', body: { currentPassword: P, newPassword: 'Racing-pass-' + i + '-xyz' } })));
@@ -61,7 +54,7 @@ await call('/auth/change-password', { token: (await login(U, wp)).body.token, me
 console.log('Data race tests');
 
 const admin = (await login(A, AP)).body.token, admin2 = (await login(A, AP)).body.token;
-// seats are rows (one per seat): admitted = JOINED seats, vacancies = open seats
+
 const seatCounts = async c => (await pool.query(`select count(*) filter (where "Vacancy_status" = 'JOINED')::int a, count(*) filter (where "Vacancy_status" <> 'JOINED')::int v from "Vacancies_${+c}th"`)).rows[0];
 const { rows: [stu] } = await pool.query(`select id, class_level from students where select_status<>'' and admit_status='' and willing_status='WILLING' order by id limit 1`);
 assert(stu, 'need a selected student (run selection first)');
@@ -75,7 +68,6 @@ assert.equal(wins, 1); ok('12 simultaneous "Admit" clicks from 2 devices of the 
 assert.equal(after.a - before.a, 1); assert.equal(before.v - after.v, 1); ok('seat counted exactly once (admitted +1, vacancies -1)');
 const logs = (await pool.query(`select count(*)::int n from audit_logs where id > $2 and action='ADMIT' and regno=(select regno from students where id=$1)`, [stu.id, base])).rows[0].n;
 assert.equal(logs, 1); ok('exactly one ADMIT audit entry');
-
 
 const { rows: [ent] } = await pool.query(`select id from audit_logs where id > ${base} and action='ADMIT' and revoked_at is null order by id desc limit 1`);
 const rv = await Promise.all([1, 2, 3, 4].map(() => call('/logs/' + ent.id + '/revoke', { token: admin, method: 'POST', body: { remarks: 'test' } })));

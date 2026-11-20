@@ -5,7 +5,6 @@ import { useFetch } from '../../hooks/useFetch.js';
 import { ts } from '../../lib/format.js';
 import { Alert, Empty, PageHeader, Segmented, Table } from '../../components/ui/index.js';
 
-// Change history: the two log tables of the database document (Student_LOG and VACANCY_logs).
 export default function Logs() {
   const [kind, setKind] = useState('students'), [cls, setCls] = useState(''), [search, setSearch] = useState('');
   const q = useDebounced(search);

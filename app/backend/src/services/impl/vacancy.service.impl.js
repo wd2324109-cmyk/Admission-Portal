@@ -6,7 +6,6 @@ import { COMMUNITY_ORDER } from '../domain/selection.js';
 
 import { VacancyService } from '../vacancy.service.js';
 
-// The vacancy list is counted from the seat rows: admitted = JOINED seats, vacancies = open seats.
 export class VacancyServiceImpl extends VacancyService {
   async list({ user, params, query, body }) {
     const rc = await userRegion(user), classes = query.class ? [+query.class] : [9, 10];

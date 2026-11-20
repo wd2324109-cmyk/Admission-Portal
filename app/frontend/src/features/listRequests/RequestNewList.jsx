@@ -4,7 +4,6 @@ import { useFetch } from '../../hooks/useFetch.js';
 import { ts } from '../../lib/format.js';
 import { Alert, Badge } from '../../components/ui/index.js';
 
-// DMS: inside Student Details, ask the super admin for a new list once most of the students of the chosen class are decided.
 export default function RequestNewList({ cls }) {
   const { data: d, error, reload } = useFetch(() => api('/list-requests'), [cls]);
   const [busy, setBusy] = useState(false), [msg, setMsg] = useState(''), [err, setErr] = useState('');

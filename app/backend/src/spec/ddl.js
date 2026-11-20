@@ -4,20 +4,14 @@ import { qualified, schemaSql } from '../db/profile.js';
 const q = n => `"${n.replace(/"/g, '""')}"`;
 const SQL_TYPE = { serial: 'SERIAL PRIMARY KEY', text: 'TEXT', integer: 'INTEGER', boolean: 'BOOLEAN', timestamp: 'TIMESTAMP' };
 
-/** Every statement below uses the active profile (db/profile.js): test = default schema + document names, production = schema core + lower-case names. */
-
-/** CREATE SCHEMA (production only; nothing for the test profile). */
 export const createSchema = () => [schemaSql()].filter(Boolean);
 
-/** CREATE TABLE statements for exactly the tables and columns of the document, in the document's order. */
 export const createTables = () => SPEC.tables.map(t =>
   `CREATE TABLE IF NOT EXISTS ${qualified(t.name)} (\n  ${t.columns.map(c => `${q(c.name)} ${SQL_TYPE[c.type]}`).join(',\n  ')}\n)`);
 
-/** For tables that already exist from an older version: add any column of the document that is missing (for example users.session_id). Never drops or changes anything. */
 export const addMissingColumns = () => SPEC.tables.flatMap(t => t.columns.filter(c => c.type !== 'serial')
   .map(c => `ALTER TABLE ${qualified(t.name)} ADD COLUMN IF NOT EXISTS ${q(c.name)} ${SQL_TYPE[c.type]}`));
 
-/** Indexes only speed things up; they add no tables or columns. (Index names are created in the table's own schema.) */
 export const INDEXES = [
   `CREATE UNIQUE INDEX IF NOT EXISTS users_username_uq ON ${qualified('users')} (username)`,
   `CREATE UNIQUE INDEX IF NOT EXISTS access_user_class_uq ON ${qualified('access')} ("User", "Class_level")`,

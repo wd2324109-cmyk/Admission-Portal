@@ -4,19 +4,6 @@ import { putDocs } from './common/docstore.js';
 import { frozenMessage } from './common/freeze.js';
 import { migrateVacancies } from './vacancyMigration.js';
 
-
-
-
-
-
-
-
-
-
-
-
-
-
 const pool = new pg.Pool({ connectionString: process.env.DATABASE_URL, ssl: process.env.DATABASE_SSL === 'true' ? { rejectUnauthorized: process.env.DATABASE_SSL_INSECURE !== 'true' } : undefined });
 const hasCol = async (t, c) => (await pool.query(`select 1 from information_schema.columns where table_schema = current_schema() and table_name = $1 and column_name = $2`, [t, c])).rowCount > 0;
 const hasTable = async t => (await pool.query(`select 1 from information_schema.tables where table_schema = current_schema() and table_name = $1`, [t])).rowCount > 0;
@@ -25,9 +12,8 @@ try {
   if (!(await hasTable('users'))) { console.log('Nothing to clean: the database has no tables yet.'); process.exit(0); }
   const notes = [];
 
-  const m = await migrateVacancies(pool);          // convert the old vacancies table (one row per community) before anything can drop it
+  const m = await migrateVacancies(pool);
   if (m.seats) notes.push(`${m.cells} vacancy row(s) converted to ${m.seats} seats`);
-
 
   if (await hasCol('students', 'documents')) {
     const { rows } = await pool.query(`select id, documents from students where documents <> '{}'::jsonb`);

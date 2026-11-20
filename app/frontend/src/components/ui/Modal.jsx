@@ -1,12 +1,9 @@
 import { useEffect, useId, useRef } from 'react';
 import { createPortal } from 'react-dom';
 
-// Open dialogs, topmost last: only the topmost one reacts to Escape and Tab.
 const stack = [];
 const FOCUSABLE = 'a[href],button:not([disabled]),input:not([disabled]):not([type=hidden]),select:not([disabled]),textarea:not([disabled]),[tabindex]:not([tabindex="-1"])';
 
-// Accessible dialog: labelled, traps Tab, closes on Escape / backdrop (unless `dismissable` is false),
-// locks page scrolling and returns focus to where it came from.
 export default function Modal({ title, titleExtra, onClose, dismissable = true, role = 'dialog', width, describedBy, footer, className = '', children }) {
   const titleId = useId(), box = useRef(null), pressedBackdrop = useRef(false), close = useRef(onClose);
   close.current = onClose;
