@@ -1,4 +1,5 @@
-import { pgTable, serial, text, integer, boolean } from 'drizzle-orm/pg-core';
+import { serial, text, integer, boolean } from 'drizzle-orm/pg-core';
+import { table } from './table.js';
 
 // Students_master_9th / _10th / _11th, column for column as in the database document.
 // Odd names such as "mark1-quertly" and "Total-highest of two" are kept EXACTLY as the document spells them (PostgreSQL
@@ -21,9 +22,9 @@ const upper = () => ({
   nmss: integer('nmss'), trust: text('Trust'), otherMarks: integer('Other marks'), orank: integer('orank'),
   ...status(),
 });
-export const students9th = pgTable('Students_master_9th', { ...upper(), remark2: text('remark2') });
-export const students10th = pgTable('Students_master_10th', upper());
-export const students11th = pgTable('Students_master_11th', {
+export const students9th = table('Students_master_9th', { ...upper(), remark2: text('remark2') });
+export const students10th = table('Students_master_10th', upper());
+export const students11th = table('Students_master_11th', {
   ...common(), phone: text('phone'), address: text('address'), pincode: text('pincode'),
   mark1: integer('mark1'), mark2: integer('mark2'), mark3: integer('mark3'), mark4: integer('mark4'), mark5: integer('mark5'), total: integer('total'),
   pass: text('pass'), regno: integer('regno'), orank: integer('orank'), ...status(), remark2: text('remark2'),

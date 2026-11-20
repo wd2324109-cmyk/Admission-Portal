@@ -9,11 +9,12 @@ import { vacancyService } from '../services/vacancy.service.js';
 import { importService } from '../services/import.service.js';
 import { dashboardService } from '../services/dashboard.service.js';
 import { tcService } from '../services/tc.service.js';
+import { docsService } from '../services/docs.service.js';
 import { logService } from '../services/log.service.js';
 import { exportService } from '../services/export.service.js';
 import { listRequestService } from '../services/listRequest.service.js';
 
-const api = Router(), ADMIN = only('SUPER_ADMIN'), NOT_DMS = only('SUPER_ADMIN', 'STATE', 'REGION');   // the DMS (DISTRICT) sees Dashboard, Student Details and TC Requests only
+const api = Router(), ADMIN = only('SUPER_ADMIN'), NOT_DMS = only('SUPER_ADMIN', 'STATE', 'REGION'), DOCS = only('DISTRICT', 'SUPER_ADMIN');   // the DMS (DISTRICT) sees Dashboard, Student Details, Document Verification and TC Requests only
 const json = fn => wrap(async (req, res) => res.json(await fn(ctx(req))));
 const sheet = fn => wrap(async (req, res) => { const f = await fn(ctx(req)); res.set({ 'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', 'Content-Disposition': `attachment; filename="${f.filename}"` }); res.send(f.buffer); });
 
@@ -33,12 +34,13 @@ api.get('/vacancies', auth, NOT_DMS, json(vacancyService.cells));
 api.get('/seats', auth, NOT_DMS, json(vacancyService.seats));
 api.get('/tc', auth, json(tcService.list));
 
-// Document Verification / TC letters. The files will live in an S3 bucket, which is not connected yet, so nothing is stored.
-// The rules are enforced here (not only in the screen): uploads by the DMS (DISTRICT) only, history for the super admin only.
-const S3_PENDING = 'Document storage (S3) is not connected yet, so files cannot be saved.';
-api.post('/documents', auth, only('DISTRICT'), (req, res) => res.status(501).json({ error: S3_PENDING }));
-api.post('/tc/letter', auth, only('DISTRICT'), (req, res) => res.status(501).json({ error: S3_PENDING }));
-api.get('/documents/history', auth, ADMIN, (req, res) => res.json({ storage: 'S3 (not connected)', rows: [] }));
+// Document Verification: the DMS submits the documents of its joined students (as often as it likes until one is verified); the super admin verifies or rejects each one.
+// Willing letter, TC and Community certificate are mandatory, the PWD letter too for a PWD student (workflow/documents.js). Nobody else uses this screen.
+api.get('/documents', auth, DOCS, json(docsService.list));
+api.get('/documents/:cls/:id', auth, DOCS, json(docsService.get));
+api.post('/documents/:cls/:id/:type', auth, only('DISTRICT'), json(docsService.submit));
+api.get('/documents/:cls/:id/:type/file', auth, DOCS, wrap(async (req, res) => { const f = await docsService.file(ctx(req)); res.download(f.file, f.name, e => e && !res.headersSent && res.status(404).json({ error: 'File is missing' })); }));
+api.post('/documents/:cls/:id/:type/review', auth, ADMIN, json(docsService.review));
 
 api.post('/rank/generate', auth, ADMIN, json(listService.rank));
 api.post('/lists/generate', auth, ADMIN, json(listService.generate));

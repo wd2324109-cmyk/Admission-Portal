@@ -31,6 +31,8 @@ services:
         fromDatabase:
           name: admissions-db
           property: connectionString   # internal address: no SSL needed
+      - key: DB_PROFILE
+        value: test                    # the test database layout. Production (schema core) is a separate database: see backend/.env.example
       - key: DATABASE_SSL
         value: "false"
       - key: JWT_SECRET

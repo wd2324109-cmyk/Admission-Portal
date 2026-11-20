@@ -1,26 +1,50 @@
-// Creates the 10 tables of the database document (and nothing else).
-//   npm run db:setup                 creates any missing table, adds indexes
-//   npm run db:setup -- --drop-legacy  ALSO drops every table that is not in the document (old students, vacancies, audit_logs,
-//                                      status_logs, tc_requests, password_resets, user_sessions, student_documents, views ...)
-// Run `npm run db:verify` afterwards: it fails if a table or column differs from the document.
+// Aligns the database with the database document (10 tables), for the profile you run it with.
+//
+//  TEST (npm run db:setup)       creates any missing table, adds missing columns, adds indexes. --drop-legacy also drops every table that is not in the document.
+//  PRODUCTION (npm run db:setup:prod)   NEVER creates a schema or a table. It only ALTERs (rename / add / retype columns, never DROP) the existing core.* tables, and only a table that has no rows.
+//                                       A table with data is left untouched (differences are reported). Without --apply it only prints the plan.
+//      npm run db:setup:prod                  plan only (changes nothing)
+//      npm run db:setup:prod -- --apply       run the plan, in ONE transaction (all or nothing)
+//      npm run db:setup:prod -- --apply --indexes   ... and also create the indexes of spec/ddl.js
 import 'dotenv/config';
 import pg from 'pg';
-import { createTables, addMissingColumns, INDEXES } from './spec/ddl.js';
+import { createSchema, createTables, addMissingColumns, INDEXES } from './spec/ddl.js';
 import { TABLE_NAMES } from './spec/spec.js';
+import { IS_PRODUCTION_DB, SCHEMA, describeProfile, schemaFilter } from './db/profile.js';
+import { verify } from './dbVerify.js';
+import { planProduction, applyPlan } from './prodAlign.js';
 
-const dropLegacy = process.argv.includes('--drop-legacy');
+const has = f => process.argv.includes(f);
+if (has('--drop-legacy') && IS_PRODUCTION_DB) { console.error('--drop-legacy is refused on the production profile.'); process.exit(1); }
 const pool = new pg.Pool({ connectionString: process.env.DATABASE_URL, ssl: process.env.DATABASE_SSL === 'true' ? { rejectUnauthorized: process.env.DATABASE_SSL_INSECURE !== 'true' } : undefined });
 try {
-  if (dropLegacy) {
-    const views = (await pool.query(`select table_name from information_schema.views where table_schema = current_schema()`)).rows.map(r => r.table_name);
-    for (const v of views) { await pool.query(`DROP VIEW IF EXISTS "${v}" CASCADE`); console.log('Dropped view', v); }
-    const tables = (await pool.query(`select table_name from information_schema.tables where table_schema = current_schema() and table_type = 'BASE TABLE'`)).rows.map(r => r.table_name);
-    for (const t of tables.filter(t => !TABLE_NAMES.includes(t))) { await pool.query(`DROP TABLE IF EXISTS "${t}" CASCADE`); console.log('Dropped legacy table', t); }
-    // a table of the document that still carries old columns (for example users.frozen_at) is rebuilt only if it is empty; otherwise verify will tell you
+  console.log('Profile:', describeProfile());
+  if (IS_PRODUCTION_DB) {
+    const plan = await planProduction(pool);
+    for (const p of plan) {
+      console.log(`\n[${p.status}] ${SCHEMA}.${p.name}${p.rows == null ? '' : `  (${p.rows} rows)`}`);
+      p.notes.forEach(n => console.log('   note:', n));
+      (p.status === 'SKIPPED' ? p.wanted : p.sql).forEach(s => console.log(p.status === 'SKIPPED' ? '   would need:' : '   ', s));
+    }
+    const todo = plan.filter(p => p.status === 'ALTER').reduce((n, p) => n + p.sql.length, 0);
+    if (!has('--apply')) console.log(`\nPLAN ONLY - nothing was changed. ${todo} statement(s) on ${plan.filter(p => p.status === 'ALTER').length} empty table(s). Run again with --apply to execute.`);
+    else {
+      await applyPlan(pool, plan);
+      console.log(`\nApplied ${todo} statement(s).`);
+      if (has('--indexes')) { const problems = await verify(pool); if (problems.length) throw new Error('indexes not created, tables still differ:\n  - ' + problems.join('\n  - ')); for (const q of INDEXES) await pool.query(q); console.log('Indexes ready.'); }
+    }
+  } else {
+    for (const q of createSchema()) await pool.query(q);
+    if (has('--drop-legacy')) {
+      const views = (await pool.query(`select table_name from information_schema.views where ${schemaFilter()}`)).rows.map(r => r.table_name);
+      for (const v of views) { await pool.query(`DROP VIEW IF EXISTS "${v}" CASCADE`); console.log('Dropped view', v); }
+      const tables = (await pool.query(`select table_name from information_schema.tables where ${schemaFilter()} and table_type = 'BASE TABLE'`)).rows.map(r => r.table_name);
+      for (const t of tables.filter(t => !TABLE_NAMES.includes(t))) { await pool.query(`DROP TABLE IF EXISTS "${t}" CASCADE`); console.log('Dropped legacy table', t); }
+    }
+    for (const q of createTables()) await pool.query(q);
+    for (const q of addMissingColumns()) await pool.query(q);
+    for (const q of INDEXES) await pool.query(q);
+    console.log('Tables are ready:', TABLE_NAMES.join(', '));
   }
-  for (const q of createTables()) await pool.query(q);
-  for (const q of addMissingColumns()) await pool.query(q);                    // an older table gets the columns it lacks (e.g. users.session_id)
-  for (const q of INDEXES) await pool.query(q);
-  console.log('Tables are ready:', TABLE_NAMES.join(', '));
 } catch (e) { console.error('Setup failed:', e.message); process.exitCode = 1; }
 finally { await pool.end(); }

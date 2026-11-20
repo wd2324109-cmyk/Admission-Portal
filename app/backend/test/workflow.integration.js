@@ -71,9 +71,9 @@ try {
   await ok(dms, 'POST', `/students/9/${s1.id}/action`, { action: 'TC_REQUEST', remarks: 'transfer' });          // 8A, seat still JOINED
   assert.equal((await ok(dms, 'GET', '/vacancies?class=9')).reduce((n, c) => n + c.joined, 0), 1);
   assert.equal((await act(state, s1, 'TC_STATE_APPROVE')).status, 409, 'RC first');
-  assert.equal((await ok(rcTok, 'GET', '/tc')).length, 1);
+  assert.equal((await ok(rcTok, 'GET', '/tc?class=9&stage=REGION')).rows.length, 1);
   await ok(rcTok, 'POST', `/students/9/${s1.id}/action`, { action: 'TC_RC_APPROVE' });
-  assert.equal((await ok(state, 'GET', '/tc?stage=STATE')).length, 1);
+  assert.equal((await ok(state, 'GET', '/tc?class=9&stage=STATE')).rows.length, 1);
   await ok(state, 'POST', `/students/9/${s1.id}/action`, { action: 'TC_STATE_APPROVE' });                        // 8B -> seat VACANT
   assert.equal((await ok(dms, 'GET', '/vacancies?class=9')).reduce((n, c) => n + c.joined, 0), 0);
   // scope and class access

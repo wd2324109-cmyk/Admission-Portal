@@ -11,7 +11,7 @@ export const STATUS = {
   '6A': { label: 'Not Willing', note: 'Student is not willing (unwilling letter uploaded)' },
   '3A': { label: 'Joined by HM', note: 'Relieved and joined the DMS' },
   '3B': { label: 'Joined by RC', note: 'Re-admitted by the Regional Coordinator' },
-  '7A': { label: 'Not Joined - Pending Approval', note: 'Waiting for the Regional Coordinator to verify' },
+  '7A': { label: 'Not Joined - Pending', note: 'Waiting for the Regional Coordinator to verify' },
   '7B': { label: 'Not Joined - Approved', note: 'Regional Coordinator approved the non-joining' },
   '8A': { label: 'TC-Waiting', note: 'TC requested, waiting for approvals' },
   '8B': { label: 'TC Issued', note: 'TC approved by the State Regional Coordinator' },
@@ -49,8 +49,7 @@ export const GROUPS = {
   selected: s => s.code === '2A',
   notwilling: s => s.code === '6A',
   joined: s => ['3A', '3B'].includes(s.code),
-  notjoinedpending: s => s.code === '7A',     // marked Not Joined by the DMS, waiting for the Regional Coordinator
-  notjoined: s => s.code === '7B',            // only after the Regional Coordinator approved
+  notjoined: s => ['7A', '7B'].includes(s.code),   // one Not Joined group: 7A = Not Joined - Pending (waiting for the Regional Coordinator), 7B = Not Joined - Approved
   tc: s => ['8A', '8B'].includes(s.code),
 };
 export const groupOf = s => Object.keys(GROUPS).find(g => GROUPS[g](s)) || 'notlisted';
@@ -62,7 +61,6 @@ export const GROUP_SQL = {
   selected: `select_status = '2A'`,
   notwilling: `select_status = '6A'`,
   joined: `select_status in ('3A','3B')`,
-  notjoinedpending: `select_status = '7A'`,
-  notjoined: `select_status = '7B'`,
+  notjoined: `select_status in ('7A','7B')`,
   tc: `select_status in ('8A','8B')`,
 };

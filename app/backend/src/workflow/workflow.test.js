@@ -4,6 +4,7 @@ import { planAction, availableActions } from './transitions.js';
 import { stateOf, seatEffect, holdsSeat, groupOf } from './statuses.js';
 import { planList } from './allocation.js';
 import { computeRanks } from './rank.js';
+import { requiredFor, summarize, planSubmit, planReview } from './documents.js';
 
 // state = current status code (select_status) + TC stage (tag2). S('2A','3A') keeps the old two-argument form: the LAST code given is the current one.
 const S = (a = '', b = '', tag2 = '') => ({ code: b || a, tag2 });
@@ -110,7 +111,7 @@ assert.equal(planAction('DISTRICT', S('1A'), 'WILLING').needsLetter, false);
 assert.equal(planAction('DISTRICT', S('2A'), 'NOT_JOINED', 'x').needsLetter, true);   // Not Joined needs the HM letter and the student's letter too
 assert.equal(planAction('DISTRICT', S('2A'), 'JOINED_HM').needsLetter, false);
 assert.deepEqual(availableActions('REGION', S('2A', '7A')).map(a => a.key).sort(), ['RC_APPROVE_NOT_JOINED', 'RC_READMIT', 'RC_REJECT_NOT_JOINED']);
-assert.equal(groupOf(S('2A', '7A')), 'notjoinedpending'); assert.equal(groupOf(S('2A', '7B')), 'notjoined');   // Not Joined lists only after the RC approved
+assert.equal(groupOf(S('2A', '7A')), 'notjoined'); assert.equal(groupOf(S('2A', '7B')), 'notjoined');   // one Not Joined group: 7A is listed there as Not Joined - Pending
 assert.equal(run('REGION', S('2A', '7A'), 'RC_REJECT_NOT_JOINED').code, '2A');                            // rejected: back to Selected
 fails(() => run('DISTRICT', S('2A', '7A'), 'RC_REJECT_NOT_JOINED'), 403); fails(() => planAction('REGION', S('2A', '7A'), 'RC_REJECT_NOT_JOINED', ''), 400);
 st = { ...S('2A', '8A', 'TC-RC'), prev: '3B' };
@@ -121,3 +122,50 @@ fails(() => run('DISTRICT', st, 'TC_RC_REJECT'), 403); fails(() => planAction('R
 assert.equal(run('STATE', { ...S('2A', '8A', 'TC-SRC'), prev: '3A' }, 'TC_STATE_REJECT').code, '3A');
 fails(() => run('STATE', st, 'TC_STATE_REJECT'), 409);                                                    // still waiting for the RC
 console.log('Reject / letter rules OK');
+
+// --- Not Joined: ONE group. 7A is listed in it as "Not Joined - Pending", 7B as "Not Joined - Approved"
+{
+  const { STATUS, GROUPS, GROUP_SQL } = await import('./statuses.js');
+  assert.equal(STATUS['7A'].label, 'Not Joined - Pending'); assert.equal(STATUS['7B'].label, 'Not Joined - Approved');
+  assert(!('notjoinedpending' in GROUPS) && !('notjoinedpending' in GROUP_SQL), 'there is no separate Not Joined - Pending group');
+  assert.equal(GROUP_SQL.notjoined, `select_status in ('7A','7B')`);
+  console.log('Not Joined group OK');
+}
+
+// --- TC: a student who has joined (3A / 3B) is offered "Request TC" to the DMS only; TC steps are never offered anywhere else by status alone
+assert.deepEqual(availableActions('DISTRICT', S('2A', '3A')).map(a => a.key), ['TC_REQUEST']);
+assert.deepEqual(availableActions('DISTRICT', S('2A', '3B')).map(a => a.key), ['TC_REQUEST']);
+assert.deepEqual(availableActions('REGION', S('2A', '3A')).map(a => a.key), []);
+assert.deepEqual(availableActions('SUPER_ADMIN', S('2A', '3A')).map(a => a.key), []);
+console.log('TC request rules OK');
+
+// --- Document Verification
+{
+  const pwd = { disabilityStatus: true }, plain = { disabilityStatus: false };
+  assert.deepEqual(requiredFor(plain), ['WILLING', 'TC', 'COMMUNITY']);
+  assert.deepEqual(requiredFor(pwd), ['WILLING', 'TC', 'COMMUNITY', 'PWD'], 'the PWD letter is mandatory for a PWD student only');
+  const d = (status) => ({ status });
+  assert.equal(summarize({}, requiredFor(plain)).state, 'NOT_SUBMITTED');
+  assert.equal(summarize({ WILLING: d('PENDING') }, requiredFor(plain)).state, 'PENDING');
+  assert.equal(summarize({ WILLING: d('VERIFIED'), TC: d('VERIFIED') }, requiredFor(plain)).state, 'INCOMPLETE');
+  assert.equal(summarize({ WILLING: d('VERIFIED'), TC: d('REJECTED') }, requiredFor(plain)).state, 'REJECTED');
+  const all = { WILLING: d('VERIFIED'), TC: d('VERIFIED'), COMMUNITY: d('VERIFIED') };
+  assert.equal(summarize(all, requiredFor(plain)).state, 'VERIFIED');
+  assert.equal(summarize(all, requiredFor(pwd)).state, 'INCOMPLETE', 'a PWD student is not done without the PWD letter');
+  // submitting: only for joined students; a verified document is final; pending and rejected ones can be submitted again and again
+  const sub = (o = {}) => planSubmit({ code: '3A', student: plain, type: 'TC', doc: undefined, ...o });
+  assert.equal(sub().resubmission, false);
+  assert.equal(sub({ doc: d('PENDING') }).resubmission, true); assert.equal(sub({ doc: d('REJECTED') }).resubmission, true);
+  fails(() => sub({ doc: d('VERIFIED') }), 409);
+  fails(() => sub({ code: '2A' }), 409); fails(() => sub({ code: '8A' }), 409);
+  fails(() => sub({ type: 'PWD' }), 400); assert.equal(sub({ type: 'PWD', student: pwd }).resubmission, false);
+  fails(() => sub({ type: 'AADHAAR' }), 400);
+  // reviewing: pending only; a rejection needs a reason; verified / rejected ones are not reviewed again
+  assert.equal(planReview({ doc: d('PENDING'), decision: 'VERIFIED', remarks: '' }).note, null);
+  assert.equal(planReview({ doc: d('PENDING'), decision: 'REJECTED', remarks: ' blurry ' }).note, 'blurry');
+  fails(() => planReview({ doc: d('PENDING'), decision: 'REJECTED', remarks: '' }), 400);
+  fails(() => planReview({ doc: d('VERIFIED'), decision: 'REJECTED', remarks: 'x' }), 409);
+  fails(() => planReview({ doc: d('REJECTED'), decision: 'VERIFIED' }), 409);
+  fails(() => planReview({ doc: undefined, decision: 'VERIFIED' }), 404); fails(() => planReview({ doc: d('PENDING'), decision: 'MAYBE' }), 400);
+  console.log('Document rules OK');
+}

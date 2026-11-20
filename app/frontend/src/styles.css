@@ -271,3 +271,5 @@ small.mute{display:block;margin-top:4px}
 
 /* the student popup must sit above the top bar (z-index 10) and the sidebar (20), or its header is hidden behind them */
 .modal{z-index:100}.idle-modal{z-index:200}
+
+.docrow{border:1px solid var(--line);border-radius:8px;padding:12px 14px;margin:10px 0}.docrow .docpick{margin-top:8px}.docrow label{display:block;font-size:13px}.docrow details{margin-top:8px}
