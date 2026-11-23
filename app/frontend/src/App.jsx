@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { api, setToken, savedUser, saveUser, peekLogoutReason, clearLogoutReason, setLogoutReason, downloadFile, openFile } from './api.js';
+import { api, setToken, savedUser, saveUser, peekLogoutReason, clearLogoutReason, setLogoutReason, downloadFile } from './api.js';
 import { IdleGuard, OfflineBanner, PasswordMeter, passwordAcceptable, useCapsLock, CapsHint, IDLE_MINUTES } from './security.jsx';
 
 const badge = v => <span className={`badge ${String(v || '').replace(/\W/g, '')}`}>{v || '—'}</span>;
@@ -8,6 +8,8 @@ const EyeIcon = ({ off }) => <svg viewBox="0 0 24 24" aria-hidden="true">{off
   ? <><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19M14.12 14.12a3 3 0 1 1-4.24-4.24" /><path d="M1 1l22 22" /></>
   : <><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" /><circle cx="12" cy="12" r="3" /></>}</svg>;
 
+
+// ---- Sign in (passwords are reset by a super admin on the Users page)
 function Login({ onLogin }) {
   const [f, setF] = useState({ username: '', password: '' }), [err, setErr] = useState(peekLogoutReason), [show, setShow] = useState(false), [busy, setBusy] = useState(false), [caps, capsOn] = useCapsLock();
   useEffect(() => { clearLogoutReason(); }, []);
@@ -38,12 +40,11 @@ const Icon = ({ n }) => <svg viewBox="0 0 24 24"><path d={IC[n]} /></svg>;
 const Stat = ({ icon, color, label, value, note }) => <div className="card stat"><div className={`chip ${color}`}><Icon n={icon} /></div>
   <div><span>{label}</span><b>{value.toLocaleString()}</b>{note && <small>{note}</small>}</div></div>;
 
-const KEYS = [['notlisted', 'Not listed', '#9aa5bd'], ['waiting', 'Waiting', '#e8a317'], ['selected', 'Selected', '#3b5bdb'], ['joined', 'Joined', '#12a36b'], ['notwilling', 'Not Willing', '#e5484d'], ['notjoined', 'Not Joined', '#ff8f6b'], ['tc', 'TC', '#7c4dff']];
-
+const KEYS = [['notlisted', 'Not listed', '#9aa5bd'], ['waiting', 'Waiting', '#e8a317'], ['selected', 'Selected', '#3b5bdb'], ['joined', 'Joined', '#12a36b'], ['notwilling', 'Not Willing', '#e5484d'], ['notjoinedpending', 'Not Joined - Pending', '#f2a65a'], ['notjoined', 'Not Joined', '#ff8f6b'], ['tc', 'TC', '#7c4dff']];
+// The DMS (DISTRICT) works with six groups only: Pending, Selected, Joined, Not Willing, Not Joined - Pending (waiting for the RC), Not Joined, TC.
 const DMS_KEYS = KEYS.filter(([k]) => k !== 'notlisted').map(([k, l, c]) => [k, k === 'waiting' ? 'Pending' : l, c]);
-const tabKeys = keys => keys.filter(([k]) => k !== 'tc');
 const keysFor = user => (user.role === 'DISTRICT' ? DMS_KEYS : KEYS);
-const ICON = { notlisted: ['users', 'blue'], waiting: ['clock', 'amber'], selected: ['star', 'blue'], joined: ['ok', 'green'], notwilling: ['no', 'red'], notjoined: ['no', 'red'], tc: ['doc', 'violet'] };
+const ICON = { notlisted: ['users', 'blue'], waiting: ['clock', 'amber'], selected: ['star', 'blue'], joined: ['ok', 'green'], notwilling: ['no', 'red'], notjoinedpending: ['clock', 'amber'], notjoined: ['no', 'red'], tc: ['doc', 'violet'] };
 const Legend = ({ keys }) => <div style={{ display: 'flex', gap: 14, fontSize: 12, color: 'var(--mute)', marginBottom: 12, flexWrap: 'wrap' }}>{keys.map(([k, l, c]) =>
   <span key={k}><i style={{ display: 'inline-block', width: 9, height: 9, borderRadius: '50%', background: c, marginRight: 5 }} />{l}</span>)}</div>;
 
@@ -74,7 +75,8 @@ function Stacked({ title, rows, keys }) {
       <div className="bar">{keys.map(([k, l, c]) => <i key={k} title={`${l}: ${r[k]}`} style={{ width: `${(100 * r[k]) / max}%`, background: c }} />)}</div></div>)}</div>;
 }
 
-function Dashboard({ user, go }) {
+
+function Dashboard({ user }) {
   const [d, setD] = useState(null), [err, setErr] = useState('');
   useEffect(() => { api('/dashboard').then(setD).catch(e => setErr(e.message)); }, []);
   if (err) return <p className="err">{err}</p>;
@@ -83,7 +85,6 @@ function Dashboard({ user, go }) {
   const split = k => d.byClass.map(r => `Class ${r.key}: ${r[k] || 0}`).join('  ·  ');
   return <>
     <div className="head"><h1>Dashboard</h1><span className="pill">{['SUPER_ADMIN', 'STATE'].includes(user.role) ? 'All districts' : user.region || user.district}</span></div>
-    {user.role === 'SUPER_ADMIN' && <OpenRequestsNotice go={go} />}
     <div className="grid stats">{keys.map(([k, l]) => <Stat key={k} icon={ICON[k][0]} color={ICON[k][1]} label={l} value={tot(k)} note={split(k)} />)}</div>
     <div className="grid two">
       <div className="panel"><h3>Overall share</h3><Donut parts={keys.map(([k, l, c]) => ({ l, c, v: tot(k) }))} /></div>
@@ -93,54 +94,42 @@ function Dashboard({ user, go }) {
     {!dms && <div className="panel" style={{ marginTop: 16 }}><h3>Seats</h3><p>{d.vacancy.seats} seats · {d.vacancy.joined} joined · {d.vacancy.open} open</p></div>}</>;
 }
 
-const CODE = { '1A': 'Waiting', '1B': 'Waiting (reconsidered)', '2A': 'Selected', '6A': 'Not Willing', '3A': 'Joined by HM', '3B': 'Joined by RC', '7A': 'Not Joined - Pending', '7B': 'Not Joined - Approved', '8A': 'TC-Waiting', '8B': 'TC Issued' };
-const GROUP_CLASS = { notlisted: 'PENDING', waiting: 'PENDING', selected: 'Selected', notwilling: 'NotAdmitted', joined: 'Admitted', notjoined: 'NotAdmitted', tc: 'TCIssued' };
-const StatusBadge = ({ r }) => <span className={`badge ${r.statusCode === '7A' ? 'PENDING' : GROUP_CLASS[r.group] || ''}`}>{r.statusCode ? CODE[r.statusCode] : 'Not listed'}</span>;
-const TABS = [['all', 'All'], ['notlisted', 'Not listed'], ['waiting', 'Waiting'], ['selected', 'Selected'], ['joined', 'Joined'], ['notwilling', 'Not Willing'], ['notjoined', 'Not Joined']];
-const LETTER_KINDS = { HM: 'HM letter', STUDENT: 'Student unwilling letter' };
+// ---- Students: the flowchart statuses (1A 1B 2A 6A / 3A 3B 7A 7B 8A 8B)
+const CODE = { '1A': 'Waiting', '1B': 'Waiting (reconsidered)', '2A': 'Selected', '6A': 'Not Willing', '3A': 'Joined by HM', '3B': 'Joined by RC', '7A': 'Not Joined - Pending Approval', '7B': 'Not Joined - Approved', '8A': 'TC-Waiting', '8B': 'TC Issued' };
+const GROUP_CLASS = { notlisted: 'PENDING', waiting: 'PENDING', selected: 'Selected', notwilling: 'NotAdmitted', joined: 'Admitted', notjoinedpending: 'PENDING', notjoined: 'NotAdmitted', tc: 'TCIssued' };
+const StatusBadge = ({ r }) => <span className={`badge ${GROUP_CLASS[r.group] || ''}`}>{r.statusCode ? CODE[r.statusCode] : 'Not listed'}</span>;
+const TABS = [['all', 'All'], ['notlisted', 'Not listed'], ['waiting', 'Waiting'], ['selected', 'Selected'], ['joined', 'Joined'], ['notwilling', 'Not Willing'], ['notjoinedpending', 'Not Joined - Pending'], ['notjoined', 'Not Joined'], ['tc', 'TC']];
 const ALL_CODES = ['', '1A', '1B', '2A', '6A', '3A', '3B', '7A', '7B', '8A', '8B'];
-
+// select_status = the status code (every one of the ten); admit_status = the description of that code.
 const selectOf = r => r.selectStatus || '—', admitOf = r => (r.statusCode ? CODE[r.statusCode] : r.admitStatus) || '—', stageOf = c => CODE[c] || c || 'start';
 
-const isTcStep = a => a.key.startsWith('TC_');
-function StudentModal({ cls, id, user, onClose, onChange, mode = 'students' }) {
-  const [s, setS] = useState(null), [err, setErr] = useState(''), [remarks, setRemarks] = useState(''), [ov, setOv] = useState({ code: '', remarks: '' }), [busy, setBusy] = useState(false), [letters, setLetters] = useState({ HM: null, STUDENT: null });
+function StudentModal({ cls, id, user, onClose, onChange }) {
+  const [s, setS] = useState(null), [err, setErr] = useState(''), [remarks, setRemarks] = useState(''), [ov, setOv] = useState({ code: '', remarks: '' }), [busy, setBusy] = useState(false), [letter, setLetter] = useState(null);
   const load = () => api(`/students/${cls}/${id}`).then(x => { setS(x); setOv(o => ({ ...o, code: x.state.code })); }).catch(e => setErr(e.message)); useEffect(() => { load(); }, [id]);
   if (!s) return err ? <div className="modal" role="dialog" aria-modal="true" onClick={onClose}><div className="panel"><p className="err">{err}</p></div></div> : null;
   const run = async fn => { try { setBusy(true); await fn(); setErr(''); setRemarks(''); await load(); onChange(); } catch (e) { setErr(e.message); } finally { setBusy(false); } };
-  const pickLetter = (kind, f) => { if (!f) return setLetters(x => ({ ...x, [kind]: null })); if (f.size > 3 * 1024 * 1024) return setErr('Each letter must be under 3 MB'); const r = new FileReader(); r.onload = () => { setErr(''); setLetters(x => ({ ...x, [kind]: { name: f.name, data: String(r.result).split(',')[1] || '' } })); }; r.readAsDataURL(f); };
-  const go = a => {
-    if (a.key === 'TC_REQUEST' && !window.confirm(`Request a TC for ${s.name}?\n\nThe request goes to the Regional Coordinator, then to the State Regional Coordinator.`)) return;
-    if (a.needsLetter) {
-      const miss = Object.entries(LETTER_KINDS).find(([k]) => !letters[k]);
-      if (miss) return setErr(`Upload the ${miss[1]} (PDF, JPG or PNG, under 3 MB) before submitting`);
-      if (!window.confirm(`Submit "${a.label}" with the two letters?\n\nOnce submitted, the letters cannot be edited.`)) return;
-    }
-    run(async () => { await api(`/students/${cls}/${id}/action`, { method: 'POST', body: { action: a.key, remarks, ...(a.needsLetter ? { letters: Object.fromEntries(Object.keys(LETTER_KINDS).map(k => [k, { fileName: letters[k].name, fileData: letters[k].data }])) } : {}) } }); setLetters({ HM: null, STUDENT: null }); });
-  };
-  const acts = s.actions.filter(a => (mode === 'tc') === isTcStep(a)), needs = acts.some(a => a.needsRemarks);
+  const pickLetter = f => { if (!f) return setLetter(null); const r = new FileReader(); r.onload = () => setLetter({ name: f.name, data: String(r.result).split(',')[1] || '' }); r.readAsDataURL(f); };
+  const go = a => { if (a.needsLetter && !letter) return setErr('Upload the unwilling letter (PDF, JPG or PNG, under 3 MB) before marking Not Willing'); run(async () => { await api(`/students/${cls}/${id}/action`, { method: 'POST', body: { action: a.key, remarks, ...(a.needsLetter ? { fileName: letter.name, fileData: letter.data } : {}) } }); setLetter(null); }); };
+  const needs = s.actions.some(a => a.needsRemarks);
   const rows = [['EMIS', s.emis], ['Class', s.classLevel], ['Admit status', admitOf(s)], ['Gender / Medium', `${s.gender} / ${s.medium}`], ['Community', s.community + (s.disabilityStatus ? ' (PWD)' : '')],
     ['Father / Mother', `${s.fatherName || '—'} / ${s.motherName || '—'}`], ['District / Block', `${s.district || '—'} / ${s.block || '—'}`], ['School', s.schoolname], ['Phone', s.phone || '—'], ['Address', [s.address, s.pincode].filter(Boolean).join(' - ') || '—'],
     ['Quarterly / Half-yearly', `${s.mark1 ?? '—'} / ${s.mark2 ?? '—'}`],
     ['Overall rank', s.orank ?? '—'], ['Total (highest of two)', s.total ?? '—'], ['NMMS / TRUST / Other marks', [s.nmss, s.trust, s.otherMarks].map(v => v ?? '—').join(' / ')],
-    ['Allotted to', s.newSchoolName ? `${s.newSchoolName} (${s.newDistcName})` : '—'], ['Seat category', s.selectedCategory || '—'], ['Note', s.remark1 || '—'], ...(s.letters || []).map(l => [l.label + ' (submitted, locked)', <button key={l.stage + l.kind} onClick={() => downloadFile(`/students/${cls}/${id}/letter?stage=${l.stage}&kind=${l.kind}`).catch(e => setErr(e.message))}>{l.fileName}</button>])];
+    ['Allotted to', s.newSchoolName ? `${s.newSchoolName} (${s.newDistcName})` : '—'], ['Seat category', s.selectedCategory || '—'], ['Note', s.remark1 || '—'], ...(s.letter ? [['Unwilling letter', <button key="l" onClick={() => downloadFile(`/students/${cls}/${id}/letter`).catch(e => setErr(e.message))}>{s.letter.fileName}</button>]] : [])];
   return <div className="modal" role="dialog" aria-modal="true" onClick={onClose}><div className="panel" onClick={e => e.stopPropagation()}>
     <h3>{s.name} <StatusBadge r={s} /></h3>
     <table><tbody>{rows.map(([k, v]) => <tr key={k}><th>{k}</th><td>{v}</td></tr>)}</tbody></table>
-    {acts.length > 0 && <><h4>{mode === 'tc' ? 'TC request' : 'Next step'}</h4>
-      {acts.some(a => a.needsLetter) && <div className="letters"><p><small>Both letters are needed. You can change or remove a letter until you submit; after submitting it cannot be edited.</small></p>
-        {Object.entries(LETTER_KINDS).map(([k, label]) => <p key={k}><label>{label} (PDF, JPG or PNG, under 3 MB) <input key={letters[k]?.name || 'none-' + k} type="file" accept=".pdf,.jpg,.jpeg,.png" onChange={e => pickLetter(k, e.target.files[0])} /></label>
-          {letters[k] && <> <small>Chosen: <b>{letters[k].name}</b></small> <button type="button" onClick={() => pickLetter(k, null)}>Remove</button></>}</p>)}</div>}
-      {needs && <textarea rows="2" style={{ width: '100%' }} aria-label="Remarks" placeholder={mode === 'tc' ? 'Reason for the TC / remarks' : 'Remarks / reason'} value={remarks} onChange={e => setRemarks(e.target.value)} />}
-      <div className="row2">{acts.map(a => <button key={a.key} className={/^NOT_|REJECT/.test(a.key) ? 'bad' : 'pri'} disabled={busy} onClick={() => go(a)}>{a.label}</button>)}</div></>}
-    {mode === 'tc' && !acts.length && <p className="mute"><small>{['3A', '3B'].includes(s.statusCode) ? 'Only the DMS can request a TC for a joined student.' : 'No TC step is waiting for you on this student.'}</small></p>}
-    {mode !== 'tc' && user.role === 'SUPER_ADMIN' && <><h4>Correction (super admin)</h4>
+    {s.actions.length > 0 && <><h4>Next step</h4>
+      {s.actions.some(a => a.needsLetter) && <p><label>Unwilling letter (PDF, JPG or PNG, under 3 MB) <input type="file" accept=".pdf,.jpg,.jpeg,.png" onChange={e => pickLetter(e.target.files[0])} /></label></p>}
+      {needs && <textarea rows="2" style={{ width: '100%' }} aria-label="Remarks" placeholder="Remarks / reason" value={remarks} onChange={e => setRemarks(e.target.value)} />}
+      <div className="row2">{s.actions.map(a => <button key={a.key} className={/^NOT_|REJECT/.test(a.key) ? 'bad' : 'pri'} disabled={busy} onClick={() => go(a)}>{a.label}</button>)}</div></>}
+    {user.role === 'SUPER_ADMIN' && <><h4>Correction (super admin)</h4>
       <div className="row2"><select aria-label="Status" value={ov.code} onChange={e => setOv({ ...ov, code: e.target.value })}>{ALL_CODES.map(c => <option key={c} value={c}>{c ? CODE[c] : 'Not listed (clear)'}</option>)}</select></div>
       <textarea rows="2" style={{ width: '100%' }} aria-label="Remarks (required)" placeholder="Reason for the correction (required)" value={ov.remarks} onChange={e => setOv({ ...ov, remarks: e.target.value })} />
       <div className="row2"><button className="bad" disabled={busy} onClick={() => window.confirm('Force this status? The seat and the logs are updated.') && run(() => api(`/students/${cls}/${id}/override`, { method: 'POST', body: ov }))}>Apply correction</button></div></>}
     {err && <p className="err">{err}</p>}
-    {mode !== 'tc' && user.role === 'SUPER_ADMIN' && <><h4>History</h4>{s.logs.map(l => <div key={l.id}><small>{new Date(l.at).toLocaleString()} · {l.by} · {stageOf(l.before)} → {l.after ? stageOf(l.after) : 'none'}{l.remarks ? ` · ${l.remarks}` : ''}</small></div>)}</>}
-    <div className="row2"><button onClick={onClose}>Close</button></div></div></div>;
+    {user.role === 'SUPER_ADMIN' && <><h4>History</h4>{s.logs.map(l => <div key={l.id}><small>{new Date(l.at).toLocaleString()} · {l.by} · {stageOf(l.before)} → {l.after ? stageOf(l.after) : 'none'}{l.remarks ? ` · ${l.remarks}` : ''}</small></div>)}</>}
+    <div className="row2"><button onClick={onClose}>Close</button></div></div></div>; 
 }
 
 const ClassTabs = ({ user, cls, setCls }) => <div className="tabs">{[9, 10].filter(c => user.role === 'SUPER_ADMIN' || (user.classes || []).includes(c)).map(c => <button key={c} className={cls === c ? 'on' : ''} onClick={() => setCls(c)}>Class {c}</button>)}</div>;
@@ -156,12 +145,11 @@ function StudentDetails({ user }) {
     api(`/students?class=${cls}&view=${tab}&status=${status}&search=${encodeURIComponent(q)}&page=${page}`).then(d => { if (!stale) { setData(d); setListErr(''); } }).catch(e => !stale && setListErr(e.message));
     return () => { stale = true; };
   }, [cls, tab, q, status, page, reload]);
-
+  // DMS: from the Pending or Selected tab a student is marked Joined in one click; Not joined opens the record because a reason is required.
   return <>
     <div className="head"><h1>Student Details</h1></div>
     <ClassTabs user={user} cls={cls} setCls={setCls} />
-    {user.role === 'DISTRICT' && <RequestNewList cls={cls} />}
-    <div className="tabs">{(user.role === 'DISTRICT' ? tabKeys(DMS_KEYS).map(([k, l]) => [k, l]) : TABS).map(([k, l]) => <button key={k} className={tab === k ? 'on' : ''} onClick={() => setTab(k)}>{l}</button>)}</div>
+    <div className="tabs">{(user.role === 'DISTRICT' ? DMS_KEYS.map(([k, l]) => [k, l]) : TABS).map(([k, l]) => <button key={k} className={tab === k ? 'on' : ''} onClick={() => setTab(k)}>{l}</button>)}</div>
     <div className="panel">
       <div className="row2"><input aria-label="Search name / EMIS" placeholder="Search name / EMIS" value={search} onChange={e => setSearch(e.target.value)} />
         {user.role !== 'DISTRICT' && <select aria-label="Status" value={status} onChange={e => setStatus(e.target.value)}><option value="">All statuses</option>{ALL_CODES.filter(Boolean).map(c => <option key={c} value={c}>{CODE[c]}</option>)}</select>}
@@ -176,6 +164,7 @@ function StudentDetails({ user }) {
     {open && <StudentModal cls={cls} id={open} user={user} onClose={() => setOpen(null)} onChange={() => setReload(n => n + 1)} />}</>;
 }
 
+// ---- Vacancies: per seat group, and seat by seat
 const SEAT_TAG = { RESERVED: ['Reserved', 'RESERVED'], JOINED: ['Joined', 'Admitted'], VACANT: ['Vacant', 'VACANT'] };
 function SeatList({ user }) {
   const [cls, setCls] = useState(firstClass(user)), [mode, setMode] = useState('groups'), [tab, setTab] = useState(''), [search, setSearch] = useState(''), [q, setQ] = useState(''), [page, setPage] = useState(1);
@@ -206,117 +195,65 @@ function SeatList({ user }) {
     </div></>;
 }
 
+// ---- Document Verification: joined students. Files will go to an S3 bucket (not connected yet). Only the DMS uploads; only the super admin sees the history.
 IC.doc = IC.doc || 'M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8zM14 2v6h6M16 13H8M16 17H8';
-const DOC_NAMES = { WILLING: 'Willing letter', TC: 'Transfer Certificate (TC)', COMMUNITY: 'Community certificate', PWD: 'PWD letter' };
-const DOC_SHORT = { WILLING: 'Willing letter', TC: 'TC', COMMUNITY: 'Community', PWD: 'PWD letter' };
-const DOC_STATUS = { VERIFIED: ['Verified', 'VERIFIED'], PENDING: ['Awaiting verification', 'PENDING'], REJECTED: ['Rejected', 'REJECTED'] };
-const DOC_STATES = { VERIFIED: ['Verified', 'VERIFIED'], PENDING: ['Awaiting verification', 'PENDING'], REJECTED: ['Rejected - resubmit', 'REJECTED'], INCOMPLETE: ['Incomplete', ''], NOT_SUBMITTED: ['Not submitted', ''] };
-const DOC_TABS = [['', 'All'], ['NOT_SUBMITTED', 'Not submitted'], ['INCOMPLETE', 'Incomplete'], ['PENDING', 'Awaiting verification'], ['REJECTED', 'Rejected'], ['VERIFIED', 'Verified']];
-const DOC_ACCEPT = '.pdf,.jpg,.jpeg,.png', DOC_MAX = 3 * 1024 * 1024;
-const DocChip = ({ type, d }) => <span className={`badge ${d ? DOC_STATUS[d.status][1] : ''}`}>{DOC_SHORT[type]}: {d ? DOC_STATUS[d.status][0] : 'Missing'}</span>;
-
-function DocumentsModal({ cls, id, user, onClose, onChange }) {
-  const [s, setS] = useState(null), [err, setErr] = useState(''), [busy, setBusy] = useState(false), [pick, setPick] = useState({}), [note, setNote] = useState({});
-  const dms = user.role === 'DISTRICT', admin = user.role === 'SUPER_ADMIN';
-  const load = () => api(`/documents/${cls}/${id}`).then(setS).catch(e => setErr(e.message));
-  useEffect(() => { load(); }, [id]);
-  if (!s) return err ? <div className="modal" role="dialog" aria-modal="true" onClick={onClose}><div className="panel"><p className="err">{err}</p></div></div> : null;
-  const run = async fn => { try { setBusy(true); await fn(); setErr(''); await load(); onChange(); } catch (e) { setErr(e.message); } finally { setBusy(false); } };
-  const choose = (t, f) => {
-    if (!f) return setPick(x => ({ ...x, [t]: null }));
-    if (!/\.(pdf|jpe?g|png)$/i.test(f.name)) return setErr('The document must be a PDF, JPG or PNG file');
-    if (f.size > DOC_MAX) return setErr('Each document must be under 3 MB');
-    const r = new FileReader(); r.onload = () => { setErr(''); setPick(x => ({ ...x, [t]: { name: f.name, data: String(r.result).split(',')[1] || '' } })); }; r.readAsDataURL(f);
-  };
-  const submit = t => run(async () => { await api(`/documents/${cls}/${id}/${t}`, { method: 'POST', body: { fileName: pick[t].name, fileData: pick[t].data } }); setPick(x => ({ ...x, [t]: null })); });
-  const review = (t, decision) => {
-    if (decision === 'REJECTED' && !(note[t] || '').trim()) return setErr('Write the reason for rejecting this document');
-    if (decision === 'VERIFIED' && !window.confirm(`Verify the ${DOC_NAMES[t]} of ${s.name}?\n\nOnce verified, the document cannot be changed.`)) return;
-    run(async () => { await api(`/documents/${cls}/${id}/${t}/review`, { method: 'POST', body: { decision, remarks: note[t] || '' } }); setNote(x => ({ ...x, [t]: '' })); });
-  };
-  const sum = DOC_STATES[s.state];
-  return <div className="modal" role="dialog" aria-modal="true" onClick={onClose}><div className="panel" onClick={e => e.stopPropagation()}>
-    <h3>{s.name} <span className={`badge ${sum[1]}`}>{sum[0]}</span></h3>
-    <p><small>EMIS {s.emis} · {s.district || '—'} · {s.community}{s.pwd ? ' (PWD)' : ''} · {s.school || '—'}</small></p>
-    <p><small>{s.pwd ? 'Willing letter, TC, Community certificate and PWD letter are mandatory.' : 'Willing letter, TC and Community certificate are mandatory.'} {dms ? 'You can change a document and submit it again until it is verified.' : 'A verified document cannot be changed.'}</small></p>
-    {s.required.map(t => { const d = s.docs[t]; return <div className="docrow" key={t}>
-      <div className="row2" style={{ margin: 0 }}><b>{DOC_NAMES[t]}</b>{d ? <span className={`badge ${DOC_STATUS[d.status][1]}`}>{DOC_STATUS[d.status][0]}</span> : <span className="badge">Not submitted</span>}</div>
-      {d && <><small className="mute">{d.fileName} · submitted by {d.submittedBy} · {ts(d.submittedAt)}{d.submissions > 1 ? ` · submitted ${d.submissions} times` : ''}</small>
-        <div className="row2" style={{ margin: '8px 0 0' }}><button type="button" onClick={() => openFile(`/documents/${cls}/${id}/${t}/file`).catch(e => setErr(e.message))}>View file</button></div>
-        {d.status === 'REJECTED' && <p className="err"><small>Rejected{d.reviewedBy ? ` by ${d.reviewedBy}` : ''}: {d.remarks || '—'}</small></p>}
-        {d.status === 'VERIFIED' && <small className="mute">Verified by {d.reviewedBy} · {ts(d.reviewedAt)}{d.remarks ? ` · ${d.remarks}` : ''}</small>}</>}
-      {dms && (d?.locked
-        ? <small className="mute">Verified: this document is final and cannot be changed.</small>
-        : <div className="docpick"><label>{d ? 'Replace and submit again' : 'Choose the document'} (PDF, JPG or PNG, under 3 MB)<input key={pick[t]?.name || 'none-' + t} type="file" accept={DOC_ACCEPT} onChange={e => choose(t, e.target.files[0])} /></label>
-          <div className="row2"><button className="pri" disabled={busy || !pick[t]} onClick={() => submit(t)}>{d ? 'Submit again' : 'Submit'}</button>{pick[t] && <button type="button" onClick={() => choose(t, null)}>Remove</button>}</div></div>)}
-      {admin && !d && <small className="mute">The DMS has not submitted this document yet.</small>}
-      {admin && d?.status === 'PENDING' && <div className="docpick"><textarea rows="2" style={{ width: '100%' }} aria-label={`Remarks for ${DOC_NAMES[t]}`} placeholder="Reason (required to reject)" value={note[t] || ''} onChange={e => setNote(x => ({ ...x, [t]: e.target.value }))} />
-        <div className="row2"><button className="pri" disabled={busy} onClick={() => review(t, 'VERIFIED')}>Verify</button><button className="bad" disabled={busy} onClick={() => review(t, 'REJECTED')}>Reject</button></div></div>}
-      {admin && d?.status === 'REJECTED' && <small className="mute">Waiting for the DMS to submit it again.</small>}
-      {admin && d?.history?.length > 0 && <details><summary><small>History ({d.history.length})</small></summary>{d.history.map((h, i) => <div key={i}><small>{ts(h.at)} · {h.by} · {h.type.toLowerCase()}{h.fileName ? ` · ${h.fileName}` : ''}{h.remarks ? ` · ${h.remarks}` : ''}</small></div>)}</details>}
-    </div>; })}
-    {err && <p className="err" role="alert">{err}</p>}
-    <div className="row2"><button onClick={onClose}>Close</button></div></div></div>;
-}
-
+const DOC_TYPES = '.pdf,.jpg,.jpeg,.png', MAX_DOCS = 5;
 function DocumentVerification({ user }) {
+  const [cls, setCls] = useState(firstClass(user)), [data, setData] = useState({ rows: [], pages: 1 }), [search, setSearch] = useState(''), [q, setQ] = useState(''), [page, setPage] = useState(1), [err, setErr] = useState('');
+  const [pick, setPick] = useState(null), [files, setFiles] = useState([]), [hist, setHist] = useState(null), [histErr, setHistErr] = useState('');
   const dms = user.role === 'DISTRICT', admin = user.role === 'SUPER_ADMIN';
-  const [cls, setCls] = useState(firstClass(user)), [data, setData] = useState({ rows: [], pages: 1, total: 0 }), [search, setSearch] = useState(''), [q, setQ] = useState(''), [state, setState] = useState(admin ? 'PENDING' : '');
-  const [page, setPage] = useState(1), [err, setErr] = useState(''), [open, setOpen] = useState(null), [reload, setReload] = useState(0);
   useEffect(() => { const t = setTimeout(() => setQ(search), 350); return () => clearTimeout(t); }, [search]);
-  useEffect(() => { setPage(1); }, [cls, q, state]);
+  useEffect(() => { setPage(1); }, [cls, q]);
   useEffect(() => {
     let stale = false;
-    api(`/documents?class=${cls}&state=${state}&search=${encodeURIComponent(q)}&page=${page}`).then(d => { if (!stale) { setData(d); setErr(''); } }).catch(e => !stale && setErr(e.message));
+    api(`/students?class=${cls}&view=joined&status=&search=${encodeURIComponent(q)}&page=${page}`).then(d => { if (!stale) { setData(d); setErr(''); } }).catch(e => !stale && setErr(e.message));
     return () => { stale = true; };
-  }, [cls, q, state, page, reload]);
+  }, [cls, q, page]);
+  useEffect(() => { if (admin) api('/documents/history').then(setHist).catch(e => setHistErr(e.message)); }, [admin]);
+  const choose = e => { const f = [...e.target.files]; if (f.length > MAX_DOCS) { setErr(`Choose at most ${MAX_DOCS} files.`); return; } setErr(''); setFiles(f); };
   return <>
     <div className="head"><h1>Document Verification</h1></div>
     <ClassTabs user={user} cls={cls} setCls={setCls} />
-    <p><small>Joined students{dms ? ' of your district' : ''}. {dms ? 'Submit the Willing letter, TC and Community certificate of every student, and the PWD letter of a PWD student. You can change a document and submit it again until the super admin verifies it.' : 'Open a student to verify or reject each document the DMS submitted. A verified document cannot be changed.'}</small></p>
-    <div className="tabs">{DOC_TABS.map(([k, l]) => <button key={k} className={state === k ? 'on' : ''} onClick={() => setState(k)}>{l}</button>)}</div>
+    <p><small>Joined students of your {dms ? 'district' : 'scope'}. {dms ? `Choose up to ${MAX_DOCS} documents (PDF, JPG or PNG) for a student.` : 'Documents are uploaded by the DMS.'} Files will be kept in an S3 bucket; it is not connected yet, so nothing is saved for now.</small></p>
     <div className="panel">
       <div className="row2"><input aria-label="Search name / EMIS" placeholder="Search name / EMIS" value={search} onChange={e => setSearch(e.target.value)} /></div>
       {err && <p className="err">{err}</p>}
-      <table><thead><tr><th>EMIS</th><th>Name</th><th>District</th><th>School</th><th>Comm.</th><th>Documents</th><th>Status</th><th></th></tr></thead>
-        <tbody>{data.rows.map(r => <tr key={r.id}><td>{r.emis}</td><td>{r.name}</td><td>{r.district}</td><td>{r.school || '—'}</td><td>{r.community}{r.pwd ? ' (PWD)' : ''}</td>
-          <td><div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>{r.required.map(t => <DocChip key={t} type={t} d={r.docs[t]} />)}</div></td>
-          <td><span className={`badge ${DOC_STATES[r.state][1]}`}>{DOC_STATES[r.state][0]}</span></td>
-          <td><button aria-label={`${dms ? 'Documents of' : 'Review'} ${r.name}`} onClick={() => setOpen(r.id)}>{dms ? 'Documents' : 'Review'}</button></td></tr>)}</tbody></table>
+      <table><thead><tr><th>EMIS</th><th>Name</th><th>District</th><th>School</th><th>Community</th><th>Status</th>{dms && <th>Documents</th>}</tr></thead>
+        <tbody>{data.rows.map(r => <tr key={r.id}><td>{r.emis}</td><td>{r.name}</td><td>{r.district}</td><td>{r.newSchoolName || r.schoolname || '—'}</td><td>{r.community}</td><td><StatusBadge r={r} /></td>
+          {dms && <td>{pick === r.id
+            ? <div className="docpick"><input type="file" multiple accept={DOC_TYPES} aria-label={`Documents for ${r.name}`} onChange={choose} />
+                <small className="mute">{files.length ? files.map(f => f.name).join(', ') : 'No file chosen'}</small>
+                <div className="row2"><button disabled title="S3 storage is not connected yet">Upload (S3 not connected)</button><button onClick={() => { setPick(null); setFiles([]); }}>Cancel</button></div></div>
+            : <button onClick={() => { setPick(r.id); setFiles([]); }}>Add documents</button>}</td>}</tr>)}</tbody></table>
       {!data.rows.length && !err && <p className="mute">No joined students in this view.</p>}
       {data.pages > 1 && <div className="row2"><button disabled={page <= 1} onClick={() => setPage(page - 1)}>Prev</button>Page {page} / {data.pages}<button disabled={page >= data.pages} onClick={() => setPage(page + 1)}>Next</button></div>}
     </div>
-    {open && <DocumentsModal cls={cls} id={open} user={user} onClose={() => setOpen(null)} onChange={() => setReload(n => n + 1)} />}</>;
+    {admin && <div className="panel" style={{ marginTop: 16 }}><h3>Upload history (super admin only)</h3>
+      {histErr && <p className="err">{histErr}</p>}
+      {hist && <><p><small>Storage: {hist.storage}</small></p>
+        {hist.rows.length ? <table><thead><tr><th>Time</th><th>Uploaded by</th><th>Student</th><th>Type</th><th>File</th></tr></thead><tbody>{hist.rows.map((h, i) => <tr key={i}><td>{ts(h.at)}</td><td>{h.by}</td><td>{h.student}</td><td>{h.kind}</td><td>{h.file}</td></tr>)}</tbody></table>
+          : <p className="mute">No uploads yet. Document and TC letter uploads will be listed here once S3 is connected.</p>}</>}</div>}</>;
 }
 
+// ---- TC requests: DMS asks, the Regional Coordinator approves, then the State Regional Coordinator
 IC.doc = 'M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8zM14 2v6h6M16 13H8M16 17H8';
-const TC_STAGE = { JOINED: ['Joined · TC not requested', 'Admitted'], REGION: ['Waiting for the Regional Coordinator', 'PENDING'], STATE: ['Waiting for the State Regional Coordinator', 'RCAPPROVED'], DONE: ['TC Issued', 'SCAPPROVED'] };
-const TC_TABS = [['', 'All'], ['JOINED', 'Joined'], ['REGION', 'Waiting for RC'], ['STATE', 'Waiting for State RC'], ['DONE', 'TC Issued']];
+const TC_STAGE = { REGION: ['Waiting for the Regional Coordinator', 'PENDING'], STATE: ['Waiting for the State Regional Coordinator', 'RCAPPROVED'], DONE: ['TC Issued', 'Admitted'] };
 function TcRequests({ user }) {
-  const [data, setData] = useState({ rows: [], pages: 1, total: 0 }), [err, setErr] = useState(''), [n, setN] = useState(0), [open, setOpen] = useState(null), [cls, setCls] = useState(firstClass(user));
-  const [tab, setTab] = useState(user.role === 'REGION' ? 'REGION' : user.role === 'STATE' ? 'STATE' : ''), [search, setSearch] = useState(''), [q, setQ] = useState(''), [page, setPage] = useState(1);
-  useEffect(() => { const t = setTimeout(() => setQ(search), 350); return () => clearTimeout(t); }, [search]);
-  useEffect(() => { setPage(1); }, [cls, tab, q]);
-  useEffect(() => {
-    let stale = false;
-    api(`/tc?class=${cls}&stage=${tab}&search=${encodeURIComponent(q)}&page=${page}`).then(d => { if (!stale) { setData(d); setErr(''); } }).catch(e => !stale && setErr(e.message));
-    return () => { stale = true; };
-  }, [cls, tab, q, page, n]);
+  const [rows, setRows] = useState([]), [err, setErr] = useState(''), [n, setN] = useState(0), [open, setOpen] = useState(null), [cls, setCls] = useState(firstClass(user));
+  useEffect(() => { api('/tc').then(setRows).catch(e => setErr(e.message)); }, [n]);
+  const mine = rows.filter(r => r.classLevel === cls);
   return <>
     <div className="head"><h1>TC Requests</h1></div><ClassTabs user={user} cls={cls} setCls={setCls} />
-    <p><small>{user.role === 'DISTRICT' ? 'All joined students are listed here. Select View on a student to request a TC.' : 'Joined students and their TC requests.'} A request is approved (or rejected, with a reason) by the Regional Coordinator and then by the State Regional Coordinator; a rejected request returns the student to Joined; the seat is released only when the TC is issued.</small></p>
-    <div className="tabs">{TC_TABS.map(([k, l]) => <button key={k} className={tab === k ? 'on' : ''} onClick={() => setTab(k)}>{l}</button>)}</div>
-    <div className="panel">
-      <div className="row2"><input aria-label="Search name / EMIS" placeholder="Search name / EMIS" value={search} onChange={e => setSearch(e.target.value)} /></div>
-      {err && <p className="err">{err}</p>}
-      <table><thead><tr><th>EMIS</th><th>Name</th><th>District</th><th>School</th><th>Reason</th><th>Stage</th><th>View</th></tr></thead>
-        <tbody>{data.rows.map(r => <tr key={r.id}><td>{r.emis}</td><td>{r.name}</td><td>{r.district}</td><td>{r.newSchoolName || r.schoolname || '—'}</td><td>{r.reason || '—'}</td>
+    <p><small>A TC is requested from a student's record (Student Details → open the student → "Request TC"). It is then approved (or rejected, with a reason) by the Regional Coordinator and by the State Regional Coordinator; a rejected request returns the student to Joined; the seat is released only when the TC is issued.</small></p>
+    <div className="panel">{err && <p className="err">{err}</p>}
+      <table><thead><tr><th>EMIS</th><th>Name</th><th>School</th><th>Reason</th><th>Stage</th><th>View</th></tr></thead>
+        <tbody>{mine.map(r => <tr key={r.id}><td>{r.emis}</td><td>{r.name}</td><td>{r.newSchoolName}</td><td>{r.reason || '—'}</td>
           <td><span className={`badge ${TC_STAGE[r.tcStage][1]}`}>{TC_STAGE[r.tcStage][0]}</span></td><td><button aria-label={`View ${r.name}`} onClick={() => setOpen(r.id)}>View</button></td></tr>)}</tbody></table>
-      {!data.rows.length && !err && <p style={{ color: 'var(--mute)' }}>No students in this view.</p>}
-      {data.pages > 1 && <div className="row2"><button disabled={page <= 1} onClick={() => setPage(page - 1)}>Prev</button>Page {page} / {data.pages}<button disabled={page >= data.pages} onClick={() => setPage(page + 1)}>Next</button></div>}</div>
-    {open && <StudentModal mode="tc" cls={cls} id={open} user={user} onClose={() => setOpen(null)} onChange={() => setN(x => x + 1)} />}</>;
+      {!mine.length && !err && <p style={{ color: 'var(--mute)' }}>No TC requests.</p>}</div>
+    {open && <StudentModal cls={cls} id={open} user={user} onClose={() => setOpen(null)} onChange={() => setN(x => x + 1)} />}</>;
 }
 
+// ---- Import: 9th_master_sheet, 9th_vacancy_sheet, 10th_master_sheet, 10th_vacancy_sheet (and the State Enrollment Team's rank / list buttons)
 const b64 = f => new Promise((ok, no) => { const r = new FileReader(); r.onload = () => ok(r.result.split(',')[1]); r.onerror = no; r.readAsDataURL(f); });
 function Uploader({ title, hint, path, cls, canReplace, modes }) {
   const [file, setFile] = useState(null), [replace, setReplace] = useState(false), [mode, setMode] = useState('replace'), [busy, setBusy] = useState(false), [res, setRes] = useState(null), [err, setErr] = useState('');
@@ -334,7 +271,7 @@ function Uploader({ title, hint, path, cls, canReplace, modes }) {
     {modes && <div className="row2"><select aria-label="Mode" value={mode} onChange={e => setMode(e.target.value)}><option value="replace">Replace this class's vacancies</option><option value="append">Add seats (a later round)</option></select></div>}
     <div className="row2"><button className="pri" disabled={busy} onClick={go}>{busy ? 'Importing…' : `Import for Class ${cls}`}</button></div>
     {err && <p className="err">{err}</p>}
-    {res && <div><p><b>{res.imported}</b> {res.seats ? `rows imported as ${res.seats} seats` : 'imported'}{res.skippedExisting ? <>, {res.skippedExisting} skipped (already exist)</> : ''}{res.rejectedCount ? <>, <span className="err">{res.rejectedCount} rejected</span></> : ''}.{res.listNumber ? <> The students with a status were added as <b>List {res.listNumber}</b>, after the earlier lists.</> : ''}</p>
+    {res && <div><p><b>{res.imported}</b> {res.seats ? `rows imported as ${res.seats} seats` : 'imported'}{res.skippedExisting ? <>, {res.skippedExisting} skipped (already exist)</> : ''}{res.rejectedCount ? <>, <span className="err">{res.rejectedCount} rejected</span></> : ''}.</p>
       {res.rejected?.length > 0 && <table><thead><tr><th>Excel row</th><th>Problem</th></tr></thead><tbody>{res.rejected.map((r, i) => <tr key={i}><td>{r.row}</td><td>{r.reason}</td></tr>)}</tbody></table>}
       {res.newUsers?.length > 0 && <><h4>New logins created</h4><p className="err"><small>Copy these now. Passwords are shown only once.</small></p>
         <table><thead><tr><th>Role</th><th>For</th><th>Username</th><th>Password</th></tr></thead><tbody>{res.newUsers.map(u => <tr key={u.username}><td>{u.role}</td><td>{u.scope}</td><td>{u.username}</td><td><code>{u.password}</code></td></tr>)}</tbody></table></>}</div>}
@@ -362,13 +299,14 @@ function ImportData({ user }) {
     <div className="tabs">{[9, 10].map(c => <button key={c} className={cls === c ? 'on' : ''} onClick={() => setCls(c)}>Class {c}</button>)}</div>
     <div className="grid two">
       {admin && <Uploader key={'s' + cls} title={`${th}_master_sheet`} cls={cls} path="/import/students" canReplace
-        hint="Columns (as in the database document): district, block, Udise, school_type, Schoolname, Emis, Name, Dob, Gender, community, medium, Disability_status, Disability_desc, Father_name, Mother_name, Phone, address, pincode, mark1-quertly, mark2-half, Total-highest of two, pass, nmss, Trust (Trust is the last column). The status columns are filled by the portal: select_status gets the status code and admit_status its description. Emis is a whole number up to 2,147,483,647. A new sheet is ADDED after the students already imported (an Emis that exists is skipped, nobody is changed or removed). Students that arrive with a select_status form the next List n." />}
+        hint="Columns (as in the database document): district, block, Udise, school_type, Schoolname, Emis, Name, Dob, Gender, community, medium, Disability_status, Disability_desc, Father_name, Mother_name, Phone, address, pincode, mark1-quertly, mark2-half, Total-highest of two, pass, nmss, Trust (Trust is the last column). The status columns are filled by the portal: select_status gets the status code and admit_status its description. Emis is a whole number up to 2,147,483,647." />}
       <Uploader key={'v' + cls} title={admin ? `${th}_vacancy_sheet` : `Your district ${th}_vacancy_sheet`} cls={cls} path="/import/vacancies" modes
         hint="Columns: New_district, New_udise_type, New_udise_code, New_school_name, Group_code, Group_desc, gender, medium, community (GT-PWD, GT, BC, BCM, MBC, SC, SCA, ST), vacancies, admitted. One sheet row becomes one seat row per vacancy." />
       {admin && <ListPanel cls={cls} user={user} />}
     </div></>;
 }
 
+// ---- History: the two log tables of the database document
 IC.log = 'M4 6h16M4 12h16M4 18h10';
 const ts = d => (d ? new Date(d).toLocaleString([], { dateStyle: 'medium', timeStyle: 'medium' }) : '—');
 function Logs() {
@@ -382,58 +320,13 @@ function Logs() {
     {err && <p className="err">{err}</p>}
     <div className="panel">{kind === 'students'
       ? <table><thead><tr><th>#</th><th>Time</th><th>User</th><th>Class</th><th>EMIS</th><th>Name</th><th>Change</th><th>Seat in</th><th>Note</th></tr></thead>
-        <tbody>{rows.map(l => <tr key={l.id}><td>{l.id}</td><td>{ts(l.updatedAt)}</td><td>{l.updatedBy}</td><td>{l.class}</td><td>{l.emis ?? '—'}</td><td>{l.name || (l.tag1 === 'LIST_REQUEST' ? `DMS ${l.district}` : '—')}</td><td>{l.tag1 === 'LIST_REQUEST' ? `List request (${l.tag2 === 'DONE' ? 'done' : 'waiting'})` : <>{l.updateStatusBefore || 'start'} → {l.updateStatusAfter || 'none'}</>}</td><td>{l.newSchoolName || '—'}</td><td>{l.remark1 || '—'}</td></tr>)}</tbody></table>
+        <tbody>{rows.map(l => <tr key={l.id}><td>{l.id}</td><td>{ts(l.updatedAt)}</td><td>{l.updatedBy}</td><td>{l.class}</td><td>{l.emis}</td><td>{l.name}</td><td>{l.updateStatusBefore || 'start'} → {l.updateStatusAfter || 'none'}</td><td>{l.newSchoolName || '—'}</td><td>{l.remark1 || '—'}</td></tr>)}</tbody></table>
       : <table><thead><tr><th>#</th><th>Time</th><th>User</th><th>Class</th><th>District</th><th>School</th><th>Seat group</th><th>EMIS</th><th>Change</th></tr></thead>
         <tbody>{rows.map(l => <tr key={l.id}><td>{l.id}</td><td>{ts(l.updatedAt)}</td><td>{l.updatedBy}</td><td>{l.classLevel}</td><td>{l.newDistrict}</td><td>{l.newSchoolName || '—'}</td><td>{l.gender} / {l.medium} / {l.community}</td><td>{l.vacancyRefNo ?? '—'}</td><td>{l.updateStatusBefore} → {l.updateStatusAfter}</td></tr>)}</tbody></table>}
       {!rows.length && !err && <p style={{ color: 'var(--mute)' }}>No entries.</p>}</div></>;
 }
 
-function RequestNewList({ cls }) {
-  const [d, setD] = useState(null), [err, setErr] = useState(''), [msg, setMsg] = useState(''), [busy, setBusy] = useState(false), [n, setN] = useState(0);
-  useEffect(() => { let stale = false; setMsg(''); api('/list-requests').then(r => !stale && (setD(r), setErr(''))).catch(e => !stale && setErr(e.message)); return () => { stale = true; }; }, [n, cls]);
-  const raise = async () => {
-    try { setBusy(true); setErr(''); setMsg(''); await api('/list-requests', { method: 'POST', body: { classLevel: cls } }); setMsg(`Your request for Class ${cls} was sent to the super admin.`); setN(x => x + 1); }
-    catch (e) { setErr(e.message); } finally { setBusy(false); }
-  };
-  const p = d?.progress.find(x => x.classLevel === cls), open = d?.rows.find(r => r.classLevel === cls && r.status === 'OPEN');
-  if (!p) return err ? <p className="err" role="alert">{err}</p> : null;
-  return <div className="panel" style={{ marginBottom: 12 }}><div className="row2">
-    <span><b>New list</b> · {p.total ? `${p.decided} of ${p.total} students decided (${p.percent}%)` : 'No students listed yet'}</span>
-    {open ? <span className="badge PENDING">Request pending · sent {ts(open.requestedAt)}</span> : <button className="pri" disabled={busy || !p.canRequest} onClick={raise}>Request new list</button>}</div>
-    {!open && !p.canRequest && p.reason && <small className="mute">{p.reason}</small>}
-    {msg && <p>{msg}</p>}{err && <p className="err" role="alert">{err}</p>}</div>;
-}
-
-function OpenRequestsNotice({ go }) {
-  const [n, setN] = useState(0);
-  useEffect(() => { let stale = false; api('/list-requests?status=OPEN').then(r => !stale && setN(r.rows.length)).catch(() => {}); return () => { stale = true; }; }, []);
-  if (!n) return null;
-  return <div className="panel" style={{ marginBottom: 16 }}><div className="row2"><span><b>{n}</b> DMS {n === 1 ? 'request is' : 'requests are'} waiting for a new list.</span><button className="pri" onClick={() => go('listreq')}>Open List Requests</button></div></div>;
-}
-
-function ListRequests() {
-  const [rows, setRows] = useState([]), [tab, setTab] = useState('OPEN'), [err, setErr] = useState(''), [n, setN] = useState(0), [busy, setBusy] = useState(false);
-  useEffect(() => { let stale = false; api(`/list-requests?status=${tab === 'ALL' ? '' : tab}`).then(r => !stale && (setRows(r.rows), setErr(''))).catch(e => !stale && setErr(e.message)); return () => { stale = true; }; }, [tab, n]);
-  const run = async fn => { try { setBusy(true); setErr(''); await fn(); setN(x => x + 1); } catch (e) { setErr(e.message); } finally { setBusy(false); } };
-  return <>
-    <div className="head"><h1>List Requests</h1></div>
-    <p><small>A DMS can ask for a new list once most of its students are decided. Revise the list (Import Data &amp; Lists: a new sheet is added after the earlier students), then mark the request done. Freeze a DMS login to stop it signing in while you work; Unfreeze lets it back in.</small></p>
-    <div className="tabs">{[['OPEN', 'Waiting'], ['DONE', 'Done'], ['ALL', 'All']].map(([k, l]) => <button key={k} className={tab === k ? 'on' : ''} onClick={() => setTab(k)}>{l}</button>)}</div>
-    <div className="panel">{err && <p className="err" role="alert">{err}</p>}
-      <table><thead><tr><th>Requested</th><th>DMS login</th><th>District</th><th>Class</th><th>Students decided</th><th>Status</th><th>DMS login state</th><th></th></tr></thead>
-        <tbody>{rows.map(r => <tr key={r.id}>
-          <td>{ts(r.requestedAt)}</td><td>{r.requestedBy}</td><td>{r.district}</td><td>{r.classLevel}</td><td>{r.total != null ? `${r.decided} of ${r.total} (${r.percent}%)` : '—'}</td>
-          <td>{r.status === 'OPEN' ? <span className="badge PENDING">Waiting</span> : <><span className="badge Admitted">Done</span><br /><small>{r.doneBy} · {ts(r.doneAt)}</small></>}</td>
-          <td>{r.userId ? (r.frozen ? <span className="badge REJECTED">Frozen</span> : <span className="badge Admitted">Active</span>) : '—'}</td>
-          <td><div className="row2">
-            {r.userId && (r.frozen
-              ? <button disabled={busy} onClick={() => run(() => api(`/users/${r.userId}/unfreeze`, { method: 'POST' }))}>Unfreeze</button>
-              : <button className="bad" disabled={busy} onClick={() => window.confirm(`Freeze ${r.requestedBy}? They are signed out now and cannot sign in until you unfreeze.`) && run(() => api(`/users/${r.userId}/freeze`, { method: 'POST' }))}>Freeze</button>)}
-            {r.status === 'OPEN' && <button className="pri" disabled={busy} onClick={() => window.confirm('Mark this request as done? The DMS will see it as completed.') && run(() => api(`/list-requests/${r.id}/done`, { method: 'POST', body: {} }))}>Mark done</button>}
-          </div></td></tr>)}</tbody></table>
-      {!rows.length && !err && <p style={{ color: 'var(--mute)' }}>No requests in this view.</p>}</div></>;
-}
-
+// ---- Users: create, new password, class access (the users and access tables)
 function UsersPage({ me }) {
   const [rows, setRows] = useState([]), [err, setErr] = useState(''), [n, setN] = useState(0), [shown, setShown] = useState(null), [f, setF] = useState({ username: '', role: 'DISTRICT', district: '', region: '', classes: [9, 10] });
   useEffect(() => { let stale = false; api('/users').then(r => !stale && (setRows(r), setErr(''))).catch(e => !stale && setErr(e.message)); return () => { stale = true; }; }, [n]);
@@ -443,12 +336,10 @@ function UsersPage({ me }) {
     <div className="head"><h1>Users &amp; Access</h1></div>
     {err && <p className="err" role="alert">{err}</p>}
     {shown && <div className="panel"><p className="err"><b>Copy now, shown only once:</b> {shown.username} / <code>{shown.password}</code></p><button onClick={() => setShown(null)}>Done</button></div>}
-    <div className="panel"><table><thead><tr><th>User</th><th>Role</th><th>District / region</th><th>Signed in</th><th>Login</th><th>Classes</th><th></th></tr></thead>
-      <tbody>{rows.map(u => <tr key={u.id}><td>{u.username}</td><td>{u.role === 'STATE' ? 'STATE REGIONAL COORDINATOR' : u.role === 'REGION' ? 'REGIONAL COORDINATOR' : u.role === 'DISTRICT' ? 'DMS (DISTRICT)' : 'SE TEAM (SUPER ADMIN)'}</td><td>{u.district || u.region || '—'}</td><td>{u.signedIn ? 'Yes' : '—'}</td><td>{u.role === 'DISTRICT' ? (u.frozen ? <span className="badge REJECTED">Frozen</span> : <span className="badge Admitted">Active</span>) : '—'}</td>
+    <div className="panel"><table><thead><tr><th>User</th><th>Role</th><th>District / region</th><th>Signed in</th><th>Classes</th><th></th></tr></thead>
+      <tbody>{rows.map(u => <tr key={u.id}><td>{u.username}</td><td>{u.role === 'STATE' ? 'STATE REGIONAL COORDINATOR' : u.role === 'REGION' ? 'REGIONAL COORDINATOR' : u.role === 'DISTRICT' ? 'DMS (DISTRICT)' : 'SE TEAM (SUPER ADMIN)'}</td><td>{u.district || u.region || '—'}</td><td>{u.signedIn ? 'Yes' : '—'}</td>
         <td>{u.role === 'SUPER_ADMIN' ? 'All' : [9, 10].map(c => <label key={c} style={{ marginRight: 8 }}><input type="checkbox" checked={u.classes.includes(c)} onChange={() => run(() => api(`/users/${u.id}/access`, { method: 'PUT', body: { classes: toggle(u.classes, c) } }))} /> {c}</label>)}</td>
-        <td>{u.role === 'DISTRICT' && (u.frozen
-          ? <button onClick={() => run(() => api(`/users/${u.id}/unfreeze`, { method: 'POST' }))}>Unfreeze</button>
-          : <button className="bad" onClick={() => window.confirm(`Freeze ${u.username}? They are signed out now and cannot sign in until you unfreeze.`) && run(() => api(`/users/${u.id}/freeze`, { method: 'POST' }))}>Freeze</button>)} {u.id !== me.id && <button onClick={() => window.confirm(`Give ${u.username} a new password? They are signed out.`) && run(async () => setShown(await api(`/users/${u.id}/reset-password`, { method: 'POST' })))}>New password</button>}</td></tr>)}</tbody></table></div>
+        <td>{u.id !== me.id && <button onClick={() => window.confirm(`Give ${u.username} a new password? They are signed out.`) && run(async () => setShown(await api(`/users/${u.id}/reset-password`, { method: 'POST' })))}>New password</button>}</td></tr>)}</tbody></table></div>
     <div className="panel"><h3>Add a user</h3>
       <div className="row2"><input aria-label="Username" placeholder="Username" value={f.username} onChange={e => setF({ ...f, username: e.target.value })} />
         <select aria-label="Role" value={f.role} onChange={e => setF({ ...f, role: e.target.value })}><option value="DISTRICT">DMS (district)</option><option value="REGION">Regional Coordinator</option><option value="STATE">State Regional Coordinator</option><option value="SUPER_ADMIN">SE Team (super admin)</option></select>
@@ -478,10 +369,11 @@ function ChangePassword({ onClose, username }) {
   </div></div>;
 }
 
+
 export default function App() {
   const [user, setUser] = useState(savedUser), [page, setPage] = useState('dash'), [pw, setPw] = useState(false), [mobileOpen, setMobileOpen] = useState(false);
   useEffect(() => { const h = e => { if (e.key === 'Escape') { document.querySelector('.modal')?.click(); setMobileOpen(false); } }; window.addEventListener('keydown', h); return () => window.removeEventListener('keydown', h); }, []);
-  const pageNames = { dash: 'Dashboard', students: 'Student Details', seats: 'Vacancy Management', docs: 'Document Verification', tc: 'TC Requests', listreq: 'List Requests', import: 'Import Data & Lists', logs: 'Change History', users: 'Users & Access' };
+  const pageNames = { dash: 'Dashboard', students: 'Student Details', seats: 'Vacancy Management', tc: 'TC Requests', import: 'Import Data & Lists', logs: 'Change History', users: 'Users & Access' };
   useEffect(() => { document.title = `${user ? (pageNames[page] || 'Admission Portal') : 'Sign in'} · School Admissions Portal`; }, [page, user]);
   useEffect(() => {
     if (!user) return;
@@ -490,13 +382,13 @@ export default function App() {
     return () => document.removeEventListener('visibilitychange', vis);
   }, [user]);
   if (!user) return <Login onLogin={setUser} />;
-  const admin = user.role === 'SUPER_ADMIN', dms = user.role === 'DISTRICT', canVac = admin;
+  const admin = user.role === 'SUPER_ADMIN', dms = user.role === 'DISTRICT', canVac = admin;       // the DMS sees Dashboard, Student Details and TC Requests only
   const Nav = ({ k, icon, label }) => <button className={`nav ${page === k ? 'on' : ''}`} aria-current={page === k ? 'page' : undefined} onClick={() => { setPage(k); setMobileOpen(false); }}>
     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d={IC[icon]} /></svg><span>{label}</span></button>;
   const logout = reason => { if (typeof reason === 'string' && reason) setLogoutReason(reason); api('/auth/logout', { method: 'POST' }).catch(() => {}).finally(() => { setToken(null); setUser(null); if (typeof reason === 'string' && reason) window.location.reload(); }); };
   const roleName = { SUPER_ADMIN: 'SE TEAM (SUPER ADMIN)', STATE: 'STATE REGIONAL COORDINATOR', REGION: 'REGIONAL COORDINATOR', DISTRICT: 'DMS (DISTRICT)' }[user.role];
-  const body = page === 'dash' ? <Dashboard user={user} go={setPage} /> : page === 'students' ? <StudentDetails user={user} /> : page === 'seats' && !dms ? <SeatList user={user} /> : page === 'docs' && (admin || dms) ? <DocumentVerification user={user} /> : page === 'tc' ? <TcRequests user={user} />
-    : page === 'listreq' && admin ? <ListRequests /> : page === 'import' && canVac ? <ImportData user={user} /> : page === 'logs' && admin ? <Logs /> : page === 'users' && admin ? <UsersPage me={user} /> : <Dashboard user={user} go={setPage} />;
+  const body = page === 'dash' ? <Dashboard user={user} /> : page === 'students' ? <StudentDetails user={user} /> : page === 'seats' && !dms ? <SeatList user={user} /> : page === 'tc' ? <TcRequests user={user} />
+    : page === 'import' && canVac ? <ImportData user={user} /> : page === 'logs' && admin ? <Logs /> : page === 'users' && admin ? <UsersPage me={user} /> : <Dashboard user={user} />;
   return <div className={`shell ${mobileOpen ? 'menu-open' : ''}`}>
     <button className="side-scrim" aria-label="Close navigation" onClick={() => setMobileOpen(false)} />
     <aside className="side" aria-label="Main navigation">
@@ -504,8 +396,7 @@ export default function App() {
       <div className="nav-caption">WORKSPACE</div>
       <Nav k="dash" icon="seat" label="Dashboard" /><Nav k="students" icon="users" label="Student Details" />
       <div className="nav-caption">ADMISSION PROCESS</div>
-      {!dms && <Nav k="seats" icon="seat" label="Vacancy Management" />}{(admin || dms) && <Nav k="docs" icon="doc" label="Document Verification" />}<Nav k="tc" icon="doc" label="TC Requests" />
-      {admin && <Nav k="listreq" icon="clock" label="List Requests" />}
+      {!dms && <Nav k="seats" icon="seat" label="Vacancy Management" />}<Nav k="tc" icon="doc" label="TC Requests" />
       {canVac && <Nav k="import" icon="up" label="Import Data & Lists" />}
       {admin && <><div className="nav-caption">ADMINISTRATION</div><Nav k="logs" icon="log" label="Change History" /><Nav k="users" icon="users" label="Users & Access" /></>}
       <div className="side-spacer" />

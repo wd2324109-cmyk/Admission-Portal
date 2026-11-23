@@ -1,5 +1,5 @@
 import assert from 'node:assert';
-import { buildSample } from '../../sampleData.js';
+import { buildSample } from '../sampleData.js';
 import { runRound } from './selection.js';
 const { sts, vacs } = buildSample();
 const students = sts.map(s => ({ ...s, selectStatus: '', selectedCategory: '', admitStatus: '' }));

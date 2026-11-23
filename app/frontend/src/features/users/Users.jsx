@@ -31,7 +31,7 @@ export default function Users({ me }) {
       <Table>
         <thead><tr><th>User</th><th>Role</th><th>District / region</th><th>Signed in</th><th>Login</th><th>Class access</th><th><span className="sr-only">Actions</span></th></tr></thead>
         <tbody>{rows.map(u => { const classes = u.classes || []; return <tr key={u.id}>
-          <td>{u.username}</td><td>{ROLE_NAME[u.role] || u.role}</td><td>{u.district || u.region || '—'}</td><td>{u.signedIn ? 'Yes' : '—'}</td>
+          <td>{u.username}{u.role !== 'SUPER_ADMIN' && !classes.length && <> <Badge tone="bad">No class access</Badge></>}</td><td>{ROLE_NAME[u.role] || u.role}</td><td>{u.district || u.region || '—'}</td><td>{u.signedIn ? 'Yes' : '—'}</td>
           <td>{u.role === 'DISTRICT' ? (u.frozen ? <Badge tone="bad">Frozen</Badge> : <Badge tone="ok">Active</Badge>) : '—'}</td>
           <td>{u.role === 'SUPER_ADMIN' ? 'All' : <div className="checks">{CLASSES.map(c => <label key={c} className="check"><input type="checkbox" checked={classes.includes(c)} disabled={busy} onChange={() => run(() => api(`/users/${u.id}/access`, { method: 'PUT', body: { classes: toggle(classes, c) } }))} /> Class {c}</label>)}</div>}</td>
           <td className="actions"><div className="toolbar toolbar--end">

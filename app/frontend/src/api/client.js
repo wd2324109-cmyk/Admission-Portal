@@ -20,6 +20,13 @@ async function send(path, init) {
   } finally { clearTimeout(timer); }
 }
 
+/** True when the API answers at all (any HTTP status). Only a network failure or timeout counts as unreachable. */
+export async function serverReachable() {
+  const ctl = new AbortController(), timer = setTimeout(() => ctl.abort(), 6000);
+  try { await fetch(API + '/health', { cache: 'no-store', signal: ctl.signal, credentials: 'omit', referrerPolicy: 'no-referrer' }); return true; }
+  catch { return false; } finally { clearTimeout(timer); }
+}
+
 const authHeader = () => (getToken() ? { Authorization: 'Bearer ' + getToken() } : {});
 
 const messageFor = (status, data, fallback) => {

@@ -42,9 +42,13 @@ export const vacancyService = {
       else { const i = used.get(k) ?? 0, h = holders.get(k)?.[i]; if (h) { status = 'RESERVED'; who = { id: h.id, name: h.name, emis: h.emis }; used.set(k, i + 1); } }
       rows.push({ seatNo: n, refNo: vacancyRef(r, n), district: r.newDistrict, school: r.newSchoolName, gender: r.gender, medium: r.medium, community: r.community, status, who, remarks: r.remarks });
     }
+    // STATE and SUPER_ADMIN see every district, so they get a district filter.
+    const multi = user.role === 'STATE' || user.role === 'SUPER_ADMIN', dist = multi ? String(query.district || '').trim().toUpperCase() : '';
+    const districts = multi ? [...new Set(rows.map(r => String(r.district ?? '').trim().toUpperCase()).filter(Boolean))].sort() : undefined;
+    if (dist) for (let i = rows.length - 1; i >= 0; i--) if (String(rows[i].district ?? '').trim().toUpperCase() !== dist) rows.splice(i, 1);
     const term = String(query.search || '').trim().toLowerCase(), want = ['JOINED', 'RESERVED', 'VACANT'].includes(query.status) ? query.status : '';
     const counts = rows.reduce((c, r) => ({ ...c, [r.status]: (c[r.status] || 0) + 1 }), {});
     const list = rows.filter(r => (!want || r.status === want) && (!term || (r.who && (r.who.name.toLowerCase().includes(term) || String(r.who.emis).startsWith(term))))), page = Math.max(1, parseInt(query.page, 10) || 1);
-    return { rows: list.slice((page - 1) * 50, page * 50), pages: Math.max(1, Math.ceil(list.length / 50)), counts };
+    return { rows: list.slice((page - 1) * 50, page * 50), pages: Math.max(1, Math.ceil(list.length / 50)), counts, ...(districts ? { districts } : {}) };
   },
 };

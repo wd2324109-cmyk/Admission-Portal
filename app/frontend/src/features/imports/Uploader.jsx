@@ -22,7 +22,7 @@ export default function Uploader({ title, hint, columns, path, cls, canReplace, 
     <div className="toolbar"><input type="file" accept=".xlsx,.xls" aria-label={`${title} file`} onChange={e => { setFile(e.target.files[0] || null); setRes(null); }} /></div>
     {canReplace && <label className="check"><input type="checkbox" checked={replace} onChange={e => setReplace(e.target.checked)} /> Replace existing Class {cls} students (start fresh)</label>}
     {modes && <div className="toolbar"><select aria-label="Mode" value={mode} onChange={e => setMode(e.target.value)}><option value="replace">Replace this class's vacancies</option><option value="append">Add seats (a later round)</option></select></div>}
-    <div className="toolbar"><button type="button" className="btn btn--primary" disabled={busy} onClick={go}>{busy ? 'Importing…' : `Import for Class ${cls}`}</button></div>
+    <div className="toolbar"><button type="button" className="btn btn--primary" disabled={busy || !file} title={file ? undefined : 'Choose an Excel (.xlsx) file first'} onClick={go}>{busy ? 'Importing…' : `Import for Class ${cls}`}</button></div>
     <Alert>{err}</Alert>
     {res && <div className="result">
       <p><b>{res.imported}</b> {res.seats ? `rows imported as ${res.seats} seats` : 'imported'}{res.skippedExisting ? <>, {res.skippedExisting} skipped (already exist)</> : ''}{res.rejectedCount ? <>, <span className="text-bad">{res.rejectedCount} rejected</span></> : ''}.{res.listNumber ? <> The students with a status were added as <b>List {res.listNumber}</b>, after the earlier lists.</> : ''}</p>

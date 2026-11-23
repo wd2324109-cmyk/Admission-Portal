@@ -17,13 +17,19 @@ export async function requireClass(user, cls) {
   return +cls;
 }
 
+// A DMS only ever sees students allotted to its district (newDistcName). A Regional Coordinator also
+// sees the "Not listed" students of its region: they have no allotted district yet, so they are matched
+// on their home district instead (the same column the dashboard groups by).
 export function scope(user, cls) {
   if (user.role === 'DISTRICT' || user.role === 'REGION') {
     const T = studentTable(cls), d = districtsOf(user);
-    return d.length ? inArray(sql`upper(trim(${T.newDistcName}))`, d) : sql`false`;
+    if (!d.length) return sql`false`;
+    const col = user.role === 'REGION' ? sql`upper(trim(coalesce(nullif(trim(${T.newDistcName}), ''), ${T.district})))` : sql`upper(trim(${T.newDistcName}))`;
+    return inArray(col, d);
   }
   return undefined;
 }
 
-export const inScope = (user, st) => user.role === 'SUPER_ADMIN' || user.role === 'STATE' || (['DISTRICT', 'REGION'].includes(user.role) && districtsOf(user).includes(String(st.newDistcName ?? '').trim().toUpperCase()));
+const homeOf = (user, st) => String((user.role === 'REGION' ? String(st.newDistcName ?? '').trim() || st.district : st.newDistcName) ?? '').trim().toUpperCase();
+export const inScope = (user, st) => user.role === 'SUPER_ADMIN' || user.role === 'STATE' || (['DISTRICT', 'REGION'].includes(user.role) && districtsOf(user).includes(homeOf(user, st)));
 export const seatScope = (user, T) => (['DISTRICT', 'REGION'].includes(user.role) ? (districtsOf(user).length ? inArray(sql`upper(trim(${T.newDistrict}))`, districtsOf(user)) : sql`false`) : undefined);

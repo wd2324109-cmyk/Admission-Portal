@@ -71,11 +71,10 @@ export default function StudentModal({ cls, id, user, onClose, onChange, mode = 
     </section>}
 
 
-    {admin && next.length > 0 && <section className="dialog__section"><h3>Correction (super admin)</h3>
-      <p className="muted">Only the next status is offered.</p>
-      <div className="toolbar"><select aria-label="Next status" value={ov.code} onChange={e => setOv({ ...ov, code: e.target.value })}><option value="">Choose next status</option>{next.map(n => <option key={n.code} value={n.code}>{n.label}</option>)}</select></div>
-      <textarea rows="2" aria-label="Reason for the correction (required)" value={ov.remarks} onChange={e => setOv({ ...ov, remarks: e.target.value })} />
-      <div className="toolbar"><button type="button" className="btn btn--danger" disabled={busy || !ov.code} onClick={correct}>Apply correction</button></div>
+    {admin && next.length > 0 && <section className="dialog__section dialog__section--compact"><h3>Correction (super admin) <span className="muted">· only the next status is offered</span></h3>
+      <textarea rows="1" aria-label="Reason for the correction (required)" placeholder="Reason for the correction (required)" value={ov.remarks} onChange={e => setOv({ ...ov, remarks: e.target.value })} />
+      <div className="toolbar"><select aria-label="Next status" value={ov.code} onChange={e => setOv({ ...ov, code: e.target.value })}><option value="">Choose next status</option>{next.map(n => <option key={n.code} value={n.code}>{n.label}</option>)}</select>
+        <button type="button" className="btn btn--danger" disabled={busy || !ov.code} onClick={correct}>Apply correction</button></div>
     </section>}
 
     <Alert>{err}</Alert>

@@ -13,7 +13,7 @@
 .column-chart { width: 100%; height: auto; }
 .hbar { margin-bottom: 14px; } .hbar__top { display: flex; justify-content: space-between; margin-bottom: 5px; font-size: var(--fs-sm); } .hbar__top span { color: var(--muted); font-weight: 600; }
 .hbar__track { display: flex; height: 10px; background: #e8edf3; border-radius: 6px; overflow: hidden; } .hbar__track i { display: block; height: 100%; }
-.seatsum { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; margin: 0; } .seatsum div { padding: 12px 14px; background: var(--navy-50); border-radius: var(--r-md); }
+.seatsum { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; margin: 0; } .seatsum div { padding: 12px 14px; background: var(--navy-50); border-radius: var(--r-md); }
 .seatsum dt { color: var(--muted); font-size: var(--fs-xs); font-weight: 600; } .seatsum dd { margin: 2px 0 0; font-size: 22px; font-weight: 700; color: var(--ink); }
 
 .kv { width: 100%; border-collapse: collapse; } .kv th, .kv td { padding: 8px 6px; border-bottom: 1px solid var(--line); text-align: left; vertical-align: top; font-size: var(--fs-sm); overflow-wrap: anywhere; }

@@ -43,7 +43,8 @@ const cors = corsMiddleware({ CORS_ORIGIN: 'https://admissions.example.gov.in, h
 const preflight = origin => run(cors, { method: 'OPTIONS', headers: { origin, 'access-control-request-method': 'POST' } }).res;
 let r = preflight('https://admissions.example.gov.in');
 assert.equal(r.headers['access-control-allow-origin'], 'https://admissions.example.gov.in');
-assert(!/DELETE|PUT/.test(r.headers['access-control-allow-methods']), 'only the verbs the API uses');
+assert(!/DELETE/.test(r.headers['access-control-allow-methods']), 'only the verbs the API uses (the API has no DELETE route)');
+assert(/\bPUT\b/.test(r.headers['access-control-allow-methods']), 'PUT /api/users/:id/access needs PUT in split-origin deployments');
 assert(/Authorization/.test(r.headers['access-control-allow-headers']));
 r = preflight('https://evil.example.com');
 assert.equal(r.headers['access-control-allow-origin'], undefined, 'other origins get no CORS headers');
