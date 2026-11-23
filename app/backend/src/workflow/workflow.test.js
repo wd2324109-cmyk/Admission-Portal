@@ -2,7 +2,7 @@ import assert from 'node:assert';
 import { planAction, availableActions, nextCodes, assertFresh } from './transitions.js';
 import { stateOf, seatEffect, holdsSeat, groupOf } from './statuses.js';
 import { planList } from './allocation.js';
-import { computeRanks } from './rank.js';
+import { computeRanks, rankRemaining } from './rank.js';
 import { requiredFor, summarize, planSubmit, planReview } from './documents.js';
 
 const S = (a = '', b = '', tag2 = '') => ({ code: b || a, tag2 });
@@ -62,6 +62,10 @@ assert.deepEqual(nextCodes(S('2A', '7A')).sort(), ['2A', '3B', '7B']);
 assert.deepEqual(nextCodes({ code: '8A', tag2: 'TC-RC', prev: '3B' }).sort(), ['3B', '8B']);
 assert.deepEqual(nextCodes(S('2A', '8B', 'TC-DONE')), []);
 assert.deepEqual(nextCodes(S('')), []);
+// Ranks of a later batch start after the last listed student's rank
+{ const rows = [{ id: 1, selectStatus: '2A', orank: 1, total: 500 }, { id: 2, selectStatus: '6A', orank: 2, total: 480 }, { id: 3, selectStatus: '1A', orank: 3, total: 470 },
+    { id: 4, selectStatus: '', orank: 4, total: 300 }, { id: 5, selectStatus: '', orank: null, total: 420 }, { id: 6, selectStatus: '', orank: null, total: 440 }];
+  assert.deepEqual(rankRemaining(rows).sort((a, b) => a[0] - b[0]), [[4, 6], [5, 5], [6, 4]], 'unlisted students are ranked by score from the rank after the last listed student (3)'); }
 
 // Stale screens: a second login / double click must not apply a later step by mistake
 assertFresh({ code: '1A', tag2: '' }, S('1A')); assertFresh(undefined, S('2A'));

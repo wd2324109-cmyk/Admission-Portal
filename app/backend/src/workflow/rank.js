@@ -6,3 +6,10 @@ export function computeRanks(students) {
   const order = [...students].sort((a, b) => score(b) - score(a) || num(b.total) - num(a.total) || num(b.nmss) - num(a.nmss) || num(a.emis) - num(b.emis) || a.id - b.id);
   return new Map(order.map((s, i) => [s.id, i + 1]));
 }
+
+// After lists have started: the students still waiting to be listed are ranked together by score, and their ranks begin right after
+// the rank of the last student already listed. Ranks of students who were listed never change.
+export function rankRemaining(students) {
+  const top = Math.max(0, ...students.filter(s => s.selectStatus).map(s => s.orank).filter(Number.isInteger));
+  return [...computeRanks(students.filter(s => !s.selectStatus))].map(([id, r]) => [id, r + top]);
+}
