@@ -16,7 +16,7 @@ export const ROUTES = [
   { key: 'seats', label: 'Vacancy Management', icon: 'seat', section: 'Admission process', can: u => u.role !== 'DISTRICT', render: user => <Vacancies user={user} /> },
   { key: 'docs', label: 'Document Verification', icon: 'doc', section: 'Admission process', can: u => admin(u) || u.role === 'DISTRICT', render: user => <DocumentVerification user={user} /> },
   { key: 'tc', label: 'TC Requests', icon: 'list', section: 'Admission process', can: everyone, render: user => <TcRequests user={user} /> },
-  { key: 'listreq', label: 'List Requests', icon: 'clock', section: 'Admission process', can: admin, render: () => <ListRequests /> },
+  { key: 'listreq', label: 'List Requests', icon: 'clock', section: 'Admission process', can: admin, render: user => <ListRequests user={user} /> },
   { key: 'import', label: 'Import Data & Lists', icon: 'up', section: 'Admission process', can: admin, render: user => <ImportData user={user} /> },
   { key: 'logs', label: 'Change History', icon: 'log', section: 'Administration', can: admin, render: () => <Logs /> },
   { key: 'users', label: 'Users & Access', icon: 'lock', section: 'Administration', can: admin, render: user => <Users me={user} /> },

@@ -1,7 +1,11 @@
 import { Badge } from '../../components/ui/index.js';
 import { CODE, GROUP_CLASS, GROUP_CLASS_TONE } from '../../lib/status.js';
 
+// Waiting (new list or reconsidered) is shown in white.
+const WAITING = ['1A', '1B'];
+
 export default function StatusBadge({ r }) {
   const label = r.statusCode ? CODE[r.statusCode] || r.statusCode : r.admitStatus || 'Not listed';
-  return <Badge tone={r.statusCode === '7A' ? 'warn' : GROUP_CLASS_TONE[GROUP_CLASS[r.group]] || 'neutral'}>{label}</Badge>;
+  const tone = WAITING.includes(r.statusCode) ? 'outline' : r.statusCode === '7A' ? 'warn' : GROUP_CLASS_TONE[GROUP_CLASS[r.group]] || 'neutral';
+  return <Badge tone={tone}>{label}</Badge>;
 }

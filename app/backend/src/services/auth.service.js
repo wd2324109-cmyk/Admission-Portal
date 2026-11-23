@@ -1,9 +1,9 @@
 import bcrypt from 'bcryptjs';
-import { eq } from 'drizzle-orm';
+import { eq, sql } from 'drizzle-orm';
 import { users } from '../schema/index.js';
 import { db } from '../db/index.js';
 import { signToken } from '../common/auth.js';
-import { newSessionId, pwStamp, forget } from '../common/session.js';
+import { newSessionId, newDeviceId, pwStamp, endDevice } from '../common/session.js';
 import { HttpError } from '../common/http.js';
 import { makeLimiter } from '../common/rateLimit.js';
 import { checkNewPassword } from '../common/password.js';
@@ -26,17 +26,16 @@ export const authService = {
     if (!ok) { byUser.fail(userKey); byIp.fail(ipKey); console.warn(`Failed sign-in for "${name}" from ${ip}`); throw new HttpError('Invalid credentials', 401); }
     byUser.clear(userKey);
     if (await isFrozen(u.username, { fresh: true })) throw new HttpError(FROZEN_MSG, 403, { code: 'ACCOUNT_FROZEN' });
-    const sid = newSessionId();
-    await db.update(users).set({ sessionId: sid }).where(eq(users.id, u.id));
-    const profile = profileOf(u);
-    return { token: signToken({ ...profile, sid, t: Date.now(), pv: pwStamp(u.passwordHash) }), user: { ...profile, classes: await classesOf(profile) } };
+    // Signing in again does not end the other devices: the account session id is kept if there is one, and this device gets its own id.
+    const [{ sid }] = await db.update(users).set({ sessionId: sql`coalesce(${users.sessionId}, ${newSessionId()})` }).where(eq(users.id, u.id)).returning({ sid: users.sessionId });
+    const did = newDeviceId(), profile = profileOf(u);
+    return { token: signToken({ ...profile, sid, did, t: Date.now(), pv: pwStamp(u.passwordHash) }), user: { ...profile, classes: await classesOf(profile) } };
   },
   async logout({ user }) {
-    await db.update(users).set({ sessionId: null }).where(eq(users.id, user.id));
-    forget(user.sid);
+    endDevice(user.did);
     return { ok: true };
   },
-  async session({ user }) { const { sid, ...profile } = user; return { ok: true, user: { ...profile, classes: await classesOf(profile) } }; },
+  async session({ user }) { const { sid, did, ...profile } = user; return { ok: true, user: { ...profile, classes: await classesOf(profile) } }; },
   async changePassword({ user, body }) {
     const { currentPassword, newPassword } = body || {};
     if (!currentPassword || !newPassword) throw new HttpError('Current and new password are required');
@@ -49,7 +48,7 @@ export const authService = {
     byPwChange.clear(key);
     const hash = await bcrypt.hash(String(newPassword), 12), sid = newSessionId();
     await db.update(users).set({ passwordHash: hash, sessionId: sid }).where(eq(users.id, u.id));
-    const { sid: _old, ...profile } = user;
-    return { ok: true, token: signToken({ ...profile, sid, t: Date.now(), pv: pwStamp(hash) }) };
+    const { sid: _old, did, ...profile } = user;
+    return { ok: true, token: signToken({ ...profile, sid, did, t: Date.now(), pv: pwStamp(hash) }) };
   },
 };

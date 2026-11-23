@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { api } from '../../api/index.js';
-import { ALL_CODES, CODE, LETTER_KINDS, stageOf } from '../../lib/status.js';
+import { LETTER_KINDS, stageOf } from '../../lib/status.js';
 import { toBase64 } from '../../lib/format.js';
 import { Alert, Modal, useConfirm } from '../../components/ui/index.js';
 import StatusBadge from './StatusBadge.jsx';
@@ -14,12 +14,14 @@ export default function StudentModal({ cls, id, user, onClose, onChange, mode = 
   const confirm = useConfirm();
   const [s, setS] = useState(null), [err, setErr] = useState(''), [remarks, setRemarks] = useState(''), [ov, setOv] = useState({ code: '', remarks: '' }), [busy, setBusy] = useState(false), [letters, setLetters] = useState(NO_LETTERS);
 
-  const load = () => api(`/students/${cls}/${id}`).then(x => { setS(x); setOv(o => ({ ...o, code: x.state.code })); }).catch(e => setErr(e.message));
+  const load = () => api(`/students/${cls}/${id}`).then(x => { setS(x); setOv(o => ({ ...o, code: '' })); }).catch(e => setErr(e.message));
   useEffect(() => { load(); }, [cls, id]);
 
   if (!s) return <Modal title="Student record" onClose={onClose}>{err ? <Alert>{err}</Alert> : <p className="muted">Loading…</p>}</Modal>;
 
-  const run = async fn => { try { setBusy(true); await fn(); setErr(''); setRemarks(''); await load(); onChange(); } catch (e) { setErr(e.message); } finally { setBusy(false); } };
+  // Always re-read the student afterwards: if another login changed it first, the screen shows the real status.
+  const expect = () => ({ code: s.statusCode || '', tag2: s.state?.tag2 || '' });
+  const run = async fn => { try { setBusy(true); await fn(); setErr(''); setRemarks(''); await load(); onChange(); } catch (e) { setErr(e.message); await load(); onChange(); } finally { setBusy(false); } };
 
   const pickLetter = async (kind, f) => {
     if (!f) return setLetters(x => ({ ...x, [kind]: null }));
@@ -35,20 +37,22 @@ export default function StudentModal({ cls, id, user, onClose, onChange, mode = 
       if (miss) return setErr(`Upload the ${LETTER_KINDS[miss]} (PDF, JPG or PNG, under 3 MB) before submitting`);
     }
     if (isTc && !(await confirm({ title: 'Request a TC?', message: `Request a TC for ${s.name} with the TC request letter you added?\n\nThe request goes to the Regional Coordinator, then to the State Regional Coordinator. Once submitted, the letter cannot be edited.`, confirmLabel: 'Request TC' }))) return;
+    if (a.key === 'JOINED_HM' && !(await confirm({ title: 'Mark as joined?', message: `Confirm that ${s.name} has been relieved and has joined your school. This takes the seat.`, confirmLabel: 'Joined' }))) return;
     if (a.needsLetter && !isTc && !(await confirm({ title: 'Submit with letters?', message: `Submit "${a.label}" with the two letters?\n\nOnce submitted, the letters cannot be edited.`, confirmLabel: 'Submit' }))) return;
     run(async () => {
-      await api(`/students/${cls}/${id}/action`, { method: 'POST', body: { action: a.key, remarks, ...(a.needsLetter ? { letters: Object.fromEntries(need.map(k => [k, { fileName: letters[k].name, fileData: letters[k].data }])) } : {}) } });
+      await api(`/students/${cls}/${id}/action`, { method: 'POST', body: { action: a.key, remarks, expect: expect(), ...(a.needsLetter ? { letters: Object.fromEntries(need.map(k => [k, { fileName: letters[k].name, fileData: letters[k].data }])) } : {}) } });
       setLetters(NO_LETTERS);
     });
   };
 
   const correct = async () => {
-    if (!(await confirm({ title: 'Apply correction?', message: 'Force this status? The seat and the logs are updated.', confirmLabel: 'Apply correction', danger: true }))) return;
-    run(async () => { await api(`/students/${cls}/${id}/override`, { method: 'POST', body: ov }); setOv(o => ({ ...o, remarks: '' })); });
+    if (!ov.code) return setErr('Choose the next status');
+    if (!(await confirm({ title: 'Apply correction?', message: `Move ${s.name} to \"${stageOf(ov.code)}\"? The seat and the logs are updated.`, confirmLabel: 'Apply correction', danger: true }))) return;
+    run(async () => { await api(`/students/${cls}/${id}/override`, { method: 'POST', body: { ...ov, expect: expect() } }); setOv(o => ({ ...o, remarks: '' })); });
   };
 
   const tcWait = a => a.key === 'TC_REQUEST' && !((a.letters || []).every(k => letters[k]) && remarks.trim());
-  const tcMode = mode === 'tc', acts = s.actions.filter(a => tcMode === isTcStep(a)), needsRemarks = acts.some(a => a.needsRemarks), need = acts.find(a => a.needsLetter)?.letters || [], admin = user.role === 'SUPER_ADMIN' && !tcMode;
+  const tcMode = mode === 'tc', acts = s.actions.filter(a => tcMode === isTcStep(a)), needsRemarks = acts.some(a => a.needsRemarks), need = acts.find(a => a.needsLetter)?.letters || [], admin = user.role === 'SUPER_ADMIN' && !tcMode, next = s.nextStatuses || [];
 
   return <Modal title={s.name} titleExtra={<StatusBadge r={s} />} width={780} onClose={onClose} footer={<button type="button" className="btn" onClick={onClose}>Close</button>}>
     <StudentInfo s={s} cls={cls} id={id} onError={setErr} />
@@ -66,10 +70,11 @@ export default function StudentModal({ cls, id, user, onClose, onChange, mode = 
     </section>}
 
 
-    {admin && <section className="dialog__section"><h3>Correction (super admin)</h3>
-      <div className="toolbar"><select aria-label="Status" value={ov.code} onChange={e => setOv({ ...ov, code: e.target.value })}>{ALL_CODES.map(c => <option key={c} value={c}>{c ? CODE[c] : 'Not listed (clear)'}</option>)}</select></div>
+    {admin && next.length > 0 && <section className="dialog__section"><h3>Correction (super admin)</h3>
+      <p className="muted">Only the next status is offered.</p>
+      <div className="toolbar"><select aria-label="Next status" value={ov.code} onChange={e => setOv({ ...ov, code: e.target.value })}><option value="">Choose next status</option>{next.map(n => <option key={n.code} value={n.code}>{n.label}</option>)}</select></div>
       <textarea rows="2" aria-label="Reason for the correction (required)" value={ov.remarks} onChange={e => setOv({ ...ov, remarks: e.target.value })} />
-      <div className="toolbar"><button type="button" className="btn btn--danger" disabled={busy} onClick={correct}>Apply correction</button></div>
+      <div className="toolbar"><button type="button" className="btn btn--danger" disabled={busy || !ov.code} onClick={correct}>Apply correction</button></div>
     </section>}
 
     <Alert>{err}</Alert>

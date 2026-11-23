@@ -78,16 +78,20 @@ try {
   assert.equal((await call(dms, 'GET', '/students?class=10')).status, 403, 'no access row for class 10');
   assert.equal((await call(dms, 'POST', '/lists/generate', { classLevel: 9 })).status, 403);
 
-  await ok(admin, 'POST', `/students/9/${s1.id}/override`, { code: '3B', remarks: 'TC was a mistake' });
-  const fixed = await ok(admin, 'GET', `/students/9/${s1.id}`); assert.equal(fixed.statusCode, '3B'); assert.equal(fixed.selectStatus, '3B'); assert.equal(fixed.admitStatus, 'Joined by RC', 'admit_status holds the description of select_status');
+  assert.equal((await call(admin, 'POST', `/students/9/${s1.id}/override`, { code: '3B', remarks: 'TC was a mistake' })).status, 409, 'correction offers the next status only; TC Issued is the last one');
+  assert.deepEqual((await ok(admin, 'GET', `/students/9/${s2.id}`)).nextStatuses.map(n => n.code).sort(), ['2A', '6A'], 'a reconsidered student: Selected or Not Selected');
+  await ok(admin, 'POST', `/students/9/${s2.id}/override`, { code: '2A', remarks: 'reconsideration accepted' });
+  const fixed = await ok(admin, 'GET', `/students/9/${s2.id}`); assert.equal(fixed.statusCode, '2A'); assert.equal(fixed.selectStatus, '2A'); assert.equal(fixed.admitStatus, 'Selected', 'admit_status holds the description of select_status');
 
   const slog = await ok(admin, 'GET', '/logs/students?class=9'), vlog = await ok(admin, 'GET', '/logs/vacancies?class=9');
-  assert(slog.length >= 12 && vlog.length >= 3, `logs written (${slog.length}, ${vlog.length})`);
+  assert(slog.length >= 12 && vlog.length >= 2, `logs written (${slog.length}, ${vlog.length})`);
   assert(slog.some(l => l.updateStatusBefore === '3A' && l.updateStatusAfter === '8A'));
 
-  const again = await login('superadmin', env.SEED_ADMIN_PASSWORD); assert.equal((await call(admin, 'GET', '/auth/session')).status, 401); assert.equal((await call(again, 'GET', '/auth/session')).status, 200);
+  const again = await login('superadmin', env.SEED_ADMIN_PASSWORD); assert.equal((await call(admin, 'GET', '/auth/session')).status, 200, 'a second sign-in does not end the first device'); assert.equal((await call(again, 'GET', '/auth/session')).status, 200);
+  await ok(again, 'POST', '/auth/logout'); assert.equal((await call(again, 'GET', '/auth/session')).status, 401, 'signing out ends only that device'); assert.equal((await call(admin, 'GET', '/auth/session')).status, 200);
+  const again2 = await login('superadmin', env.SEED_ADMIN_PASSWORD);
 
-  const x = await fetch(B + '/export/master?class=9', { headers: { Authorization: 'Bearer ' + again } }); const wb = XLSX.read(Buffer.from(await x.arrayBuffer()));
+  const x = await fetch(B + '/export/master?class=9', { headers: { Authorization: 'Bearer ' + again2 } }); const wb = XLSX.read(Buffer.from(await x.arrayBuffer()));
   assert(Object.keys(XLSX.utils.sheet_to_json(wb.Sheets.Students)[0]).includes('mark1-quertly'));
 
   const { verify } = await import('../src/dbVerify.js'); const problems = await verify(pool); assert.deepEqual(problems, []);

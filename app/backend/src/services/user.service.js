@@ -7,7 +7,7 @@ import { randPw } from '../common/excel.js';
 import { ACTIVE } from '../common/access.js';
 import { CLASSES } from '../common/studentStore.js';
 import { FROZEN, ALL_CLASSES, forgetFrozen } from '../common/freeze.js';
-import { forget } from '../common/session.js';
+import { forget, isSignedIn } from '../common/session.js';
 
 const ROLE = ['SUPER_ADMIN', 'STATE', 'REGION', 'DISTRICT'];
 const classList = v => [...new Set((Array.isArray(v) ? v : []).map(Number).filter(c => CLASSES.includes(c)))].sort();
@@ -20,9 +20,9 @@ export async function setAccess(tx, username, classes) {
 export const userService = {
   async list() {
     const [rows, acc] = await Promise.all([
-      db.select({ id: users.id, username: users.username, role: users.role, region: users.region, district: users.district, sessionId: users.sessionId }).from(users).orderBy(asc(users.role), asc(users.username)),
+      db.select({ id: users.id, username: users.username, role: users.role, region: users.region, district: users.district, }).from(users).orderBy(asc(users.role), asc(users.username)),
       db.select().from(access)]);
-    return rows.map(({ sessionId, ...u }) => ({ ...u, signedIn: !!sessionId, frozen: acc.some(a => a.user === u.username && a.tag === FROZEN), classes: acc.filter(a => a.user === u.username && a.tag === ACTIVE).map(a => +a.classLevel).sort() }));
+    return rows.map(u => ({ ...u, signedIn: isSignedIn(u.id), frozen: acc.some(a => a.user === u.username && a.tag === FROZEN), classes: acc.filter(a => a.user === u.username && a.tag === ACTIVE).map(a => +a.classLevel).sort() }));
   },
   async create({ body }) {
     const { username, role, region, district } = body || {};

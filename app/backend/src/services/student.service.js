@@ -8,19 +8,43 @@ import { likeEsc } from '../common/query.js';
 import { requireClass, scope, inScope } from '../common/access.js';
 import { studentTable, parseClass, norm, pick } from '../common/studentStore.js';
 import { logStudent } from '../common/logs.js';
-import { joinSeat, releaseSeat } from '../common/seats.js';
+import { joinSeat, releaseSeat, seatTable, VACANT } from '../common/seats.js';
 import { lockClass } from '../common/locks.js';
 import { saveUpload } from '../common/upload.js';
 import { getLetter, allLetters, putLetter, KINDS, STAGE_KINDS } from '../common/letters.js';
 import { UPLOADS } from '../common/paths.js';
 import { STATUS, GROUP_SQL, stateOf, groupOf, seatEffect, primary, statusColumns } from '../workflow/statuses.js';
-import { planAction, availableActions, VALID_CODES } from '../workflow/transitions.js';
+import { planAction, availableActions, nextCodes, assertFresh, VALID_CODES } from '../workflow/transitions.js';
 
 const SIZE = 25;
-export const view = (row, cls, role) => {
+export const view = (row, cls, role, prev) => {
   const st = stateOf(row);
-  return { ...norm(row, cls), ...statusColumns(primary(st)), state: st, group: groupOf(st), statusCode: primary(st), statusLabel: STATUS[primary(st)]?.label ?? 'Not listed', actions: availableActions(role, st) };
+  if (prev) st.prev = prev;
+  const next = role === 'SUPER_ADMIN' ? nextCodes(st).map(c => ({ code: c, label: STATUS[c].label })) : [];
+  return { ...norm(row, cls), ...statusColumns(primary(st)), state: { code: st.code, tag2: st.tag2 }, group: groupOf(st), statusCode: primary(st), statusLabel: STATUS[primary(st)]?.label ?? 'Not listed', actions: availableActions(role, st), nextStatuses: next };
 };
+
+const SEAT_HOLDERS = ['1A', '2A', '7A'];
+const up = c => sql`upper(trim(coalesce(${c}, '')))`, U = v => String(v ?? '').trim().toUpperCase();
+
+// A TC Issued / joined student came from 3A or 3B; the TC reject step and the correction list need to know which.
+async function joinedBefore(tx, cls, row) {
+  if (stateOf(row).code !== '8A') return undefined;
+  const [lg] = await tx.select().from(studentLog).where(and(eq(studentLog.class, row.class ?? String(cls)), eq(studentLog.emis, row.emis), eq(studentLog.updateStatusAfter, '8A'), inArray(studentLog.updateStatusBefore, ['3A', '3B']))).orderBy(sql`${studentLog.id} desc`).limit(1);
+  return lg?.updateStatusBefore || '3A';
+}
+
+// A Not Willing student gave the seat up, so selecting a reconsidered student again needs a free seat in the same group.
+async function requireOpenSeat(tx, cls, row) {
+  const T = studentTable(cls), V = seatTable(cls);
+  // Two logins selecting students of the same seat group must not both take the last seat: one at a time per group.
+  await tx.execute(sql`select pg_advisory_xact_lock(${7303}::int, hashtext(${[cls, row.newDistcName, row.newUdiseCode, row.gender, row.medium, row.selectedCategory].map(U).join('|')}::text))`);
+  const [{ vacant }] = await tx.select({ vacant: sql`count(*)::int` }).from(V).where(and(eq(V.classLevel, +cls), eq(V.vacancyStatus, VACANT), eq(up(V.newDistrict), U(row.newDistcName)), eq(up(V.newUdiseCode), U(row.newUdiseCode)),
+    eq(up(V.gender), U(row.gender)), eq(up(V.medium), U(row.medium)), eq(up(V.community), U(row.selectedCategory))));
+  const [{ held }] = await tx.select({ held: sql`count(*)::int` }).from(T).where(and(inArray(T.selectStatus, SEAT_HOLDERS), sql`${T.id} <> ${row.id}`, eq(up(T.newDistcName), U(row.newDistcName)), eq(up(T.newUdiseCode), U(row.newUdiseCode)),
+    eq(up(T.gender), U(row.gender)), eq(up(T.medium), U(row.medium)), eq(up(T.selectedCategory), U(row.selectedCategory))));
+  if (vacant - held < 1) throw new HttpError('No vacancy: every seat in this student\'s group is taken. Choose "Not Selected" or wait for a seat to be released.', 409);
+}
 const nul = v => (v === '' || v === undefined ? null : v);
 
 async function load(tx, user, cls, id, lock = false) {
@@ -53,9 +77,10 @@ export const studentService = {
   },
   async getById({ user, params }) {
     const cls = await requireClass(user, parseClass(params.cls)), row = await load(db, user, cls, params.id);
+    const prev = await joinedBefore(db, cls, row);
     const logs = row.emis == null || user.role !== 'SUPER_ADMIN' ? [] : await db.select().from(studentLog).where(and(eq(studentLog.class, row.class ?? String(cls)), eq(studentLog.emis, row.emis))).orderBy(sql`${studentLog.id} desc`).limit(50);
     const letters = await allLetters(cls, row.id);
-    return { ...view(row, cls, user.role), letters, logs: logs.map(l => ({ id: l.id, before: l.updateStatusBefore, after: l.updateStatusAfter, by: l.updatedBy, at: l.updatedAt, tag: l.tag1, remarks: l.remark1 })) };
+    return { ...view(row, cls, user.role, prev), letters, logs: logs.map(l => ({ id: l.id, before: l.updateStatusBefore, after: l.updateStatusAfter, by: l.updatedBy, at: l.updatedAt, tag: l.tag1, remarks: l.remark1 })) };
   },
 
   async act({ user, params, body }) {
@@ -66,11 +91,11 @@ export const studentService = {
         await lockClass(tx, cls);
         const row = await load(tx, user, cls, params.id, true), st = stateOf(row);
 
-        if (st.code === '8A') {
-          const [lg] = await tx.select().from(studentLog).where(and(eq(studentLog.class, row.class ?? String(cls)), eq(studentLog.emis, row.emis), eq(studentLog.updateStatusAfter, '8A'), inArray(studentLog.updateStatusBefore, ['3A', '3B']))).orderBy(sql`${studentLog.id} desc`).limit(1);
-          st.prev = lg?.updateStatusBefore || '3A';
-        }
+        assertFresh(body?.expect, st);
+        const prev = await joinedBefore(tx, cls, row);
+        if (prev) st.prev = prev;
         const plan = planAction(user.role, st, body?.action, body?.remarks);
+        if (plan.after.code === '2A' && st.code === '1B') await requireOpenSeat(tx, cls, row);
         if (plan.needsLetter) {
           for (const k of plan.letters) if (!body?.letters?.[k]?.fileData) throw new HttpError(`Upload the ${KINDS[k]} (PDF, JPG or PNG, under 3 MB)`);
           for (const k of plan.letters) saved.push({ kind: k, ...(await saveUpload(body.letters[k].fileName, body.letters[k].fileData)) });
@@ -97,10 +122,13 @@ export const studentService = {
     await db.transaction(async tx => {
       await lockClass(tx, cls);
       const row = await load(tx, user, cls, params.id, true);
-      if (code && !(row.newDistcName && row.selectedCategory)) throw new HttpError('This student has not been allotted to a school by a list yet', 409);
+      const st = stateOf(row), prev = await joinedBefore(tx, cls, row);
+      assertFresh(body?.expect, st);
+      if (prev) st.prev = prev;
+      if (!code || !nextCodes(st).includes(code)) throw new HttpError(`Correction can only move this student to the next status: ${nextCodes(st).map(c => STATUS[c].label).join(' or ') || 'none (this is the last status)'}`, 409);
+      if (!(row.newDistcName && row.selectedCategory)) throw new HttpError('This student has not been allotted to a school by a list yet', 409);
       await commit(tx, user, cls, row, { ...statusColumns(code), tag1: 'OVERRIDE', remark1: note,
-        tag2: code === '8B' ? 'TC-DONE' : code === '8A' ? (row.tag2 && row.tag2 !== 'TC-DONE' ? row.tag2 : 'TC-RC') : null,
-        ...(!code ? { selectedCategory: null, newDistcName: null, newUdiseType: null, newUdiseCode: null, newSchoolName: null } : {}) });
+        tag2: code === '8B' ? 'TC-DONE' : code === '8A' ? (row.tag2 && row.tag2 !== 'TC-DONE' ? row.tag2 : 'TC-RC') : null });
     });
     return { ok: true };
   },

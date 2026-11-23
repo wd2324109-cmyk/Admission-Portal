@@ -1,5 +1,5 @@
 import assert from 'node:assert';
-import { planAction, availableActions } from './transitions.js';
+import { planAction, availableActions, nextCodes, assertFresh } from './transitions.js';
 import { stateOf, seatEffect, holdsSeat, groupOf } from './statuses.js';
 import { planList } from './allocation.js';
 import { computeRanks } from './rank.js';
@@ -45,6 +45,29 @@ fails(() => run('SUPER_ADMIN', S('2A'), 'JOINED_HM'), 403); fails(() => run('SUP
 assert.deepEqual(availableActions('REGION', S('1A')), []);
 assert.deepEqual(availableActions('STATE', S('2A', '8A', 'TC-SRC')).map(a => a.key).sort(), ['TC_STATE_APPROVE', 'TC_STATE_REJECT']);
 assert.equal(groupOf(S('6A')), 'notwilling');
+// Reconsideration: the super admin decides with Selected / Not Selected only
+assert.deepEqual(availableActions('SUPER_ADMIN', S('1B')).map(a => a.label).sort(), ['Not Selected', 'Selected']);
+assert.equal(run('SUPER_ADMIN', S('1B'), 'RECONSIDER_SELECT').code, '2A');
+assert.equal(run('SUPER_ADMIN', S('1B'), 'RECONSIDER_REJECT').code, '6A');
+fails(() => run('DISTRICT', S('1B'), 'RECONSIDER_SELECT'), 403); fails(() => run('SUPER_ADMIN', S('1A'), 'RECONSIDER_SELECT'), 409); fails(() => planAction('SUPER_ADMIN', S('1B'), 'RECONSIDER_REJECT', ''), 400);
+assert.deepEqual(availableActions('SUPER_ADMIN', S('1A')), []);
+
+// Correction offers the next status only
+assert.deepEqual(nextCodes(S('1A')).sort(), ['2A', '6A']);
+assert.deepEqual(nextCodes(S('1B')).sort(), ['2A', '6A']);
+assert.deepEqual(nextCodes(S('6A')), ['1B']);
+assert.deepEqual(nextCodes(S('2A')).sort(), ['3A', '7A']);
+assert.deepEqual(nextCodes(S('2A', '3A')), ['8A']);
+assert.deepEqual(nextCodes(S('2A', '7A')).sort(), ['2A', '3B', '7B']);
+assert.deepEqual(nextCodes({ code: '8A', tag2: 'TC-RC', prev: '3B' }).sort(), ['3B', '8B']);
+assert.deepEqual(nextCodes(S('2A', '8B', 'TC-DONE')), []);
+assert.deepEqual(nextCodes(S('')), []);
+
+// Stale screens: a second login / double click must not apply a later step by mistake
+assertFresh({ code: '1A', tag2: '' }, S('1A')); assertFresh(undefined, S('2A'));
+fails(() => assertFresh({ code: '1A', tag2: '' }, S('2A')), 409);
+fails(() => assertFresh({ code: '8A', tag2: 'TC-RC' }, S('2A', '8A', 'TC-SRC')), 409);
+
 
 const seat = (community, status = 'VACANT', extra = {}) => ({ newDistrict: 'ERODE', newUdiseCode: 'U1', newSchoolName: 'DMS ERODE', gender: 'Boy', medium: 'Tamil', community, vacancyStatus: status, classLevel: 9, ...extra });
 let n = 0;
