@@ -2,13 +2,13 @@ import { useState } from 'react';
 import { api } from '../../api/index.js';
 import { useFetch } from '../../hooks/useFetch.js';
 import { ts } from '../../lib/format.js';
-import { Alert, Badge, Empty, PageHeader, Segmented, Table, useConfirm } from '../../components/ui/index.js';
+import { Alert, Badge, Empty, Loading, PageHeader, Segmented, Table, useConfirm } from '../../components/ui/index.js';
 import ReconsiderRequests from './ReconsiderRequests.jsx';
 
 export default function ListRequests({ user }) {
   const confirm = useConfirm();
   const [kind, setKind] = useState('list'), [tab, setTab] = useState('OPEN'), [busy, setBusy] = useState(false), [err, setErr] = useState('');
-  const { data, error, reload } = useFetch(() => api(`/list-requests?status=${tab === 'ALL' ? '' : tab}`), [tab]);
+  const { data, error, loading, reload } = useFetch(() => api(`/list-requests?status=${tab === 'ALL' ? '' : tab}`), [tab]);
   const rows = data?.rows || [];
   const run = async fn => { try { setBusy(true); setErr(''); await fn(); reload(); } catch (e) { setErr(e.message); } finally { setBusy(false); } };
   const freeze = async r => { if (await confirm({ title: 'Freeze this login?', message: `Freeze ${r.requestedBy}? They are signed out now and cannot sign in until you unfreeze.`, confirmLabel: 'Freeze', danger: true })) run(() => api(`/users/${r.userId}/freeze`, { method: 'POST' })); };
@@ -35,7 +35,8 @@ export default function ListRequests({ user }) {
             {r.status === 'OPEN' && <button type="button" className="btn btn--sm btn--primary" disabled={busy} onClick={() => done(r)}>Mark done</button>}
           </div></td></tr>)}</tbody>
       </Table>
-      {!rows.length && !error && <Empty>No requests in this view.</Empty>}
+      {loading && !error && <Loading />}
+      {!loading && !rows.length && !error && <Empty>No requests in this view.</Empty>}
     </section>
     </>}
   </>;

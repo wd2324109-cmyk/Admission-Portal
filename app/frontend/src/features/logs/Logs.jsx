@@ -8,11 +8,11 @@ import { Alert, Empty, PageHeader, Segmented, Table } from '../../components/ui/
 export default function Logs() {
   const [kind, setKind] = useState('students'), [cls, setCls] = useState(''), [search, setSearch] = useState('');
   const q = useDebounced(search);
-  const { data, error } = useFetch(() => api(`/logs/${kind}?class=${cls}&q=${encodeURIComponent(q)}`), [kind, cls, q], []);
+  const { data, error, loading } = useFetch(() => api(`/logs/${kind}?class=${cls}&q=${encodeURIComponent(q)}`), [kind, cls, q], []);
   const rows = data || [], students = kind === 'students';
   return <>
     <PageHeader title="Change History" />
-    <div className="filters"><Segmented label="Log" items={[['students', 'Student_LOG'], ['vacancies', 'VACANCY_logs']]} value={kind} onChange={setKind} /></div>
+    <div className="filters"><Segmented label="Log" items={[['students', 'Student changes'], ['vacancies', 'Seat changes']]} value={kind} onChange={setKind} /></div>
     <section className="panel">
       <div className="toolbar">
         <input className="grow" type="search" aria-label="Search" placeholder={students ? 'Search name / EMIS / user' : 'Search district / EMIS / user'} value={search} onChange={e => setSearch(e.target.value)} />
@@ -28,7 +28,8 @@ export default function Logs() {
         : <Table><thead><tr><th>#</th><th>Time</th><th>User</th><th>Class</th><th>District</th><th>School</th><th>Seat group</th><th>EMIS</th><th>Change</th></tr></thead>
           <tbody>{rows.map(l => <tr key={l.id}><td>{l.id}</td><td>{ts(l.updatedAt)}</td><td>{l.updatedBy}</td><td>{l.classLevel}</td><td>{l.newDistrict}</td><td>{l.newSchoolName || '—'}</td>
             <td>{l.gender} / {l.medium} / {l.community}</td><td>{l.vacancyRefNo ?? '—'}</td><td>{l.updateStatusBefore} → {l.updateStatusAfter}</td></tr>)}</tbody></Table>}
-      {!rows.length && !error && <Empty>No entries.</Empty>}
+      {loading && !rows.length && !error && <p className="empty" role="status">Loading…</p>}
+      {!loading && !rows.length && !error && <Empty>No entries.</Empty>}
     </section>
   </>;
 }

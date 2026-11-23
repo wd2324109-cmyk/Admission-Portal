@@ -21,7 +21,7 @@ export const authService = {
     const name = String(username).slice(0, 100), userKey = `${ip}|${name.toLowerCase()}`, ipKey = `ip|${ip}`;
     if (byUser.blocked(userKey) || byIp.blocked(ipKey))
       throw new HttpError('Too many failed attempts. Try again later.', 429, { retryAfter: Math.max(byUser.retryAfter(userKey), byIp.retryAfter(ipKey)) });
-    const [u] = await db.select().from(users).where(eq(users.username, name));
+    const [u] = await db.select().from(users).where(sql`lower(${users.username}) = ${name.trim().toLowerCase()}`);
     const ok = (await bcrypt.compare(String(password), u ? u.passwordHash : DUMMY)) && !!u;
     if (!ok) { byUser.fail(userKey); byIp.fail(ipKey); console.warn(`Failed sign-in for "${name}" from ${ip}`); throw new HttpError('Invalid credentials', 401); }
     byUser.clear(userKey);

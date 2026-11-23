@@ -4,7 +4,7 @@ import { useDebounced } from '../../hooks/useDebounced.js';
 import { useFetch } from '../../hooks/useFetch.js';
 import { usePage } from '../../hooks/usePage.js';
 import { DOC_SHORT, DOC_STATES, DOC_STATUS, DOC_TABS, firstClass } from '../../lib/status.js';
-import { Alert, Badge, ClassTabs, Empty, PageHeader, Pager, Segmented, Table } from '../../components/ui/index.js';
+import { Alert, Badge, ClassTabs, Empty, Loading, PageHeader, Pager, Segmented, Table } from '../../components/ui/index.js';
 import DocumentsModal from './DocumentsModal.jsx';
 
 const EMPTY = { rows: [], pages: 1, total: 0 };
@@ -14,7 +14,7 @@ export default function DocumentVerification({ user }) {
   const dms = user.role === 'DISTRICT', admin = user.role === 'SUPER_ADMIN';
   const [cls, setCls] = useState(firstClass(user)), [search, setSearch] = useState(''), [state, setState] = useState(admin ? 'PENDING' : ''), [open, setOpen] = useState(null);
   const q = useDebounced(search), [page, setPage] = usePage(cls, q, state);
-  const { data, error, reload } = useFetch(() => api(`/documents?class=${cls}&state=${state}&search=${encodeURIComponent(q)}&page=${page}`), [cls, q, state, page], EMPTY);
+  const { data, error, loading, reload } = useFetch(() => api(`/documents?class=${cls}&state=${state}&search=${encodeURIComponent(q)}&page=${page}`), [cls, q, state, page], EMPTY);
   return <>
     <PageHeader title="Document Verification" />
     <div className="filters"><ClassTabs user={user} cls={cls} onChange={setCls} /></div>
@@ -30,7 +30,8 @@ export default function DocumentVerification({ user }) {
           <td><Badge tone={tone}>{label}</Badge></td>
           <td className="actions"><button type="button" className="btn btn--sm" aria-label={`${dms ? 'Documents of' : 'Review'} ${r.name}`} onClick={() => setOpen(r.id)}>{dms ? 'Documents' : 'Review'}</button></td></tr>; })}</tbody>
       </Table>
-      {!data.rows.length && !error && <Empty>No joined students in this view.</Empty>}
+      {loading && !error && <Loading />}
+      {!loading && !data.rows.length && !error && <Empty>No joined students in this view.</Empty>}
       <Pager page={page} pages={data.pages} onPage={setPage} />
     </section>
     {open && <DocumentsModal cls={cls} id={open} user={user} onClose={() => setOpen(null)} onChange={reload} />}

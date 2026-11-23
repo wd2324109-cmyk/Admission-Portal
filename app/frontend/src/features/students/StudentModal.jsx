@@ -48,6 +48,7 @@ export default function StudentModal({ cls, id, user, onClose, onChange, mode = 
 
   const correct = async () => {
     if (!ov.code) return setErr('Choose the next status');
+    if (!ov.remarks.trim()) return setErr('Enter the reason for the correction');
     if (!(await confirm({ title: 'Apply correction?', message: `Move ${s.name} to \"${stageOf(ov.code)}\"? The seat and the logs are updated.`, confirmLabel: 'Apply correction', danger: true }))) return;
     run(async () => { await api(`/students/${cls}/${id}/override`, { method: 'POST', body: { ...ov, expect: expect() } }); setOv(o => ({ ...o, remarks: '' })); }, { close: true });
   };
@@ -67,15 +68,15 @@ export default function StudentModal({ cls, id, user, onClose, onChange, mode = 
         </div>)}
       </div>}
       {needsRemarks && <textarea rows="2" aria-label="Remarks" value={remarks} onChange={e => setRemarks(e.target.value)} />}
+      {acts.some(tcWait) && <p className="hint">To request a TC, add a note and attach the TC letter.</p>}
       <div className="toolbar">{acts.map(a => <button key={a.key} type="button" className={`btn ${/^NOT_|REJECT/.test(a.key) ? 'btn--danger' : 'btn--primary'}`} disabled={busy || tcWait(a)} onClick={() => go(a)}>{a.label}</button>)}</div>
     </section>}
 
 
-    {admin && next.length > 0 && <section className="dialog__section"><h3>Correction (super admin)</h3>
-      <p className="muted">Only the next status is offered.</p>
-      <div className="toolbar"><select aria-label="Next status" value={ov.code} onChange={e => setOv({ ...ov, code: e.target.value })}><option value="">Choose next status</option>{next.map(n => <option key={n.code} value={n.code}>{n.label}</option>)}</select></div>
-      <textarea rows="2" aria-label="Reason for the correction (required)" value={ov.remarks} onChange={e => setOv({ ...ov, remarks: e.target.value })} />
-      <div className="toolbar"><button type="button" className="btn btn--danger" disabled={busy || !ov.code} onClick={correct}>Apply correction</button></div>
+    {admin && next.length > 0 && <section className="dialog__section dialog__section--compact"><h3>Correction (super admin) <span className="muted">· only the next status is offered</span></h3>
+      <textarea rows="1" aria-label="Reason for the correction (required)" placeholder="Reason for the correction (required)" value={ov.remarks} onChange={e => setOv({ ...ov, remarks: e.target.value })} />
+      <div className="toolbar"><select aria-label="Next status" value={ov.code} onChange={e => setOv({ ...ov, code: e.target.value })}><option value="">Choose next status</option>{next.map(n => <option key={n.code} value={n.code}>{n.label}</option>)}</select>
+        <button type="button" className="btn btn--danger" disabled={busy || !ov.code || !ov.remarks.trim()} title={!ov.remarks.trim() ? 'Enter the reason for the correction first' : undefined} onClick={correct}>Apply correction</button></div>
     </section>}
 
     <Alert>{err}</Alert>

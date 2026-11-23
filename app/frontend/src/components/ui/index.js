@@ -8,4 +8,4 @@ export { default as Segmented } from './Segmented.jsx';
 export { default as ClassTabs } from './ClassTabs.jsx';
 export { default as PageHeader } from './PageHeader.jsx';
 export { default as Table } from './Table.jsx';
-export { default as Empty } from './Empty.jsx';
+export { default as Empty, Loading } from './Empty.jsx';

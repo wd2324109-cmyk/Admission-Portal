@@ -28,5 +28,5 @@ export function corsMiddleware(env = process.env) {
     if (env.NODE_ENV === 'production') { console.error(msg); process.exit(1); }
     console.warn('WARNING: ' + msg);
   }
-  return cors({ origin: origins, methods: ['GET', 'POST', 'PATCH', 'OPTIONS'], allowedHeaders: ['Content-Type', 'Authorization'], maxAge: 600 });
+  return cors({ origin: origins, methods: ['GET', 'POST', 'PUT', 'PATCH', 'OPTIONS'], allowedHeaders: ['Content-Type', 'Authorization'], maxAge: 600 });
 }

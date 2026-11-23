@@ -13,7 +13,7 @@
 .column-chart { width: 100%; height: auto; }
 .hbar { margin-bottom: 14px; } .hbar__top { display: flex; justify-content: space-between; margin-bottom: 5px; font-size: var(--fs-sm); } .hbar__top span { color: var(--muted); font-weight: 600; }
 .hbar__track { display: flex; height: 10px; background: #e8edf3; border-radius: 6px; overflow: hidden; } .hbar__track i { display: block; height: 100%; }
-.seatsum { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; margin: 0; } .seatsum div { padding: 12px 14px; background: var(--navy-50); border-radius: var(--r-md); }
+.seatsum { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; margin: 0; } .seatsum div { padding: 12px 14px; background: var(--navy-50); border-radius: var(--r-md); }
 .seatsum dt { color: var(--muted); font-size: var(--fs-xs); font-weight: 600; } .seatsum dd { margin: 2px 0 0; font-size: 22px; font-weight: 700; color: var(--ink); }
 
 .kv { width: 100%; border-collapse: collapse; } .kv th, .kv td { padding: 8px 6px; border-bottom: 1px solid var(--line); text-align: left; vertical-align: top; font-size: var(--fs-sm); overflow-wrap: anywhere; }
@@ -23,7 +23,7 @@
 .history { margin: 0; padding-left: 18px; font-size: var(--fs-xs); color: var(--muted); } .history li { margin: 4px 0; }
 .docrow { margin: 12px 0; padding: 12px 14px; border: 1px solid var(--line); border-radius: var(--r-md); }
 .docpick { margin-top: 10px; } .docpick label { display: block; font-size: var(--fs-sm); font-weight: 600; } .docpick input[type=file] { display: block; margin-top: 6px; width: 100%; }
-.result { margin-top: 12px; padding-top: 10px; border-top: 1px solid var(--line); }
+.result { margin-top: 12px; padding-top: 10px; border-top: 1px solid var(--line); max-width: 100%; overflow-x: auto; }
 
 .login { display: grid; grid-template-columns: minmax(300px, 5fr) 6fr; min-height: 100vh; }
 .login__brand { display: flex; flex-direction: column; justify-content: center; gap: 10px; padding: 48px clamp(28px, 6vw, 84px); background: linear-gradient(160deg, var(--navy-900), var(--navy-700)); color: #e8eff6; }

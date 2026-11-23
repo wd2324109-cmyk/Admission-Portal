@@ -1,10 +1,10 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { api, downloadFile } from '../../api/index.js';
 import { useDebounced } from '../../hooks/useDebounced.js';
 import { useFetch } from '../../hooks/useFetch.js';
 import { usePage } from '../../hooks/usePage.js';
 import { ALL_CODES, CODE, DMS_TABS, TABS, firstClass } from '../../lib/status.js';
-import { Alert, ClassTabs, Empty, PageHeader, Pager, Segmented, Table } from '../../components/ui/index.js';
+import { Alert, ClassTabs, Empty, Loading, PageHeader, Pager, Segmented, Table } from '../../components/ui/index.js';
 import RequestNewList from '../listRequests/RequestNewList.jsx';
 import StatusBadge from './StatusBadge.jsx';
 import StudentModal from './StudentModal.jsx';
@@ -13,10 +13,12 @@ const EMPTY = { rows: [], pages: 1 };
 
 export default function StudentDetails({ user }) {
   const dms = user.role === 'DISTRICT';
-  const [cls, setCls] = useState(firstClass(user)), [tab, setTab] = useState(dms ? 'waiting' : 'notlisted'), [status, setStatus] = useState(''), [search, setSearch] = useState('');
+  const [cls, setCls] = useState(firstClass(user)), [tab, setTab] = useState(dms ? 'waiting' : 'notlisted'), [status, setStatus] = useState(''), [search, setSearch] = useState(''), [district, setDistrict] = useState(''), [districts, setDistricts] = useState([]);
   const [open, setOpen] = useState(null), [dlErr, setDlErr] = useState('');
-  const q = useDebounced(search), [page, setPage] = usePage(cls, tab, q, status);
-  const { data, error, reload } = useFetch(() => api(`/students?class=${cls}&view=${tab}&status=${status}&search=${encodeURIComponent(q)}&page=${page}`), [cls, tab, q, status, page], EMPTY);
+  const q = useDebounced(search), [page, setPage] = usePage(cls, tab, q, status, district);
+  const multiDistrict = user.role === 'STATE' || user.role === 'SUPER_ADMIN';
+  const { data, error, loading, reload } = useFetch(() => api(`/students?class=${cls}&view=${tab}&status=${status}&district=${encodeURIComponent(district)}&search=${encodeURIComponent(q)}&page=${page}`), [cls, tab, q, status, district, page], EMPTY);
+  useEffect(() => { if (data.districts) setDistricts(data.districts); }, [data]);
   const tabs = dms ? DMS_TABS : TABS;
 
   return <>
@@ -27,6 +29,7 @@ export default function StudentDetails({ user }) {
     <section className="panel">
       <div className="toolbar">
         <input className="grow" type="search" aria-label="Search name / EMIS" placeholder="Search name / EMIS" value={search} onChange={e => setSearch(e.target.value)} />
+        {multiDistrict && <select aria-label="District" value={district} onChange={e => setDistrict(e.target.value)}><option value="">All districts</option>{districts.map(d => <option key={d} value={d}>{d}</option>)}</select>}
         {!dms && <select aria-label="Status" value={status} onChange={e => setStatus(e.target.value)}><option value="">All statuses</option>{ALL_CODES.filter(Boolean).map(c => <option key={c} value={c}>{CODE[c]}</option>)}</select>}
         <button type="button" className="btn" onClick={() => downloadFile(`/export/master?class=${cls}`).catch(e => setDlErr(e.message))}>Download Excel</button>
       </div>
@@ -39,7 +42,8 @@ export default function StudentDetails({ user }) {
           <td className="actions"><button type="button" className="btn btn--sm" aria-label={`View ${r.name}`} onClick={() => setOpen(r.id)}>View</button></td>
         </tr>)}</tbody>
       </Table>
-      {!data.rows.length && !error && <Empty>No students in this view.</Empty>}
+      {loading && !error && <Loading />}
+      {!loading && !data.rows.length && !error && <Empty>No students in this view.</Empty>}
       <Pager page={page} pages={data.pages} onPage={setPage} />
     </section>
     {open && <StudentModal cls={cls} id={open} user={user} onClose={() => setOpen(null)} onChange={reload} />}

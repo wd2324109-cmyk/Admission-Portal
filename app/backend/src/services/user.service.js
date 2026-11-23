@@ -1,5 +1,5 @@
 import bcrypt from 'bcryptjs';
-import { and, asc, eq } from 'drizzle-orm';
+import { and, asc, eq, sql } from 'drizzle-orm';
 import { users, access } from '../schema/index.js';
 import { db } from '../db/index.js';
 import { HttpError } from '../common/http.js';
@@ -33,7 +33,7 @@ export const userService = {
     if (role === 'REGION' && !String(region || '').trim()) throw new HttpError('A regional coordinator needs a region: one district name, or several separated by commas');
     const classes = classList(body.classes), password = randPw();
     await db.transaction(async tx => {
-      if ((await tx.select({ id: users.id }).from(users).where(eq(users.username, name))).length) throw new HttpError('This username already exists', 409);
+      if ((await tx.select({ id: users.id }).from(users).where(sql`lower(${users.username}) = ${name.toLowerCase()}`)).length) throw new HttpError('This username already exists (usernames are not case-sensitive)', 409);
       await tx.insert(users).values({ username: name, passwordHash: bcrypt.hashSync(password, 10), role, region: role === 'REGION' ? String(region).trim().toUpperCase() : null, district: role === 'DISTRICT' ? String(district).trim().toUpperCase() : null });
       await setAccess(tx, name, classes);
     });

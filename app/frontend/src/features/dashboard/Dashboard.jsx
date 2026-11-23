@@ -38,6 +38,7 @@ export default function Dashboard({ user, go }) {
       <dl className="seatsum">
         <div><dt>Total seats</dt><dd>{num(d.vacancy.seats)}</dd></div>
         <div><dt>Joined</dt><dd>{num(d.vacancy.joined)}</dd></div>
+        <div><dt>Held (listed / selected)</dt><dd>{num(d.vacancy.held ?? 0)}</dd></div>
         <div><dt>Open</dt><dd>{num(d.vacancy.open)}</dd></div>
       </dl></section>}
   </>;
