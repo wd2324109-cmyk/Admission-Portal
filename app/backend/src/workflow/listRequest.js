@@ -9,7 +9,7 @@ export function progress({ total, waiting }, minPercent = MIN_PERCENT) {
   const t = Math.max(0, +total || 0), w = Math.min(t, Math.max(0, +waiting || 0)), decided = t - w, percent = t ? Math.floor((decided * 100) / t) : 0;
   let reason = null;
   if (!t) reason = 'No students have been listed for your school yet.';
-  else if (decided * 100 < minPercent * t) reason = `A new list can be requested once at least ${minPercent}% of your listed students are decided. Now ${decided} of ${t} (${percent}%).`;
+  else if (decided * 100 < minPercent * t) reason = `A new list can be requested once at least ${minPercent}% of the students on your latest list are decided. Now ${decided} of ${t} (${percent}%).`;
   return { total: t, waiting: w, decided, percent, minPercent, canRequest: !reason, reason };
 }
 

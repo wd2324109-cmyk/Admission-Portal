@@ -21,7 +21,8 @@ export default function StudentModal({ cls, id, user, onClose, onChange, mode = 
 
   // Always re-read the student afterwards: if another login changed it first, the screen shows the real status.
   const expect = () => ({ code: s.statusCode || '', tag2: s.state?.tag2 || '' });
-  const run = async fn => { try { setBusy(true); await fn(); setErr(''); setRemarks(''); await load(); onChange(); } catch (e) { setErr(e.message); await load(); onChange(); } finally { setBusy(false); } };
+  // After a step succeeds the dialog closes and the list behind it refreshes, so the next-step buttons (e.g. Joined after Selected) are never left under the cursor.
+  const run = async (fn, { close = false } = {}) => { try { setBusy(true); await fn(); setErr(''); setRemarks(''); if (close) { onChange(); onClose(); return; } await load(); onChange(); } catch (e) { setErr(e.message); await load(); onChange(); } finally { setBusy(false); } };
 
   const pickLetter = async (kind, f) => {
     if (!f) return setLetters(x => ({ ...x, [kind]: null }));
@@ -42,13 +43,13 @@ export default function StudentModal({ cls, id, user, onClose, onChange, mode = 
     run(async () => {
       await api(`/students/${cls}/${id}/action`, { method: 'POST', body: { action: a.key, remarks, expect: expect(), ...(a.needsLetter ? { letters: Object.fromEntries(need.map(k => [k, { fileName: letters[k].name, fileData: letters[k].data }])) } : {}) } });
       setLetters(NO_LETTERS);
-    });
+    }, { close: true });
   };
 
   const correct = async () => {
     if (!ov.code) return setErr('Choose the next status');
     if (!(await confirm({ title: 'Apply correction?', message: `Move ${s.name} to \"${stageOf(ov.code)}\"? The seat and the logs are updated.`, confirmLabel: 'Apply correction', danger: true }))) return;
-    run(async () => { await api(`/students/${cls}/${id}/override`, { method: 'POST', body: { ...ov, expect: expect() } }); setOv(o => ({ ...o, remarks: '' })); });
+    run(async () => { await api(`/students/${cls}/${id}/override`, { method: 'POST', body: { ...ov, expect: expect() } }); setOv(o => ({ ...o, remarks: '' })); }, { close: true });
   };
 
   const tcWait = a => a.key === 'TC_REQUEST' && !((a.letters || []).every(k => letters[k]) && remarks.trim());

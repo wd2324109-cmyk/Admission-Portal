@@ -10,12 +10,16 @@ import { TAG, OPEN, DONE, PENDING_CODES, progress, readMeta } from '../workflow/
 const LOCK_NS = 7302;
 const upper = col => sql`upper(trim(${col}))`;
 
+// A new list is judged on the latest list only: the 80% is counted over the students of the DMS's most recent list, not over every student ever listed.
 async function counts(x, user, cls) {
-  const T = studentTable(cls);
+  const T = studentTable(cls), where = scope(user, cls);
+  const listOf = sql`(select max(substring(${L.remark1} from '^List ([0-9]+)')::int) from ${L} where ${L.class} = ${String(cls)} and ${L.tag1} = 'LIST' and ${L.emis} = ${T.emis})`;
+  const [{ cur }] = await x.select({ cur: sql`max(${listOf})` }).from(T).where(where);
+  const latest = cur == null ? undefined : sql`${listOf} = ${+cur}`;
   const [r] = await x.select({
     total: sql`count(*) filter (where coalesce(${T.selectStatus}, '') <> '')::int`,
     waiting: sql`count(*) filter (where ${T.selectStatus} in (${sql.join(PENDING_CODES.map(c => sql`${c}`), sql`, `)}))::int`,
-  }).from(T).where(scope(user, cls));
+  }).from(T).where(and(where, latest));
   return r;
 }
 
