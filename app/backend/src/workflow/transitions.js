@@ -10,7 +10,8 @@ export const ACTIONS = {
   WILLING:     { label: 'Selected', roles: DMS, from: s => s.code === '1A', to: { code: '2A' } },
   NOT_WILLING: { label: 'Not Willing', roles: DMS, from: s => s.code === '1A', to: { code: '6A' }, needsRemarks: true, letters: TWO_LETTERS },
   RECONSIDER:  { label: 'Request reconsideration', roles: DMS, from: s => s.code === '6A', to: { code: '1B' }, needsRemarks: true },
-  RECONSIDER_SELECT: { label: 'Selected', roles: SE, from: s => s.code === '1B', to: { code: '2A' }, needsRemarks: true },
+  // Approving a reconsideration clears the select status (empty), so the student is back in the pool for the next list; the seat is given by the list, not here.
+  RECONSIDER_SELECT: { label: 'Approve', roles: SE, from: s => s.code === '1B', to: { code: '' }, needsRemarks: true },
   RECONSIDER_REJECT: { label: 'Not Selected', roles: SE, from: s => s.code === '1B', to: { code: '6A' }, needsRemarks: true },
 
   JOINED_HM:   { label: 'Joined', roles: DMS_ONLY, from: s => s.code === '2A', to: { code: '3A' } },

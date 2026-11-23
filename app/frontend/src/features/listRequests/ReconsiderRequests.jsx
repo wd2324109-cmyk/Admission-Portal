@@ -10,7 +10,7 @@ import StudentModal from '../students/StudentModal.jsx';
 
 const EMPTY = { rows: [], pages: 1 };
 
-// Students the DMS asked to reconsider (Waiting - reconsidered). The super admin decides: Selected or Not Selected.
+// Students the DMS asked to reconsider (Waiting - reconsidered). The super admin decides: Approve (select status cleared, student returns to the next list) or Not Selected.
 export default function ReconsiderRequests({ user }) {
   const [cls, setCls] = useState(firstClass(user)), [search, setSearch] = useState(''), [open, setOpen] = useState(null);
   const q = useDebounced(search), [page, setPage] = usePage(cls, q);

@@ -8,7 +8,7 @@ import { likeEsc } from '../common/query.js';
 import { requireClass, scope, inScope } from '../common/access.js';
 import { studentTable, parseClass, norm, pick } from '../common/studentStore.js';
 import { logStudent } from '../common/logs.js';
-import { joinSeat, releaseSeat, seatTable, VACANT } from '../common/seats.js';
+import { joinSeat, releaseSeat } from '../common/seats.js';
 import { lockClass } from '../common/locks.js';
 import { saveUpload } from '../common/upload.js';
 import { getLetter, allLetters, putLetter, KINDS, STAGE_KINDS } from '../common/letters.js';
@@ -34,17 +34,6 @@ async function joinedBefore(tx, cls, row) {
   return lg?.updateStatusBefore || '3A';
 }
 
-// A Not Willing student gave the seat up, so selecting a reconsidered student again needs a free seat in the same group.
-async function requireOpenSeat(tx, cls, row) {
-  const T = studentTable(cls), V = seatTable(cls);
-  // Two logins selecting students of the same seat group must not both take the last seat: one at a time per group.
-  await tx.execute(sql`select pg_advisory_xact_lock(${7303}::int, hashtext(${[cls, row.newDistcName, row.newUdiseCode, row.gender, row.medium, row.selectedCategory].map(U).join('|')}::text))`);
-  const [{ vacant }] = await tx.select({ vacant: sql`count(*)::int` }).from(V).where(and(eq(V.classLevel, +cls), eq(V.vacancyStatus, VACANT), eq(up(V.newDistrict), U(row.newDistcName)), eq(up(V.newUdiseCode), U(row.newUdiseCode)),
-    eq(up(V.gender), U(row.gender)), eq(up(V.medium), U(row.medium)), eq(up(V.community), U(row.selectedCategory))));
-  const [{ held }] = await tx.select({ held: sql`count(*)::int` }).from(T).where(and(inArray(T.selectStatus, SEAT_HOLDERS), sql`${T.id} <> ${row.id}`, eq(up(T.newDistcName), U(row.newDistcName)), eq(up(T.newUdiseCode), U(row.newUdiseCode)),
-    eq(up(T.gender), U(row.gender)), eq(up(T.medium), U(row.medium)), eq(up(T.selectedCategory), U(row.selectedCategory))));
-  if (vacant - held < 1) throw new HttpError('No vacancy: every seat in this student\'s group is taken. Choose "Not Selected" or wait for a seat to be released.', 409);
-}
 const nul = v => (v === '' || v === undefined ? null : v);
 
 async function load(tx, user, cls, id, lock = false) {
@@ -99,7 +88,6 @@ export const studentService = {
         const prev = await joinedBefore(tx, cls, row);
         if (prev) st.prev = prev;
         const plan = planAction(user.role, st, body?.action, body?.remarks);
-        if (plan.after.code === '2A' && st.code === '1B') await requireOpenSeat(tx, cls, row);
         if (plan.needsLetter) {
           for (const k of plan.letters) if (!body?.letters?.[k]?.fileData) throw new HttpError(`Upload the ${KINDS[k]} (PDF, JPG or PNG, under 3 MB)`);
           for (const k of plan.letters) saved.push({ kind: k, ...(await saveUpload(body.letters[k].fileName, body.letters[k].fileData)) });

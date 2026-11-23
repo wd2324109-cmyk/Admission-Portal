@@ -46,15 +46,15 @@ assert.deepEqual(availableActions('REGION', S('1A')), []);
 assert.deepEqual(availableActions('STATE', S('2A', '8A', 'TC-SRC')).map(a => a.key).sort(), ['TC_STATE_APPROVE', 'TC_STATE_REJECT']);
 assert.equal(groupOf(S('6A')), 'notwilling');
 // Reconsideration: the super admin decides with Selected / Not Selected only
-assert.deepEqual(availableActions('SUPER_ADMIN', S('1B')).map(a => a.label).sort(), ['Not Selected', 'Selected']);
-assert.equal(run('SUPER_ADMIN', S('1B'), 'RECONSIDER_SELECT').code, '2A');
+assert.deepEqual(availableActions('SUPER_ADMIN', S('1B')).map(a => a.label).sort(), ['Approve', 'Not Selected']);
+assert.equal(run('SUPER_ADMIN', S('1B'), 'RECONSIDER_SELECT').code, '', 'approved reconsideration clears the select status');
 assert.equal(run('SUPER_ADMIN', S('1B'), 'RECONSIDER_REJECT').code, '6A');
 fails(() => run('DISTRICT', S('1B'), 'RECONSIDER_SELECT'), 403); fails(() => run('SUPER_ADMIN', S('1A'), 'RECONSIDER_SELECT'), 409); fails(() => planAction('SUPER_ADMIN', S('1B'), 'RECONSIDER_REJECT', ''), 400);
 assert.deepEqual(availableActions('SUPER_ADMIN', S('1A')), []);
 
 // Correction offers the next status only
 assert.deepEqual(nextCodes(S('1A')).sort(), ['2A', '6A']);
-assert.deepEqual(nextCodes(S('1B')).sort(), ['2A', '6A']);
+assert.deepEqual(nextCodes(S('1B')).sort(), ['6A']);
 assert.deepEqual(nextCodes(S('6A')), ['1B']);
 assert.deepEqual(nextCodes(S('2A')).sort(), ['3A', '7A']);
 assert.deepEqual(nextCodes(S('2A', '3A')), ['8A']);
