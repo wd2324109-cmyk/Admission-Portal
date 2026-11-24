@@ -3,11 +3,10 @@ import { api } from '../../api/index.js';
 import { useFetch } from '../../hooks/useFetch.js';
 import { ts } from '../../lib/format.js';
 import { Alert, Badge, Empty, Loading, PageHeader, Segmented, Table, useConfirm } from '../../components/ui/index.js';
-import ReconsiderRequests from './ReconsiderRequests.jsx';
 
 export default function ListRequests({ user }) {
   const confirm = useConfirm();
-  const [kind, setKind] = useState('list'), [tab, setTab] = useState('OPEN'), [busy, setBusy] = useState(false), [err, setErr] = useState('');
+  const [tab, setTab] = useState('OPEN'), [busy, setBusy] = useState(false), [err, setErr] = useState('');
   const { data, error, loading, reload } = useFetch(() => api(`/list-requests?status=${tab === 'ALL' ? '' : tab}`), [tab]);
   const rows = data?.rows || [];
   const run = async fn => { try { setBusy(true); setErr(''); await fn(); reload(); } catch (e) { setErr(e.message); } finally { setBusy(false); } };
@@ -16,8 +15,6 @@ export default function ListRequests({ user }) {
 
   return <>
     <PageHeader title="List Requests" note="A DMS can ask for a new list once most of its students are decided. Revise the list (Import Data & Lists: a new sheet is added after the earlier students), then mark the request done. Freeze a DMS login to stop it signing in while you work; Unfreeze lets it back in." />
-    <div className="filters"><Segmented label="Request type" items={[['list', 'New list requests'], ['reconsider', 'Reconsider requests']]} value={kind} onChange={setKind} /></div>
-    {kind === 'reconsider' ? <ReconsiderRequests user={user} /> : <>
     <div className="filters"><Segmented label="Requests" items={[['OPEN', 'Waiting'], ['DONE', 'Done'], ['ALL', 'All']]} value={tab} onChange={setTab} /></div>
     <section className="panel">
       <Alert>{err || error}</Alert>
@@ -38,6 +35,5 @@ export default function ListRequests({ user }) {
       {loading && !error && <Loading />}
       {!loading && !rows.length && !error && <Empty>No requests in this view.</Empty>}
     </section>
-    </>}
   </>;
 }

@@ -1,6 +1,5 @@
 export const STATUS = {
   '1A': { label: 'Waiting', note: 'On the selection list sent to the DMS' },
-  '1B': { label: 'Waiting (reconsidered)', note: 'Not Willing, reconsidered on DMS request' },
   '2A': { label: 'Selected', note: 'Student is willing' },
   '6A': { label: 'Not Willing', note: 'Student is not willing (unwilling letter uploaded)' },
   '3A': { label: 'Joined by HM', note: 'Relieved and joined the DMS' },
@@ -21,7 +20,14 @@ export const ROLES = {
 
 export const norm = v => String(v ?? '').trim();
 
-export const stateOf = row => ({ code: norm(row.selectStatus), tag2: norm(row.tag2) });
+export const stateOf = row => ({ code: norm(row.selectStatus), tag2: norm(row.tag2), tag1: norm(row.tag1) });
+
+// A reconsideration is not a status: the select status stays empty (null) and tag1 says where it stands.
+// tag1 = RECONSIDER marks a reconsidered student: select status null, shown on no screen, back in the pool for the next list.
+export const RECONSIDER_REQUESTED = 'RECONSIDER';
+export const isReconsiderRequest = s => !s.code && s.tag1 === RECONSIDER_REQUESTED;
+// Students the next list may pick: not listed yet, or reconsidered.
+export const inListPool = s => !s.code;
 
 export const primary = s => s.code;
 
@@ -35,8 +41,8 @@ export const holdsSeat = s => ['1A', '2A', '7A'].includes(s.code);
 export const seatEffect = (before, after) => (!joinsSeat(before) && joinsSeat(after) ? 'JOIN' : joinsSeat(before) && !joinsSeat(after) ? 'RELEASE' : null);
 
 export const GROUPS = {
-  notlisted: s => !s.code,
-  waiting: s => ['1A', '1B'].includes(s.code),
+  notlisted: s => !s.code && !isReconsiderRequest(s),
+  waiting: s => s.code === '1A',
   selected: s => s.code === '2A',
   notwilling: s => s.code === '6A',
   joined: s => ['3A', '3B'].includes(s.code),
@@ -46,8 +52,8 @@ export const GROUPS = {
 export const groupOf = s => Object.keys(GROUPS).find(g => GROUPS[g](s)) || 'notlisted';
 
 export const GROUP_SQL = {
-  notlisted: `coalesce(select_status,'') = ''`,
-  waiting: `select_status in ('1A','1B')`,
+  notlisted: `(coalesce(select_status,'') = '' and coalesce(tag1,'') <> 'RECONSIDER')`,
+  waiting: `select_status = '1A'`,
   selected: `select_status = '2A'`,
   notwilling: `select_status = '6A'`,
   joined: `select_status in ('3A','3B')`,

@@ -20,7 +20,7 @@ export default function StudentModal({ cls, id, user, onClose, onChange, mode = 
   if (!s) return <Modal title="Student record" onClose={onClose}>{err ? <Alert>{err}</Alert> : <p className="muted">Loading…</p>}</Modal>;
 
   // Always re-read the student afterwards: if another login changed it first, the screen shows the real status.
-  const expect = () => ({ code: s.statusCode || '', tag2: s.state?.tag2 || '' });
+  const expect = () => ({ code: s.statusCode || '', tag2: s.state?.tag2 || '', tag1: s.state?.tag1 || '' });
   // After a step succeeds the dialog closes and the list behind it refreshes, so the next-step buttons (e.g. Joined after Selected) are never left under the cursor.
   const run = async (fn, { close = false } = {}) => { try { setBusy(true); await fn(); setErr(''); setRemarks(''); if (close) { onChange(); onClose(); return; } await load(); onChange(); } catch (e) { setErr(e.message); await load(); onChange(); } finally { setBusy(false); } };
 

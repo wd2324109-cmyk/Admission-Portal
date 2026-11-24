@@ -1,5 +1,5 @@
 import { HttpError } from '../common/http.js';
-import { STATUS } from './statuses.js';
+import { STATUS, isReconsiderRequest, RECONSIDER_REQUESTED } from './statuses.js';
 
 const DMS = ['DISTRICT'], DMS_ONLY = DMS, RC = ['REGION', 'SUPER_ADMIN'], SRC = ['STATE', 'SUPER_ADMIN'], SE = ['SUPER_ADMIN'];
 
@@ -9,10 +9,8 @@ export const ACTIONS = {
 
   WILLING:     { label: 'Selected', roles: DMS, from: s => s.code === '1A', to: { code: '2A' } },
   NOT_WILLING: { label: 'Not Willing', roles: DMS, from: s => s.code === '1A', to: { code: '6A' }, needsRemarks: true, letters: TWO_LETTERS },
-  RECONSIDER:  { label: 'Request reconsideration', roles: DMS, from: s => s.code === '6A', to: { code: '1B' }, needsRemarks: true },
-  // Approving a reconsideration clears the select status (empty), so the student is back in the pool for the next list; the seat is given by the list, not here.
-  RECONSIDER_SELECT: { label: 'Approve', roles: SE, from: s => s.code === '1B', to: { code: '' }, needsRemarks: true },
-  RECONSIDER_REJECT: { label: 'Not Selected', roles: SE, from: s => s.code === '1B', to: { code: '6A' }, needsRemarks: true },
+  // Requesting a reconsideration empties the select status (null): the student shows on no screen and is picked again by the next list. There is no "Waiting (reconsidered)" status and no approval step.
+  RECONSIDER:  { label: 'Request reconsideration', roles: DMS, from: s => s.code === '6A', to: { code: '' }, needsRemarks: true },
 
   JOINED_HM:   { label: 'Joined', roles: DMS_ONLY, from: s => s.code === '2A', to: { code: '3A' } },
   NOT_JOINED:  { label: 'Not Joined', roles: DMS_ONLY, from: s => s.code === '2A', to: { code: '7A' }, needsRemarks: true, letters: TWO_LETTERS },
@@ -49,8 +47,9 @@ export const nextCodes = state => {
 // The screen sends the status it was showing. If someone else (another login, another tab) changed the student since, nothing is applied.
 export function assertFresh(expect, state) {
   if (!expect || typeof expect !== 'object') return;
-  if (String(expect.code ?? '') !== String(state.code ?? '') || String(expect.tag2 ?? '') !== String(state.tag2 ?? ''))
+  const reconsiderChanged = Object.hasOwn(expect, 'tag1') && (String(expect.tag1 ?? '') === RECONSIDER_REQUESTED) !== isReconsiderRequest(state);
+  if (String(expect.code ?? '') !== String(state.code ?? '') || String(expect.tag2 ?? '') !== String(state.tag2 ?? '') || reconsiderChanged)
     throw new HttpError(`This student was just changed by someone else and is now at \"${STATUS[state.code]?.label || 'Not listed'}\". Nothing was applied; the screen has been refreshed.`, 409, { stale: true });
 }
 
-export const VALID_CODES = ['', '1A', '1B', '2A', '6A', '3A', '3B', '7A', '7B', '8A', '8B'];
+export const VALID_CODES = ['', '1A', '2A', '6A', '3A', '3B', '7A', '7B', '8A', '8B'];
