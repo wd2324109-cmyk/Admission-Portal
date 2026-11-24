@@ -1,6 +1,6 @@
 import assert from 'node:assert';
 process.env.NODE_ENV = 'test';
-const { resolveRole, districtsFrom, decodeToken, districtsOfHm } = await import('./msms.js');
+const { resolveRole, districtsFrom, decodeToken, districtsOfHm, profileFrom } = await import('./msms.js');
 
 assert.equal(resolveRole({ userRole: 'PMU', districtId: null }), null);
 assert.equal(resolveRole({ userRole: 'PMU', staffType: 'PMU', districtId: 4 }), null);
@@ -15,6 +15,7 @@ assert.equal(resolveRole({ userRole: 'XYZ' }), null);
 assert.equal(resolveRole({ userRole: 'PMU', designation: 'State Lead - Enrollment' }), 'SUPER_ADMIN');
 assert.equal(resolveRole({ userRole: 'RC', designation: 'state lead - enrollment', districtId: 3 }), 'SUPER_ADMIN');
 assert.equal(resolveRole({ userRole: 'PMU', designation: 'Program Associate' }), null);
+await assert.rejects(profileFrom({ userRole: 'XYZ' }), error => error.message === 'Invalid Credentials' && error.status === 403);
 
 assert.deepEqual(districtsFrom({ data: [{ districtId: 5, districtName: 'Salem ' }, { districtId: 5, districtName: 'Salem' }, { districtId: 6, districtName: 'Erode' }] }),
   [{ id: '5', name: 'SALEM' }, { id: '6', name: 'ERODE' }]);
@@ -32,7 +33,6 @@ const sample = [
 assert.deepEqual(districtsFrom(sample).map(d => d.name), ['KANCHEEPURAM', 'CHENGALPATTU', 'CHENNAI (EXT. GCC)', 'TIRUVALLUR']);
 assert.deepEqual(districtsOfHm(sample, '9884706404'), [{ id: '33', name: 'CHENGALPATTU' }]);
 assert.deepEqual(districtsOfHm(sample, '9000000000'), []);
-
 const body = Buffer.from(JSON.stringify({ userData: { userName: '8682872464', userRole: 'PMU', regionCode: '0001' } })).toString('base64url');
 assert.equal(decodeToken(`x.${body}.y`).userRole, 'PMU');
 assert.equal(decodeToken('garbage'), null);

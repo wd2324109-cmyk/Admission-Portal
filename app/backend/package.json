@@ -4,21 +4,15 @@
   "scripts": {
     "dev": "node --watch src/server.js",
     "start": "node src/server.js",
-    "start:prod": "node src/server.js --profile=production",
-    "db:setup": "node src/dbSetup.js",
-    "db:setup:prod": "node src/dbSetup.js --profile=production",
-    "db:verify": "node src/dbVerify.js",
-    "db:verify:prod": "node src/dbVerify.js --profile=production",
-    "db:where": "node src/dbWhere.js",
-    "db:where:prod": "node src/dbWhere.js --profile=production",
-    "db:deploy": "node src/dbSetup.js && node src/dbVerify.js && node src/seed.js",
-    "db:deploy:prod": "node src/dbSetup.js --profile=production --apply && node src/dbVerify.js --profile=production",
+    "db:push": "drizzle-kit push",
     "seed": "node src/seed.js",
+    "test": "node src/services/domain/selection.test.js && node src/services/domain/importMap.test.js && node src/services/domain/revert.test.js && node src/common/security.test.js && node src/common/msms.test.js",
+    "seed:sample": "node src/seed.js --sample",
     "reset:superadmin": "node src/resetSuperadmin.js",
-    "test": "node src/spec/schema.test.js && node src/workflow/workflow.test.js && node src/workflow/listRequest.test.js && node src/common/security.test.js && node src/common/hardening.test.js && node src/common/routes.test.js && node src/db/profile.test.js && node src/common/resetCode.test.js && node src/services/importMap.test.js && node src/services/selection.test.js && node src/services/revert.test.js && node src/common/access.test.js && node src/common/msms.test.js",
     "test:integration": "node test/workflow.integration.js",
     "db:ddl": "node src/dbDdl.js",
-    "msms:check": "node src/msmsCheck.js"
+    "msms:check": "node src/msmsCheck.js",
+    "db:upgrade": "node src/dbUpgrade.js"
   },
   "dependencies": {
     "bcryptjs": "^2.4.3",
@@ -30,5 +24,7 @@
     "pg": "^8.12.0",
     "xlsx": "^0.18.5"
   },
-  "devDependencies": {}
+  "devDependencies": {
+    "drizzle-kit": "^0.28.0"
+  }
 }
