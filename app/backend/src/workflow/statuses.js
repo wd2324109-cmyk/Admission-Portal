@@ -1,6 +1,5 @@
 export const STATUS = {
   '1A': { label: 'Waiting', note: 'On the selection list sent to the DMS' },
-  '1B': { label: 'Waiting (reconsidered)', note: 'Not Willing, reconsidered on DMS request' },
   '2A': { label: 'Selected', note: 'Student is willing' },
   '6A': { label: 'Not Willing', note: 'Student is not willing (unwilling letter uploaded)' },
   '3A': { label: 'Joined by HM', note: 'Relieved and joined the DMS' },
@@ -23,6 +22,10 @@ export const norm = v => String(v ?? '').trim();
 
 export const stateOf = row => ({ code: norm(row.selectStatus), tag2: norm(row.tag2) });
 
+// A reconsideration is not a status: select_status and admit_status become empty (null) and everything is decided from those two columns alone.
+// Such a student is shown on no DMS screen and is picked again by the next list, like any student who is not listed yet.
+export const inListPool = s => !s.code;
+
 export const primary = s => s.code;
 
 export const statusColumns = code => ({ selectStatus: code || null, admitStatus: code ? STATUS[code].label : null });
@@ -36,7 +39,7 @@ export const seatEffect = (before, after) => (!joinsSeat(before) && joinsSeat(af
 
 export const GROUPS = {
   notlisted: s => !s.code,
-  waiting: s => ['1A', '1B'].includes(s.code),
+  waiting: s => s.code === '1A',
   selected: s => s.code === '2A',
   notwilling: s => s.code === '6A',
   joined: s => ['3A', '3B'].includes(s.code),
@@ -47,7 +50,7 @@ export const groupOf = s => Object.keys(GROUPS).find(g => GROUPS[g](s)) || 'notl
 
 export const GROUP_SQL = {
   notlisted: `coalesce(select_status,'') = ''`,
-  waiting: `select_status in ('1A','1B')`,
+  waiting: `select_status = '1A'`,
   selected: `select_status = '2A'`,
   notwilling: `select_status = '6A'`,
   joined: `select_status in ('3A','3B')`,

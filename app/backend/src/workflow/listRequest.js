@@ -1,5 +1,5 @@
 export const TAG = 'LIST_REQUEST', OPEN = 'OPEN', DONE = 'DONE';
-export const PENDING_CODES = ['1A', '1B'];
+export const PENDING_CODES = ['1A'];
 
 const envPercent = process.env.LIST_REQUEST_MIN_PERCENT;
 

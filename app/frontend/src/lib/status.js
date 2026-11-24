@@ -1,9 +1,9 @@
 export const CODE = {
-  '1A': 'Waiting', '1B': 'Waiting (reconsidered)', '2A': 'Selected', '6A': 'Not Willing',
+  '1A': 'Waiting', '2A': 'Selected', '6A': 'Not Willing',
   '3A': 'Joined by HM', '3B': 'Joined by RC', '7A': 'Not Joined - Pending', '7B': 'Not Joined - Approved',
   '8A': 'TC-Waiting', '8B': 'TC Issued',
 };
-export const ALL_CODES = ['', '1A', '1B', '2A', '6A', '3A', '3B', '7A', '7B', '8A', '8B'];
+export const ALL_CODES = ['', '1A', '2A', '6A', '3A', '3B', '7A', '7B', '8A', '8B'];
 export const stageOf = c => CODE[c] || c || 'start';
 export const admitOf = r => (r.statusCode ? CODE[r.statusCode] : r.admitStatus) || '—';
 

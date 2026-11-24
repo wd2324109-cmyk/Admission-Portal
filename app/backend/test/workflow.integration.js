@@ -64,7 +64,9 @@ try {
   const all = await ok(admin, 'GET', '/students?class=9&view=notwilling'); assert(all.rows.some(s => s.id === s2.id), '6A stays 6A');
 
   await ok(dms, 'POST', `/students/9/${s2.id}/action`, { action: 'RECONSIDER', remarks: 'family reconsidered' });
-  assert.equal((await ok(dms, 'GET', `/students/9/${s2.id}`)).statusCode, '1B');
+  const asked = await ok(dms, 'GET', `/students/9/${s2.id}`);
+  assert.equal(asked.statusCode, '', 'a reconsideration request leaves the select status empty'); assert(!asked.selectStatus && !asked.admitStatus, 'select_status and admit_status are null');
+  for (const v of ['waiting', 'notwilling', 'selected']) for (const who of [dms, admin]) assert(!(await ok(who, 'GET', `/students?class=9&view=${v}`)).rows.some(s => s.id === s2.id), `a reconsidered student shows on no tab (${v})`);
 
   await ok(dms, 'POST', `/students/9/${s1.id}/action`, { action: 'TC_REQUEST', remarks: 'transfer' });
   assert.equal((await ok(dms, 'GET', '/vacancies?class=9')).reduce((n, c) => n + c.joined, 0), 1);
@@ -79,9 +81,7 @@ try {
   assert.equal((await call(dms, 'POST', '/lists/generate', { classLevel: 9 })).status, 403);
 
   assert.equal((await call(admin, 'POST', `/students/9/${s1.id}/override`, { code: '3B', remarks: 'TC was a mistake' })).status, 409, 'correction offers the next status only; TC Issued is the last one');
-  assert.deepEqual((await ok(admin, 'GET', `/students/9/${s2.id}`)).nextStatuses.map(n => n.code).sort(), ['2A', '6A'], 'a reconsidered student: Selected or Not Selected');
-  await ok(admin, 'POST', `/students/9/${s2.id}/override`, { code: '2A', remarks: 'reconsideration accepted' });
-  const fixed = await ok(admin, 'GET', `/students/9/${s2.id}`); assert.equal(fixed.statusCode, '2A'); assert.equal(fixed.selectStatus, '2A'); assert.equal(fixed.admitStatus, 'Selected', 'admit_status holds the description of select_status');
+  const s1c = await ok(admin, 'GET', `/students/9/${s1.id}`); assert.deepEqual(s1c.nextStatuses, [], 'TC Issued is the last status');
 
   const slog = await ok(admin, 'GET', '/logs/students?class=9'), vlog = await ok(admin, 'GET', '/logs/vacancies?class=9');
   assert(slog.length >= 12 && vlog.length >= 2, `logs written (${slog.length}, ${vlog.length})`);
@@ -95,5 +95,5 @@ try {
   assert(Object.keys(XLSX.utils.sheet_to_json(wb.Sheets.Students)[0]).includes('mark1-quertly'));
 
   const { verify } = await import('../src/dbVerify.js'); const problems = await verify(pool); assert.deepEqual(problems, []);
-  console.log('Whole flowchart OK: import -> rank -> vacancies -> list 1A -> 2A/6A -> 3A/7A -> 7B -> list 2 -> 1B -> 8A -> 8B -> correction; 10 tables unchanged');
+  console.log('Whole flowchart OK: import -> rank -> vacancies -> list 1A -> 2A/6A -> 3A/7A -> 7B -> list 2 -> reconsider (null) -> 8A -> 8B -> correction; 10 tables unchanged');
 } catch (e) { console.error(e); process.exitCode = 1; } finally { server.kill(); await pool.end(); }

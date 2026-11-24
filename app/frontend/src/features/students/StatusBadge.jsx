@@ -1,8 +1,8 @@
 import { Badge } from '../../components/ui/index.js';
 import { CODE, GROUP_CLASS, GROUP_CLASS_TONE } from '../../lib/status.js';
 
-// Waiting (new list or reconsidered) is shown in white.
-const WAITING = ['1A', '1B'];
+// Waiting (new list) is shown in white.
+const WAITING = ['1A'];
 
 export default function StatusBadge({ r }) {
   const label = r.statusCode ? CODE[r.statusCode] || r.statusCode : r.admitStatus || 'Not listed';
