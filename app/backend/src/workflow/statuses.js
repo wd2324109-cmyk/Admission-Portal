@@ -12,7 +12,7 @@ export const STATUS = {
 export const labelOf = code => (STATUS[code] ? STATUS[code].label : '');
 
 export const ROLES = {
-  SUPER_ADMIN: 'State Enrollment Team (SE Team): imports data, ranks, generates lists, decides reconsideration requests (Selected / Not Selected). Does not mark the DMS steps (willing, joining, TC request).',
+  SUPER_ADMIN: 'State Enrollment Team (SE Team): imports data, ranks and generates lists. Does not mark the DMS steps (willing, joining, TC request).',
   STATE: 'State Regional Coordinator: final approval of TC requests.',
   REGION: 'Regional Coordinator (RC): verifies "Not Joined", re-admits, first approval of TC requests.',
   DISTRICT: 'District Model School (DMS): records willing / not willing, joining, TC requests.',

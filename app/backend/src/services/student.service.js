@@ -21,7 +21,7 @@ export const view = (row, cls, role, prev) => {
   const st = stateOf(row);
   if (prev) st.prev = prev;
   const next = role === 'SUPER_ADMIN' ? nextCodes(st).map(c => ({ code: c, label: STATUS[c].label })) : [];
-  return { ...norm(row, cls), ...statusColumns(primary(st)), state: { code: st.code, tag2: st.tag2 }, group: groupOf(st), statusCode: primary(st), statusLabel: STATUS[primary(st)]?.label ?? 'Not listed', actions: availableActions(role, st), nextStatuses: next };
+  return { ...norm(row, cls), ...statusColumns(primary(st)), state: { code: st.code, tag2: st.tag2, tag1: st.tag1 }, group: groupOf(st), statusCode: primary(st), statusLabel: STATUS[primary(st)]?.label ?? 'Not listed', actions: availableActions(role, st), nextStatuses: next };
 };
 
 const SEAT_HOLDERS = ['1A', '2A', '7A'];
