@@ -34,7 +34,7 @@ export default function Login({ onLogin }) {
     <section className="login__form">
       <form className="login__card" onSubmit={submit} noValidate>
         <h2>Sign in</h2>
-        <p className="login__sub">Use the username and password issued to you.</p>
+        <p className="login__sub">Sign in with your MSMS username and password.</p>
         <div className="field"><label htmlFor="login-user">Username</label>
           <input id="login-user" autoComplete="username" autoCapitalize="none" spellCheck={false} maxLength={100} autoFocus value={f.username} onChange={e => setF({ ...f, username: e.target.value })} /></div>
         <div className="field"><label htmlFor="login-pass">Password</label>
@@ -45,7 +45,7 @@ export default function Login({ onLogin }) {
           <CapsHint on={caps} /></div>
         <Alert>{err}</Alert>
         <button type="submit" className="btn btn--primary btn--block" disabled={busy}>{busy ? 'Signing in…' : 'Sign in'}</button>
-        <p className="login__notice">Forgot your password? Ask the super admin for a new one. Authorised users only. Sessions end after {IDLE_MINUTES} minutes of inactivity, and signing in on another device signs you out here.</p>
+        <p className="login__notice">Forgot your password? Reset it in MSMS. Authorised users only. Sessions end after {IDLE_MINUTES} minutes of inactivity, and signing in on another device signs you out here.</p>
       </form>
     </section>
   </main>;

@@ -28,7 +28,7 @@ export const userService = {
     const { username, role, region, district } = body || {};
     const name = String(username || '').trim();
     if (!/^[A-Za-z0-9_.-]{3,60}$/.test(name)) throw new HttpError('Username: 3 to 60 letters, digits, dot, dash or underscore');
-    if (!ROLE.includes(role)) throw new HttpError('Choose a role');
+    if (role !== 'SUPER_ADMIN') throw new HttpError('Only super admins are created here. Everyone else signs in with MSMS and appears after the first sign-in.');
     if (role === 'DISTRICT' && !String(district || '').trim()) throw new HttpError('A DMS (district) user needs a district');
     if (role === 'REGION' && !String(region || '').trim()) throw new HttpError('A regional coordinator needs a region: one district name, or several separated by commas');
     const classes = classList(body.classes), password = randPw();
@@ -42,6 +42,7 @@ export const userService = {
   async resetPassword({ params }) {
     const [u] = await db.select().from(users).where(eq(users.id, +params.id || 0));
     if (!u) throw new HttpError('User not found', 404);
+    if (u.role !== 'SUPER_ADMIN') throw new HttpError('This user signs in with MSMS. The password is changed there.', 409);
     const password = randPw();
     await db.update(users).set({ passwordHash: bcrypt.hashSync(password, 10), sessionId: null }).where(eq(users.id, u.id));
     return { ok: true, username: u.username, password };
