@@ -37,5 +37,5 @@ export async function checkSession(claims) {
   const now = Date.now(), seen = lastSeen.get(key);
   if (seen && now - seen.t > IDLE_MS) { lastSeen.delete(key); return { ok: false, code: 'SESSION_EXPIRED' }; }
   lastSeen.set(key, { t: now, uid: r.id, sid: claims.sid });
-  return { ok: true, user: { id: r.id, username: r.username, role: r.role, region: r.region, district: r.district, sid: claims.sid, did: claims.did } };
+  return { ok: true, user: { id: r.id, username: r.username, name: claims.name || null, role: r.role, region: r.region, district: r.district, sid: claims.sid, did: claims.did } };
 }

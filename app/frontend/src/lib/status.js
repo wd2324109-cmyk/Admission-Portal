@@ -34,6 +34,7 @@ export const DOC_STATUS = { VERIFIED: ['Verified', 'ok'], PENDING: ['Awaiting ve
 export const DOC_STATES = { VERIFIED: ['Verified', 'ok'], PENDING: ['Awaiting verification', 'warn'], REJECTED: ['Rejected - resubmit', 'bad'], INCOMPLETE: ['Incomplete', 'neutral'], NOT_SUBMITTED: ['Not submitted', 'neutral'] };
 export const DOC_TABS = [['', 'All'], ['NOT_SUBMITTED', 'Not submitted'], ['INCOMPLETE', 'Incomplete'], ['PENDING', 'Awaiting verification'], ['REJECTED', 'Rejected'], ['VERIFIED', 'Verified']];
 
+export const displayName = user => (user?.name || '').trim() || user?.username || '';
 export const ROLE_NAME = { SUPER_ADMIN: 'SE TEAM (SUPER ADMIN)', STATE: 'STATE REGIONAL COORDINATOR', REGION: 'REGIONAL COORDINATOR', DISTRICT: 'DMS (DISTRICT)' };
 export const scopeOf = user => (['SUPER_ADMIN', 'STATE'].includes(user.role) ? 'All districts' : (user.region || user.district || '—').split(',').map(x => x.trim()).filter(Boolean).join(', '));
 

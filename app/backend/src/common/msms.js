@@ -41,8 +41,24 @@ export async function msmsLogin(username, password) {
   if (!res.ok || !data?.token) throw new HttpError('Invalid credentials', 401);
   const userData = decodeToken(data.token);
   if (!userData) throw new HttpError('MSMS returned a login that could not be read.', 502);
-  return userData;
+  const { token: _t, ...reply } = data;
+  return { ...userData, loginReply: reply };
 }
+
+// The person's name from the MSMS login: the response body first, then the token. MSMS_NAME_FIELD (comma separated) overrides the guesses.
+const NAME_FIELDS = String(process.env.MSMS_NAME_FIELD || 'name,fullName,full_name,userFullName,staffName,displayName,userDisplayName,employeeName,hmName').split(',').map(x => x.trim()).filter(Boolean);
+const NAME_MAX = 120;
+export const nameFrom = d => {
+  const reply = d?.loginReply || {};
+  for (const src of [reply, reply.data, reply.user, reply.userData, d]) {
+    if (!src || typeof src !== 'object') continue;
+    for (const k of NAME_FIELDS) {
+      const v = src[k];
+      if (typeof v === 'string' && v.trim()) return v.trim().replace(/\s+/g, ' ').slice(0, NAME_MAX);
+    }
+  }
+  return null;
+};
 
 const rowsOf = (x, depth = 0) => {
   if (Array.isArray(x)) return x.length && typeof x[0] === 'object' ? x : null;
@@ -94,7 +110,7 @@ export function districtsOfHm(rows, phone) {
 export async function profileFrom(userData) {
   const role = resolveRole(userData);
   if (!role) throw new HttpError('Invalid Credentials', 403);
-  const base = { username: String(userData.userName ?? '').trim(), role, region: null, district: null };
+  const base = { username: String(userData.userName ?? '').trim(), name: nameFrom(userData), role, region: null, district: null };
   if (!base.username) throw new HttpError('MSMS returned a login without a username.', 502);
   if (role === 'STATE' || role === 'SUPER_ADMIN') return base;
   const rows = await regionRows(userData.regionCode), districts = districtsFrom(rows);

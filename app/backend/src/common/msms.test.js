@@ -1,6 +1,6 @@
 import assert from 'node:assert';
 process.env.NODE_ENV = 'test';
-const { resolveRole, districtsFrom, decodeToken, districtsOfHm, profileFrom } = await import('./msms.js');
+const { nameFrom, resolveRole, districtsFrom, decodeToken, districtsOfHm, profileFrom } = await import('./msms.js');
 
 assert.equal(resolveRole({ userRole: 'PMU', districtId: null }), null);
 assert.equal(resolveRole({ userRole: 'PMU', staffType: 'PMU', districtId: 4 }), null);
@@ -36,4 +36,9 @@ assert.deepEqual(districtsOfHm(sample, '9000000000'), []);
 const body = Buffer.from(JSON.stringify({ userData: { userName: '8682872464', userRole: 'PMU', regionCode: '0001' } })).toString('base64url');
 assert.equal(decodeToken(`x.${body}.y`).userRole, 'PMU');
 assert.equal(decodeToken('garbage'), null);
+assert.equal(nameFrom({ userName: '1', loginReply: { name: '  Priya   Raman ' } }), 'Priya Raman');
+assert.equal(nameFrom({ userName: '1', loginReply: { data: { fullName: 'A B' } } }), 'A B');
+assert.equal(nameFrom({ userName: '1', staffName: 'From Token' }), 'From Token');
+assert.equal(nameFrom({ userName: '1', loginReply: {} }), null);
+assert.deepEqual(await profileFrom({ userName: '9', userRole: 'State coordinator', loginReply: { name: 'Asha K' } }), { username: '9', name: 'Asha K', role: 'STATE', region: null, district: null });
 console.log('MSMS role and region parsing OK');

@@ -1,4 +1,4 @@
-import { ROLE_NAME, scopeOf } from '../lib/status.js';
+import { ROLE_NAME, scopeOf, displayName } from '../lib/status.js';
 
 export default function Topbar({ user, route, menuOpen, onMenu }) {
   return <header className="topbar">
@@ -9,7 +9,7 @@ export default function Topbar({ user, route, menuOpen, onMenu }) {
     </div>
     <div className="topbar__right">
       <div className="scope-chip"><span className="status-dot" aria-hidden="true" />{scopeOf(user)}</div>
-      <div className="topbar__user"><div className="avatar avatar--sm" aria-hidden="true">{(user.username || 'U')[0]}</div><div><strong>{user.username}</strong><small>{ROLE_NAME[user.role] || user.role}</small></div></div>
+      <div className="topbar__user"><div className="avatar avatar--sm" aria-hidden="true">{(displayName(user) || 'U')[0]}</div><div><strong>{displayName(user)}</strong><small>{ROLE_NAME[user.role] || user.role}</small></div></div>
     </div>
   </header>;
 }

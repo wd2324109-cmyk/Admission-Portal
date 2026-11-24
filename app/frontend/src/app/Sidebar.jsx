@@ -1,5 +1,5 @@
 import { Icon } from '../components/ui/index.js';
-import { ROLE_NAME } from '../lib/status.js';
+import { ROLE_NAME, displayName } from '../lib/status.js';
 import { asset } from '../lib/format.js';
 
 function NavItem({ route, active, onSelect }) {
@@ -20,7 +20,7 @@ export default function Sidebar({ user, routes, page, onNavigate, onChangePasswo
     </nav>
     <div className="sidebar__foot">
       <div className="side-security"><span className="status-dot" aria-hidden="true" />Secure administrative workspace</div>
-      <div className="me"><div className="avatar" aria-hidden="true">{(user.username || 'U')[0]}</div><div className="me__copy"><strong title={user.username}>{user.username}</strong><small>{ROLE_NAME[user.role] || user.role}</small></div></div>
+      <div className="me"><div className="avatar" aria-hidden="true">{(displayName(user) || 'U')[0]}</div><div className="me__copy"><strong title={displayName(user)}>{displayName(user)}</strong><small>{ROLE_NAME[user.role] || user.role}</small></div></div>
       <div className="acct">{user.role === 'SUPER_ADMIN' && <button type="button" className="acct__btn" onClick={onChangePassword}>Change password</button>}<button type="button" className="acct__btn acct__btn--out" onClick={() => onLogout()}>Sign out</button></div>
     </div>
   </aside>;

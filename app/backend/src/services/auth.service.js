@@ -16,7 +16,7 @@ const byUser = makeLimiter({ max: 8 }), byIp = makeLimiter({ max: 30 }), byPwCha
 const DUMMY = bcrypt.hashSync('not-a-real-password', 12);
 const LOCKED = '!msms';
 const DEFAULT_CLASSES = String(process.env.MSMS_DEFAULT_CLASSES ?? '9,10').split(',').map(Number).filter(c => CLASSES.includes(c));
-const profileOf = u => ({ id: u.id, username: u.username, role: u.role, region: u.region, district: u.district });
+const profileOf = (u, name = null) => ({ id: u.id, username: u.username, name, role: u.role, region: u.region, district: u.district });
 
 async function syncMsmsUser(p) {
   const find = () => db.select().from(users).where(sql`lower(${users.username}) = ${p.username.toLowerCase()}`);
@@ -43,7 +43,7 @@ export const authService = {
     if (byUser.blocked(userKey) || byIp.blocked(ipKey))
       throw new HttpError('Too many failed attempts. Try again later.', 429, { retryAfter: Math.max(byUser.retryAfter(userKey), byIp.retryAfter(ipKey)) });
     const [local] = await db.select().from(users).where(sql`lower(${users.username}) = ${name.trim().toLowerCase()}`);
-    let u;
+    let u, fullName = null;
     if (local?.role === 'SUPER_ADMIN' && local.passwordHash !== LOCKED) {
       const ok = (await bcrypt.compare(String(password), local.passwordHash)) && !!local;
       if (!ok) { byUser.fail(userKey); byIp.fail(ipKey); console.warn(`Failed sign-in for "${name}" from ${ip}`); throw new HttpError('Invalid credentials', 401); }
@@ -53,12 +53,13 @@ export const authService = {
       try { p = await msmsSignIn(name.trim(), String(password)); }
       catch (e) { if (e.status === 401) { byUser.fail(userKey); byIp.fail(ipKey); console.warn(`Failed MSMS sign-in for "${name}" from ${ip}`); } throw e; }
       u = await syncMsmsUser(p);
+      fullName = p.name;   // from the MSMS login response; not stored in the database, it travels in the token
     }
     byUser.clear(userKey);
     if (await isFrozen(u.username, { fresh: true })) throw new HttpError(FROZEN_MSG, 403, { code: 'ACCOUNT_FROZEN' });
     // Signing in again does not end the other devices: the account session id is kept if there is one, and this device gets its own id.
     const [{ sid }] = await db.update(users).set({ sessionId: sql`coalesce(${users.sessionId}, ${newSessionId()})` }).where(eq(users.id, u.id)).returning({ sid: users.sessionId });
-    const did = newDeviceId(), profile = profileOf(u);
+    const did = newDeviceId(), profile = profileOf(u, fullName);
     return { token: signToken({ ...profile, sid, did, t: Date.now(), pv: pwStamp(u.passwordHash) }), user: { ...profile, classes: await classesOf(profile) } };
   },
   async logout({ user }) {
