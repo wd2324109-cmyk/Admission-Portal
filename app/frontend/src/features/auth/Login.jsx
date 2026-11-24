@@ -45,7 +45,7 @@ export default function Login({ onLogin }) {
           <CapsHint on={caps} /></div>
         <Alert>{err}</Alert>
         <button type="submit" className="btn btn--primary btn--block" disabled={busy}>{busy ? 'Signing in…' : 'Sign in'}</button>
-        <p className="login__notice">Forgot your password? Reset it in MSMS. Authorised users only. Sessions end after {IDLE_MINUTES} minutes of inactivity, and signing in on another device signs you out here.</p>
+        <p className="login__notice">Forgot your password? Reset it in MSMS. Authorised users only. Sessions end after {IDLE_MINUTES} minutes of inactivity</p>
       </form>
     </section>
   </main>;
