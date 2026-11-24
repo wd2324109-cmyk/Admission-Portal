@@ -82,7 +82,7 @@ export async function regionDistricts(regionCode) {
 
 export async function profileFrom(userData) {
   const role = resolveRole(userData);
-  if (!role) throw new HttpError('Your MSMS role is not allowed to sign in here. Only RC, HM, State co-ordinator, State-leads and State Lead - Enrollment can.', 403);
+  if (!role) throw new HttpError('Invalid Credentials', 403);
   const base = { username: String(userData.userName ?? '').trim(), role, region: null, district: null };
   if (!base.username) throw new HttpError('MSMS returned a login without a username.', 502);
   if (role === 'STATE' || role === 'SUPER_ADMIN') return base;

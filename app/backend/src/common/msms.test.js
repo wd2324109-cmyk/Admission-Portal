@@ -1,6 +1,6 @@
 import assert from 'node:assert';
 process.env.NODE_ENV = 'test';
-const { resolveRole, districtsFrom, decodeToken } = await import('./msms.js');
+const { resolveRole, districtsFrom, decodeToken, profileFrom } = await import('./msms.js');
 
 assert.equal(resolveRole({ userRole: 'PMU', districtId: null }), null);
 assert.equal(resolveRole({ userRole: 'PMU', staffType: 'PMU', districtId: 4 }), null);
@@ -15,6 +15,7 @@ assert.equal(resolveRole({ userRole: 'XYZ' }), null);
 assert.equal(resolveRole({ userRole: 'PMU', designation: 'State Lead - Enrollment' }), 'SUPER_ADMIN');
 assert.equal(resolveRole({ userRole: 'RC', designation: 'state lead - enrollment', districtId: 3 }), 'SUPER_ADMIN');
 assert.equal(resolveRole({ userRole: 'PMU', designation: 'Program Associate' }), null);
+await assert.rejects(profileFrom({ userRole: 'XYZ' }), error => error.message === 'Invalid Credentials' && error.status === 403);
 
 assert.deepEqual(districtsFrom({ data: [{ districtId: 5, districtName: 'Salem ' }, { districtId: 5, districtName: 'Salem' }, { districtId: 6, districtName: 'Erode' }] }),
   [{ id: '5', name: 'SALEM' }, { id: '6', name: 'ERODE' }]);
