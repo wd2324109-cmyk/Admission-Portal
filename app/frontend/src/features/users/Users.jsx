@@ -6,7 +6,7 @@ import { Alert, Badge, PageHeader, Table, useConfirm } from '../../components/ui
 
 const CLASSES = [9, 10];
 const toggle = (arr, c) => (arr.includes(c) ? arr.filter(x => x !== c) : [...arr, c].sort((a, b) => a - b));
-const BLANK = { username: '', role: 'DISTRICT', district: '', region: '', classes: [9, 10] };
+const BLANK = { username: '' };
 
 export default function Users({ me }) {
   const confirm = useConfirm();
@@ -18,8 +18,7 @@ export default function Users({ me }) {
   const freeze = async u => { if (await confirm({ title: 'Freeze this login?', message: `Freeze ${u.username}? They are signed out now and cannot sign in until you unfreeze.`, confirmLabel: 'Freeze', danger: true })) run(() => api(`/users/${u.id}/freeze`, { method: 'POST' })); };
   const newPassword = async u => { if (await confirm({ title: 'Issue a new password?', message: `Give ${u.username} a new password? They are signed out.`, confirmLabel: 'Issue password' })) run(async () => setShown(await api(`/users/${u.id}/reset-password`, { method: 'POST' }))); };
 
-  const missing = !f.username.trim() ? 'Enter a username.' : f.role === 'DISTRICT' && !f.district.trim() ? 'Enter the district.' : f.role === 'REGION' && !f.region.trim() ? 'Enter the district(s) of the region.' : '';
-  const create = () => run(async () => { setShown(await api('/users', { method: 'POST', body: { ...f, username: f.username.trim() } })); setF({ ...f, username: '', district: '', region: '' }); });
+    const create = () => run(async () => { setShown(await api('/users', { method: 'POST', body: { username: f.username.trim(), role: 'SUPER_ADMIN', classes: [] } })); setF(BLANK); });
 
   return <>
     <PageHeader title="Users & Access" />
@@ -38,22 +37,15 @@ export default function Users({ me }) {
             {u.role === 'DISTRICT' && (u.frozen
               ? <button type="button" className="btn btn--sm" disabled={busy} onClick={() => run(() => api(`/users/${u.id}/unfreeze`, { method: 'POST' }))}>Unfreeze</button>
               : <button type="button" className="btn btn--sm btn--danger" disabled={busy} onClick={() => freeze(u)}>Freeze</button>)}
-            {u.id !== me.id && <button type="button" className="btn btn--sm" disabled={busy} onClick={() => newPassword(u)}>New password</button>}
+            {u.role === 'SUPER_ADMIN' && u.id !== me.id && <button type="button" className="btn btn--sm" disabled={busy} onClick={() => newPassword(u)}>New password</button>}
           </div></td></tr>; })}</tbody>
       </Table>
     </section>
-    <section className="panel"><h3 className="panel__title">Add a user</h3>
+    <section className="panel"><h3 className="panel__title">Add a super admin</h3>
       <div className="toolbar">
         <input aria-label="Username" placeholder="Username" maxLength={100} autoComplete="off" value={f.username} onChange={e => setF({ ...f, username: e.target.value })} />
-        <select aria-label="Role" value={f.role} onChange={e => setF({ ...f, role: e.target.value })}><option value="DISTRICT">DMS (district)</option><option value="REGION">Regional Coordinator</option><option value="STATE">State Regional Coordinator</option><option value="SUPER_ADMIN">SE Team (super admin)</option></select>
-        {f.role === 'DISTRICT' && <input aria-label="District" placeholder="District" value={f.district} onChange={e => setF({ ...f, district: e.target.value })} />}
-        {f.role === 'REGION' && <input aria-label="Region" placeholder="District(s), comma separated" value={f.region} onChange={e => setF({ ...f, region: e.target.value })} />}
+        <button type="button" className="btn btn--primary" disabled={busy || !f.username.trim()} onClick={create}>Create super admin</button>
       </div>
-      <div className="toolbar">
-        {f.role === 'SUPER_ADMIN' ? <span className="muted">Super admins can open all classes.</span> : CLASSES.map(c => <label key={c} className="check"><input type="checkbox" checked={f.classes.includes(c)} onChange={() => setF({ ...f, classes: toggle(f.classes, c) })} /> Class {c}</label>)}
-        <button type="button" className="btn btn--primary" disabled={busy || !!missing} title={missing || undefined} onClick={create}>Create user</button>
-      </div>
-      {missing && f.username && <p className="hint">{missing}</p>}
     </section>
   </>;
 }

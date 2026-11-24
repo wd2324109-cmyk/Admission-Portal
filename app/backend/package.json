@@ -15,9 +15,10 @@
     "db:deploy:prod": "node src/dbSetup.js --profile=production --apply && node src/dbVerify.js --profile=production",
     "seed": "node src/seed.js",
     "reset:superadmin": "node src/resetSuperadmin.js",
-    "test": "node src/spec/schema.test.js && node src/workflow/workflow.test.js && node src/workflow/listRequest.test.js && node src/common/security.test.js && node src/common/hardening.test.js && node src/common/routes.test.js && node src/db/profile.test.js && node src/common/resetCode.test.js && node src/services/importMap.test.js && node src/services/selection.test.js && node src/services/revert.test.js && node src/common/access.test.js",
+    "test": "node src/spec/schema.test.js && node src/workflow/workflow.test.js && node src/workflow/listRequest.test.js && node src/common/security.test.js && node src/common/hardening.test.js && node src/common/routes.test.js && node src/db/profile.test.js && node src/common/resetCode.test.js && node src/services/importMap.test.js && node src/services/selection.test.js && node src/services/revert.test.js && node src/common/access.test.js && node src/common/msms.test.js",
     "test:integration": "node test/workflow.integration.js",
-    "db:ddl": "node src/dbDdl.js"
+    "db:ddl": "node src/dbDdl.js",
+    "msms:check": "node src/msmsCheck.js"
   },
   "dependencies": {
     "bcryptjs": "^2.4.3",

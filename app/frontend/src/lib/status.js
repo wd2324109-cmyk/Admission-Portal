@@ -35,7 +35,7 @@ export const DOC_STATES = { VERIFIED: ['Verified', 'ok'], PENDING: ['Awaiting ve
 export const DOC_TABS = [['', 'All'], ['NOT_SUBMITTED', 'Not submitted'], ['INCOMPLETE', 'Incomplete'], ['PENDING', 'Awaiting verification'], ['REJECTED', 'Rejected'], ['VERIFIED', 'Verified']];
 
 export const ROLE_NAME = { SUPER_ADMIN: 'SE TEAM (SUPER ADMIN)', STATE: 'STATE REGIONAL COORDINATOR', REGION: 'REGIONAL COORDINATOR', DISTRICT: 'DMS (DISTRICT)' };
-export const scopeOf = user => (['SUPER_ADMIN', 'STATE'].includes(user.role) ? 'All districts' : user.region || user.district || '—');
+export const scopeOf = user => (['SUPER_ADMIN', 'STATE'].includes(user.role) ? 'All districts' : (user.region || user.district || '—').split(',').map(x => x.trim()).filter(Boolean).join(', '));
 
 export const classesFor = user => (user.role === 'SUPER_ADMIN' ? [9, 10] : (user.classes || []).filter(c => [9, 10].includes(c)));
 export const firstClass = user => classesFor(user)[0] || 9;
