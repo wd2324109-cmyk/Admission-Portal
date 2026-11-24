@@ -13,7 +13,7 @@ import { lockClass } from '../common/locks.js';
 import { saveUpload } from '../common/upload.js';
 import { getLetter, allLetters, putLetter, KINDS, STAGE_KINDS } from '../common/letters.js';
 import { UPLOADS } from '../common/paths.js';
-import { STATUS, GROUP_SQL, stateOf, groupOf, seatEffect, primary, statusColumns } from '../workflow/statuses.js';
+import { STATUS, GROUP_SQL, VIEW_SQL, stateOf, groupOf, seatEffect, primary, statusColumns } from '../workflow/statuses.js';
 import { planAction, availableActions, nextCodes, assertFresh, VALID_CODES } from '../workflow/transitions.js';
 
 const SIZE = 25;
@@ -21,7 +21,7 @@ export const view = (row, cls, role, prev) => {
   const st = stateOf(row);
   if (prev) st.prev = prev;
   const next = role === 'SUPER_ADMIN' ? nextCodes(st).map(c => ({ code: c, label: STATUS[c].label })) : [];
-  return { ...norm(row, cls), ...statusColumns(primary(st)), state: { code: st.code, tag2: st.tag2 }, group: groupOf(st), statusCode: primary(st), statusLabel: STATUS[primary(st)]?.label ?? 'Not listed', actions: availableActions(role, st), nextStatuses: next };
+  return { ...norm(row, cls), ...statusColumns(primary(st)), state: { code: st.code, tag2: st.tag2, tag1: st.tag1 }, group: groupOf(st), statusCode: primary(st), statusLabel: STATUS[primary(st)]?.label ?? 'Not listed', actions: availableActions(role, st), nextStatuses: next };
 };
 
 const SEAT_HOLDERS = ['1A', '2A', '7A'];
@@ -55,7 +55,7 @@ async function commit(tx, user, cls, row, patch) {
 export const studentService = {
   async list({ user, query }) {
     const cls = await requireClass(user, parseClass(query.class)), T = studentTable(cls), term = String(query.search || '').trim();
-    const g = Object.hasOwn(GROUP_SQL, query.view) ? sql.raw(GROUP_SQL[query.view]) : undefined, page = Math.max(1, parseInt(query.page, 10) || 1);
+    const g = Object.hasOwn(VIEW_SQL, query.view) ? sql.raw(VIEW_SQL[query.view]) : undefined, page = Math.max(1, parseInt(query.page, 10) || 1);
     const q = term ? or(ilike(T.name, `%${likeEsc(term)}%`), sql`${T.emis}::text like ${likeEsc(term) + '%'}`) : undefined;
     const code = String(query.status || '').toUpperCase(), byCode = Object.hasOwn(STATUS, code) ? eq(T.selectStatus, code) : undefined;
     // STATE and SUPER_ADMIN see every district, so they get a district filter (by the student's home district).

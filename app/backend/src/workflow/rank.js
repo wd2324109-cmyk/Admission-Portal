@@ -9,7 +9,9 @@ export function computeRanks(students) {
 
 // After lists have started: the students still waiting to be listed are ranked together by score, and their ranks begin right after
 // the rank of the last student already listed. Ranks of students who were listed never change.
+// A student whose reconsideration was requested or approved has an empty select status too, but was listed before, so the rank stays.
+const keepsRank = s => !!s.selectStatus || ['RECONSIDER', 'RECONSIDER_SELECT'].includes(String(s.tag1 ?? '').trim());
 export function rankRemaining(students) {
-  const top = Math.max(0, ...students.filter(s => s.selectStatus).map(s => s.orank).filter(Number.isInteger));
-  return [...computeRanks(students.filter(s => !s.selectStatus))].map(([id, r]) => [id, r + top]);
+  const top = Math.max(0, ...students.filter(keepsRank).map(s => s.orank).filter(Number.isInteger));
+  return [...computeRanks(students.filter(s => !keepsRank(s)))].map(([id, r]) => [id, r + top]);
 }

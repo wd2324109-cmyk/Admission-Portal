@@ -10,11 +10,11 @@ import StudentModal from '../students/StudentModal.jsx';
 
 const EMPTY = { rows: [], pages: 1 };
 
-// Students the DMS asked to reconsider (Waiting - reconsidered). The super admin decides: Approve (select status cleared, student returns to the next list) or Not Selected.
+// Students the DMS asked to reconsider (select status stays empty). The super admin decides: Approve (student returns to the next list) or Not Selected.
 export default function ReconsiderRequests({ user }) {
   const [cls, setCls] = useState(firstClass(user)), [search, setSearch] = useState(''), [open, setOpen] = useState(null);
   const q = useDebounced(search), [page, setPage] = usePage(cls, q);
-  const { data, error, loading, reload } = useFetch(() => api(`/students?class=${cls}&view=waiting&status=1B&search=${encodeURIComponent(q)}&page=${page}`), [cls, q, page], EMPTY);
+  const { data, error, loading, reload } = useFetch(() => api(`/students?class=${cls}&view=reconsider&search=${encodeURIComponent(q)}&page=${page}`), [cls, q, page], EMPTY);
 
   return <>
     <div className="filters"><ClassTabs user={user} cls={cls} onChange={setCls} /></div>

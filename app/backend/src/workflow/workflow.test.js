@@ -1,19 +1,23 @@
 import assert from 'node:assert';
 import { planAction, availableActions, nextCodes, assertFresh } from './transitions.js';
-import { stateOf, seatEffect, holdsSeat, groupOf } from './statuses.js';
+import { stateOf, seatEffect, holdsSeat, groupOf, STATUS, GROUPS } from './statuses.js';
 import { planList } from './allocation.js';
 import { computeRanks, rankRemaining } from './rank.js';
 import { requiredFor, summarize, planSubmit, planReview } from './documents.js';
 
 const S = (a = '', b = '', tag2 = '') => ({ code: b || a, tag2 });
+// A reconsideration request: select status empty (null), tag1 says it is waiting for the super admin.
+const RQ = () => ({ code: '', tag2: '', tag1: 'RECONSIDER' });
 const run = (role, state, key, remarks = 'ok') => planAction(role, state, key, remarks).after;
 const fails = (fn, status) => { try { fn(); } catch (e) { assert.equal(e.status, status ?? e.status); return; } assert.fail('expected an error'); };
 
 assert.deepEqual(run('DISTRICT', S('1A'), 'WILLING'), S('2A'));
 assert.equal(run('DISTRICT', S('1A'), 'NOT_WILLING').code, '6A');
-assert.equal(run('DISTRICT', S('6A'), 'RECONSIDER').code, '1B');
+assert.equal(run('DISTRICT', S('6A'), 'RECONSIDER').code, '', 'a reconsideration request empties the select status');
+assert.equal(planAction('DISTRICT', S('6A'), 'RECONSIDER', 'x').tag1, 'RECONSIDER');
+assert(!STATUS['1B'], 'there is no Waiting (reconsidered) status');
 fails(() => run('DISTRICT', S('6A'), 'WILLING'), 409);
-fails(() => run('DISTRICT', S('1B'), 'WILLING'), 409);
+fails(() => run('DISTRICT', RQ(), 'WILLING'), 409);
 fails(() => planAction('DISTRICT', S('1A'), 'NOT_WILLING', ''), 400);
 
 assert.equal(run('DISTRICT', S('2A'), 'JOINED_HM').code, '3A');
@@ -35,7 +39,7 @@ assert.equal(seatEffect(S('2A', '7A'), S('2A', '3B')), 'JOIN');
 assert.equal(seatEffect(S('2A', '3A'), S('2A', '8A')), null);
 assert.equal(seatEffect(S('2A', '8A'), S('2A', '8B')), 'RELEASE');
 assert.equal(seatEffect(S('2A'), S('2A', '7B')), null);
-assert([S('1A'), S('2A'), S('2A', '7A')].every(holdsSeat) && ![S('1B'), S('6A'), S('2A', '7B'), S('2A', '8B'), S('2A', '3A')].some(holdsSeat));
+assert([S('1A'), S('2A'), S('2A', '7A')].every(holdsSeat) && ![RQ(), S('6A'), S('2A', '7B'), S('2A', '8B'), S('2A', '3A')].some(holdsSeat));
 
 assert.deepEqual(availableActions('DISTRICT', S('1A')).map(a => a.key).sort(), ['NOT_WILLING', 'WILLING']);
 assert.deepEqual(availableActions('DISTRICT', S('2A')).map(a => a.key).sort(), ['JOINED_HM', 'NOT_JOINED']);
@@ -46,16 +50,21 @@ assert.deepEqual(availableActions('REGION', S('1A')), []);
 assert.deepEqual(availableActions('STATE', S('2A', '8A', 'TC-SRC')).map(a => a.key).sort(), ['TC_STATE_APPROVE', 'TC_STATE_REJECT']);
 assert.equal(groupOf(S('6A')), 'notwilling');
 // Reconsideration: the super admin decides with Selected / Not Selected only
-assert.deepEqual(availableActions('SUPER_ADMIN', S('1B')).map(a => a.label).sort(), ['Approve', 'Not Selected']);
-assert.equal(run('SUPER_ADMIN', S('1B'), 'RECONSIDER_SELECT').code, '', 'approved reconsideration clears the select status');
-assert.equal(run('SUPER_ADMIN', S('1B'), 'RECONSIDER_REJECT').code, '6A');
-fails(() => run('DISTRICT', S('1B'), 'RECONSIDER_SELECT'), 403); fails(() => run('SUPER_ADMIN', S('1A'), 'RECONSIDER_SELECT'), 409); fails(() => planAction('SUPER_ADMIN', S('1B'), 'RECONSIDER_REJECT', ''), 400);
+assert.deepEqual(availableActions('SUPER_ADMIN', RQ()).map(a => a.label).sort(), ['Approve', 'Not Selected']);
+assert.equal(run('SUPER_ADMIN', RQ(), 'RECONSIDER_SELECT').code, '', 'approved reconsideration keeps the select status empty');
+assert.equal(planAction('SUPER_ADMIN', RQ(), 'RECONSIDER_SELECT', 'ok').tag1, 'RECONSIDER_SELECT');
+assert.equal(run('SUPER_ADMIN', RQ(), 'RECONSIDER_REJECT').code, '6A');
+assert.deepEqual(availableActions('SUPER_ADMIN', S()).filter(a => a.key.startsWith('RECONSIDER')), [], 'an unlisted student has nothing to reconsider');
+fails(() => run('DISTRICT', RQ(), 'RECONSIDER_SELECT'), 403); fails(() => run('SUPER_ADMIN', S('1A'), 'RECONSIDER_SELECT'), 409); fails(() => run('SUPER_ADMIN', S(), 'RECONSIDER_SELECT'), 409); fails(() => planAction('SUPER_ADMIN', RQ(), 'RECONSIDER_REJECT', ''), 400);
 assert.deepEqual(availableActions('SUPER_ADMIN', S('1A')), []);
 
 // Correction offers the next status only
 assert.deepEqual(nextCodes(S('1A')).sort(), ['2A', '6A']);
-assert.deepEqual(nextCodes(S('1B')).sort(), ['6A']);
-assert.deepEqual(nextCodes(S('6A')), ['1B']);
+assert.deepEqual(nextCodes(RQ()).sort(), ['6A']);
+// Groups: a request is not Waiting and not Not listed; only 1A is in the pending (waiting) tab.
+assert.equal(GROUPS.waiting(S('1A')), true); assert.equal(GROUPS.waiting(RQ()), false); assert.equal(GROUPS.notlisted(RQ()), false); assert.equal(GROUPS.notlisted(S()), true); assert.equal(groupOf(RQ()), 'notwilling');
+fails(() => assertFresh({ code: '', tag2: '', tag1: 'RECONSIDER' }, S()), 409); assertFresh({ code: '', tag2: '', tag1: 'RECONSIDER' }, RQ());
+assert.deepEqual(nextCodes(S('6A')), [], 'Correction never offers an empty status');
 assert.deepEqual(nextCodes(S('2A')).sort(), ['3A', '7A']);
 assert.deepEqual(nextCodes(S('2A', '3A')), ['8A']);
 assert.deepEqual(nextCodes(S('2A', '7A')).sort(), ['2A', '3B', '7B']);
@@ -96,9 +105,11 @@ plan = planList(after6A, seats, 9);
 assert.deepEqual(names(plan), [more[6].id], 'the freed BC seat goes to the next eligible BC student');
 assert(!names(plan).includes(bcStudent.id));
 
-const after1B = after6A.map(s => s.id === bcStudent.id ? { ...s, selectStatus: '1B' } : s);
-plan = planList(after1B, seats, 9);
-assert.deepEqual(names(plan), [bcStudent.id], '1B is considered again, and being better ranked he gets the seat');
+const asked = after6A.map(s => s.id === bcStudent.id ? { ...s, selectStatus: null, tag1: 'RECONSIDER' } : s);
+assert.deepEqual(names(planList(asked, seats, 9)), [more[6].id], 'a pending reconsideration request is not listed until the super admin approves');
+const approved = after6A.map(s => s.id === bcStudent.id ? { ...s, selectStatus: null, tag1: 'RECONSIDER_SELECT' } : s);
+plan = planList(approved, seats, 9);
+assert.deepEqual(names(plan), [bcStudent.id], 'an approved reconsideration is considered again, and being better ranked he gets the seat');
 assert.equal(plan.assignments[0].relisted, true);
 
 assert.equal(planList(after6A.map(s => s.id === bcStudent.id ? { ...s, selectStatus: '7B' } : s), seats, 9).assignments.length, 1);

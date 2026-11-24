@@ -5,7 +5,7 @@ import { studentTable, parseClass, norm, pick } from '../common/studentStore.js'
 import { seatTable } from '../common/seats.js';
 import { logStudents } from '../common/logs.js';
 import { lockClass } from '../common/locks.js';
-import { stateOf, statusColumns } from '../workflow/statuses.js';
+import { stateOf, statusColumns, inListPool } from '../workflow/statuses.js';
 import { planList } from '../workflow/allocation.js';
 import { computeRanks, rankRemaining } from '../workflow/rank.js';
 import { nextListNumber } from '../common/listNumber.js';
@@ -47,7 +47,7 @@ export const listService = {
         await writeRanks(tx, T, pairs);
         rows = rows.map(r => (got.has(r.id) ? { ...r, orank: got.get(r.id) } : r));
       }
-      const students = rows.map(r => norm(r, cls)), eligible = students.filter(s => { const st = stateOf(s); return !st.code || st.code === '1B'; });
+      const students = rows.map(r => norm(r, cls)), eligible = students.filter(s => inListPool(stateOf(s)));
       const unranked = eligible.filter(s => !Number.isInteger(s.orank)).length;
       if (unranked) throw new HttpError(`${unranked} students have no overall rank. Generate the overall rank first.`, 409);
       const plan = planList(students, seats, cls), summary = { listed: plan.totals.listed, openSeats: plan.totals.open, shortfall: plan.totals.shortfall,
