@@ -1,13 +1,8 @@
-# Render Blueprint - ONE web service (API + website on one address) + PostgreSQL + a persistent disk.
+# Render Blueprint - ONE web service (API + website on one address) + a persistent disk.
+# The database is your EXISTING production PostgreSQL (schema "core"). Render does not create or change it.
 # Place this file at the ROOT of the GitHub repository (next to the "app" folder), then in Render:
 # New > Blueprint > pick the repository. Check plan names/prices in Render before applying.
 # A persistent disk needs a paid instance type (not "free").
-databases:
-  - name: admissions-db
-    region: singapore
-    plan: basic-256mb            # paid; the free database is deleted after 30 days
-    postgresMajorVersion: "16"
-
 services:
   - type: web
     name: admissions-portal
@@ -16,8 +11,8 @@ services:
     plan: starter                # paid; needed for the disk, and it does not sleep
     rootDir: app
     buildCommand: cd frontend && npm ci && npm run build && cd ../backend && npm ci --include=dev
-    # db:deploy = create the 10 tables of the database document, verify them against it, create the first logins.
-    startCommand: cd backend && npm run db:deploy && node src/server.js
+    # No table creation on start: the production database is managed outside Render.
+    startCommand: cd backend && node src/server.js
     healthCheckPath: /api/health
     # Persistent disk: the unwilling letters (and any other upload) are saved here, so they survive every deploy.
     disk:
@@ -28,19 +23,17 @@ services:
       - key: NODE_ENV
         value: production
       - key: DATABASE_URL
-        fromDatabase:
-          name: admissions-db
-          property: connectionString   # internal address: no SSL needed
+        sync: false                    # paste the production connection string in the dashboard (postgres://USER:PASSWORD@HOST:5432/DBNAME); never commit it
       - key: DB_PROFILE
-        value: test                    # the test database layout. Production (schema core) is a separate database: see backend/.env.example
+        value: production              # schema "core" layout
+      - key: DB_SCHEMA
+        value: core
+      - key: DB_TABLE_PREFIX
+        value: enrollment_             # change if your tables have a different prefix; use the exact names in the database
       - key: DATABASE_SSL
-        value: "false"
+        value: "true"                  # the database is reached over the internet
       - key: JWT_SECRET
         generateValue: true
-      - key: SEED_ADMIN_PASSWORD
-        sync: false                    # you type it in the dashboard; it is never printed in the logs
-      - key: SEED_STATE_PASSWORD
-        sync: false                    # password of the "state_coordinator" login (created on first start)
       - key: UPLOADS_DIR
         value: /var/data/uploads
       - key: TRUST_PROXY
