@@ -49,16 +49,20 @@ fails(() => run('SUPER_ADMIN', S('2A'), 'JOINED_HM'), 403); fails(() => run('SUP
 assert.deepEqual(availableActions('REGION', S('1A')), []);
 assert.deepEqual(availableActions('STATE', S('2A', '8A', 'TC-SRC')).map(a => a.key).sort(), ['TC_STATE_APPROVE', 'TC_STATE_REJECT']);
 assert.equal(groupOf(S('6A')), 'notwilling');
-// Reconsideration: no approval step; the super admin has no reconsider action, the student is simply hidden and back in the pool
-assert.deepEqual(availableActions('SUPER_ADMIN', RQ()), []); assert.deepEqual(availableActions('DISTRICT', RQ()), []);
-fails(() => run('SUPER_ADMIN', S('6A'), 'RECONSIDER'), 403); fails(() => planAction('SUPER_ADMIN', S('1A'), 'RECONSIDER_SELECT', 'x'), 400);
+// Reconsideration: the super admin decides with Selected / Not Selected only
+assert.deepEqual(availableActions('SUPER_ADMIN', RQ()).map(a => a.label).sort(), ['Approve', 'Not Selected']);
+assert.equal(run('SUPER_ADMIN', RQ(), 'RECONSIDER_SELECT').code, '', 'approved reconsideration keeps the select status empty');
+assert.equal(planAction('SUPER_ADMIN', RQ(), 'RECONSIDER_SELECT', 'ok').tag1, 'RECONSIDER_SELECT');
+assert.equal(run('SUPER_ADMIN', RQ(), 'RECONSIDER_REJECT').code, '6A');
+assert.deepEqual(availableActions('SUPER_ADMIN', S()).filter(a => a.key.startsWith('RECONSIDER')), [], 'an unlisted student has nothing to reconsider');
+fails(() => run('DISTRICT', RQ(), 'RECONSIDER_SELECT'), 403); fails(() => run('SUPER_ADMIN', S('1A'), 'RECONSIDER_SELECT'), 409); fails(() => run('SUPER_ADMIN', S(), 'RECONSIDER_SELECT'), 409); fails(() => planAction('SUPER_ADMIN', RQ(), 'RECONSIDER_REJECT', ''), 400);
 assert.deepEqual(availableActions('SUPER_ADMIN', S('1A')), []);
 
 // Correction offers the next status only
 assert.deepEqual(nextCodes(S('1A')).sort(), ['2A', '6A']);
-assert.deepEqual(nextCodes(RQ()), []);
-// Groups: a reconsidered student (select status empty) is on no tab; only 1A is in the pending (waiting) tab.
-assert.equal(GROUPS.waiting(S('1A')), true); assert.equal(GROUPS.waiting(RQ()), false); assert.equal(GROUPS.notlisted(RQ()), false); assert.equal(GROUPS.notwilling(RQ()), false); assert.equal(GROUPS.notlisted(S()), true);
+assert.deepEqual(nextCodes(RQ()).sort(), ['6A']);
+// Groups: a request is not Waiting and not Not listed; only 1A is in the pending (waiting) tab.
+assert.equal(GROUPS.waiting(S('1A')), true); assert.equal(GROUPS.waiting(RQ()), false); assert.equal(GROUPS.notlisted(RQ()), false); assert.equal(GROUPS.notlisted(S()), true); assert.equal(groupOf(RQ()), 'notwilling');
 fails(() => assertFresh({ code: '', tag2: '', tag1: 'RECONSIDER' }, S()), 409); assertFresh({ code: '', tag2: '', tag1: 'RECONSIDER' }, RQ());
 assert.deepEqual(nextCodes(S('6A')), [], 'Correction never offers an empty status');
 assert.deepEqual(nextCodes(S('2A')).sort(), ['3A', '7A']);
@@ -101,9 +105,11 @@ plan = planList(after6A, seats, 9);
 assert.deepEqual(names(plan), [more[6].id], 'the freed BC seat goes to the next eligible BC student');
 assert(!names(plan).includes(bcStudent.id));
 
-const reconsidered = after6A.map(s => s.id === bcStudent.id ? { ...s, selectStatus: null, tag1: 'RECONSIDER' } : s);
-plan = planList(reconsidered, seats, 9);
-assert.deepEqual(names(plan), [bcStudent.id], 'a reconsidered student is considered again by the next list, and being better ranked he gets the seat');
+const asked = after6A.map(s => s.id === bcStudent.id ? { ...s, selectStatus: null, tag1: 'RECONSIDER' } : s);
+assert.deepEqual(names(planList(asked, seats, 9)), [more[6].id], 'a pending reconsideration request is not listed until the super admin approves');
+const approved = after6A.map(s => s.id === bcStudent.id ? { ...s, selectStatus: null, tag1: 'RECONSIDER_SELECT' } : s);
+plan = planList(approved, seats, 9);
+assert.deepEqual(names(plan), [bcStudent.id], 'an approved reconsideration is considered again, and being better ranked he gets the seat');
 assert.equal(plan.assignments[0].relisted, true);
 
 assert.equal(planList(after6A.map(s => s.id === bcStudent.id ? { ...s, selectStatus: '7B' } : s), seats, 9).assignments.length, 1);

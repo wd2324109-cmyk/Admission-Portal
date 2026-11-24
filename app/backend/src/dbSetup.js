@@ -36,10 +36,10 @@ try {
     for (const q of createTables()) await pool.query(q);
     for (const q of addMissingColumns()) await pool.query(q);
     for (const q of INDEXES) await pool.query(q);
-    // Older data: "Waiting (reconsidered)" (1B) no longer exists. Those students become reconsidered students: select status and admit status empty, tag1 = RECONSIDER.
+    // Older data: "Waiting (reconsidered)" (1B) no longer exists. Those students become a pending reconsideration request: select status and admit status empty, tag1 = RECONSIDER.
     for (const t of ['Students_master_9th', 'Students_master_10th']) {
       const r = await pool.query(`UPDATE ${qualified(t)} SET select_status = NULL, admit_status = NULL, tag1 = 'RECONSIDER' WHERE upper(trim(coalesce(select_status, ''))) = '1B'`);
-      if (r.rowCount) console.log(`${t}: ${r.rowCount} student(s) moved from 1B to reconsidered (select status empty)`);
+      if (r.rowCount) console.log(`${t}: ${r.rowCount} student(s) moved from 1B to a pending reconsideration request`);
     }
     console.log('Tables are ready:', TABLE_NAMES.join(', '));
   }

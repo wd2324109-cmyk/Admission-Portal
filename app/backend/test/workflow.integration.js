@@ -66,7 +66,8 @@ try {
   await ok(dms, 'POST', `/students/9/${s2.id}/action`, { action: 'RECONSIDER', remarks: 'family reconsidered' });
   const asked = await ok(dms, 'GET', `/students/9/${s2.id}`);
   assert.equal(asked.statusCode, '', 'a reconsideration request leaves the select status empty'); assert(!asked.selectStatus && !asked.admitStatus, 'select_status and admit_status are null');
-  for (const v of ['waiting', 'notwilling', 'notlisted', 'selected']) for (const who of [dms, admin]) assert(!(await ok(who, 'GET', `/students?class=9&view=${v}`)).rows.some(s => s.id === s2.id), `a reconsidered student shows on no tab (${v})`);
+  assert(!(await ok(dms, 'GET', '/students?class=9&view=waiting')).rows.some(s => s.id === s2.id), 'only 1A students are in the pending (waiting) tab');
+  assert((await ok(admin, 'GET', '/students?class=9&view=reconsider')).rows.some(s => s.id === s2.id), 'the request is in the super admin Reconsider requests');
 
   await ok(dms, 'POST', `/students/9/${s1.id}/action`, { action: 'TC_REQUEST', remarks: 'transfer' });
   assert.equal((await ok(dms, 'GET', '/vacancies?class=9')).reduce((n, c) => n + c.joined, 0), 1);
@@ -81,6 +82,10 @@ try {
   assert.equal((await call(dms, 'POST', '/lists/generate', { classLevel: 9 })).status, 403);
 
   assert.equal((await call(admin, 'POST', `/students/9/${s1.id}/override`, { code: '3B', remarks: 'TC was a mistake' })).status, 409, 'correction offers the next status only; TC Issued is the last one');
+  assert.deepEqual((await ok(admin, 'GET', `/students/9/${s2.id}`)).actions.map(a => a.label).sort(), ['Approve', 'Not Selected'], 'a reconsideration request: Approve or Not Selected');
+  await ok(admin, 'POST', `/students/9/${s2.id}/action`, { action: 'RECONSIDER_SELECT', remarks: 'reconsideration accepted' });
+  const fixed = await ok(admin, 'GET', `/students/9/${s2.id}`); assert.equal(fixed.statusCode, ''); assert(!fixed.selectStatus && !fixed.admitStatus, 'approved: select status stays empty (null)');
+  assert(!(await ok(admin, 'GET', '/students?class=9&view=reconsider')).rows.some(s => s.id === s2.id), 'a decided request leaves the Reconsider requests tab');
   const s1c = await ok(admin, 'GET', `/students/9/${s1.id}`); assert.deepEqual(s1c.nextStatuses, [], 'TC Issued is the last status');
 
   const slog = await ok(admin, 'GET', '/logs/students?class=9'), vlog = await ok(admin, 'GET', '/logs/vacancies?class=9');

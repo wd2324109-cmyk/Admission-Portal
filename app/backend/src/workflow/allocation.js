@@ -1,4 +1,4 @@
-import { norm, stateOf, holdsSeat, inListPool, RECONSIDER_REQUESTED } from './statuses.js';
+import { norm, stateOf, holdsSeat, inListPool, RECONSIDER_APPROVED } from './statuses.js';
 
 export const COMMUNITY_ORDER = ['GT-PWD', 'GT', 'BC', 'BCM', 'MBC', 'SC', 'SCA', 'ST'];
 const up = v => norm(v).toUpperCase();
@@ -32,7 +32,7 @@ export function planList(students, seats, cls) {
     const eligible = pool.filter(st => !taken.has(st.id) && up(st.district) === up(c.newDistrict) && up(st.gender) === up(c.gender) && up(st.medium) === up(c.medium)
       && (comm === 'GT' ? true : comm === 'GT-PWD' ? !!st.disabilityStatus : up(st.community) === comm));
     const chosen = eligible.sort((a, b) => rankOf(a) - rankOf(b) || (a.emis ?? 0) - (b.emis ?? 0) || a.id - b.id).slice(0, c.open);
-    for (const st of chosen) { taken.add(st.id); assignments.push({ id: st.id, relisted: stateOf(st).tag1 === RECONSIDER_REQUESTED, cell: c }); }
+    for (const st of chosen) { taken.add(st.id); assignments.push({ id: st.id, relisted: stateOf(st).tag1 === RECONSIDER_APPROVED, cell: c }); }
     c.chosen = chosen.length; c.shortfall = c.open - chosen.length;
   }
   return { assignments, cells: ordered, totals: { listed: assignments.length, shortfall: ordered.reduce((n, c) => n + c.shortfall, 0), open: ordered.reduce((n, c) => n + c.open, 0) } };

@@ -9,8 +9,11 @@ export const ACTIONS = {
 
   WILLING:     { label: 'Selected', roles: DMS, from: s => s.code === '1A', to: { code: '2A' } },
   NOT_WILLING: { label: 'Not Willing', roles: DMS, from: s => s.code === '1A', to: { code: '6A' }, needsRemarks: true, letters: TWO_LETTERS },
-  // Requesting a reconsideration empties the select status (null): the student shows on no screen and is picked again by the next list. There is no "Waiting (reconsidered)" status and no approval step.
+  // Requesting a reconsideration empties the select status (null); there is no "Waiting (reconsidered)" status.
   RECONSIDER:  { label: 'Request reconsideration', roles: DMS, from: s => s.code === '6A', to: { code: '' }, needsRemarks: true },
+  // Approving a reconsideration leaves the select status empty (null), so the student is back in the pool for the next list; the seat is given by the list, not here.
+  RECONSIDER_SELECT: { label: 'Approve', roles: SE, from: isReconsiderRequest, to: { code: '' }, needsRemarks: true },
+  RECONSIDER_REJECT: { label: 'Not Selected', roles: SE, from: isReconsiderRequest, to: { code: '6A' }, needsRemarks: true },
 
   JOINED_HM:   { label: 'Joined', roles: DMS_ONLY, from: s => s.code === '2A', to: { code: '3A' } },
   NOT_JOINED:  { label: 'Not Joined', roles: DMS_ONLY, from: s => s.code === '2A', to: { code: '7A' }, needsRemarks: true, letters: TWO_LETTERS },

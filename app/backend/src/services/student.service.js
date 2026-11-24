@@ -13,7 +13,7 @@ import { lockClass } from '../common/locks.js';
 import { saveUpload } from '../common/upload.js';
 import { getLetter, allLetters, putLetter, KINDS, STAGE_KINDS } from '../common/letters.js';
 import { UPLOADS } from '../common/paths.js';
-import { STATUS, GROUP_SQL, stateOf, groupOf, seatEffect, primary, statusColumns } from '../workflow/statuses.js';
+import { STATUS, VIEW_SQL, stateOf, groupOf, seatEffect, primary, statusColumns } from '../workflow/statuses.js';
 import { planAction, availableActions, nextCodes, assertFresh, VALID_CODES } from '../workflow/transitions.js';
 
 const SIZE = 25;
@@ -55,7 +55,7 @@ async function commit(tx, user, cls, row, patch) {
 export const studentService = {
   async list({ user, query }) {
     const cls = await requireClass(user, parseClass(query.class)), T = studentTable(cls), term = String(query.search || '').trim();
-    const g = Object.hasOwn(GROUP_SQL, query.view) ? sql.raw(GROUP_SQL[query.view]) : sql`not (coalesce(${T.selectStatus}, '') = '' and coalesce(${T.tag1}, '') = 'RECONSIDER')`, page = Math.max(1, parseInt(query.page, 10) || 1);
+    const g = Object.hasOwn(VIEW_SQL, query.view) ? sql.raw(VIEW_SQL[query.view]) : undefined, page = Math.max(1, parseInt(query.page, 10) || 1);
     const q = term ? or(ilike(T.name, `%${likeEsc(term)}%`), sql`${T.emis}::text like ${likeEsc(term) + '%'}`) : undefined;
     const code = String(query.status || '').toUpperCase(), byCode = Object.hasOwn(STATUS, code) ? eq(T.selectStatus, code) : undefined;
     // STATE and SUPER_ADMIN see every district, so they get a district filter (by the student's home district).

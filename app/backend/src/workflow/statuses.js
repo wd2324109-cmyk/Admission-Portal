@@ -23,11 +23,12 @@ export const norm = v => String(v ?? '').trim();
 export const stateOf = row => ({ code: norm(row.selectStatus), tag2: norm(row.tag2), tag1: norm(row.tag1) });
 
 // A reconsideration is not a status: the select status stays empty (null) and tag1 says where it stands.
-// tag1 = RECONSIDER marks a reconsidered student: select status null, shown on no screen, back in the pool for the next list.
-export const RECONSIDER_REQUESTED = 'RECONSIDER';
+// RECONSIDER = the DMS asked and the super admin has not decided yet; RECONSIDER_SELECT = the super admin approved (back in the pool for the next list).
+export const RECONSIDER_REQUESTED = 'RECONSIDER', RECONSIDER_APPROVED = 'RECONSIDER_SELECT';
 export const isReconsiderRequest = s => !s.code && s.tag1 === RECONSIDER_REQUESTED;
-// Students the next list may pick: not listed yet, or reconsidered.
-export const inListPool = s => !s.code;
+export const wasReconsidered = s => !s.code && [RECONSIDER_REQUESTED, RECONSIDER_APPROVED].includes(s.tag1);
+// Students the next list may pick: not listed yet, or approved after a reconsideration. A pending request is not eligible until it is approved.
+export const inListPool = s => !s.code && !isReconsiderRequest(s);
 
 export const primary = s => s.code;
 
@@ -44,7 +45,7 @@ export const GROUPS = {
   notlisted: s => !s.code && !isReconsiderRequest(s),
   waiting: s => s.code === '1A',
   selected: s => s.code === '2A',
-  notwilling: s => s.code === '6A',
+  notwilling: s => s.code === '6A' || isReconsiderRequest(s),
   joined: s => ['3A', '3B'].includes(s.code),
   notjoined: s => ['7A', '7B'].includes(s.code),
   tc: s => ['8A', '8B'].includes(s.code),
@@ -55,8 +56,11 @@ export const GROUP_SQL = {
   notlisted: `(coalesce(select_status,'') = '' and coalesce(tag1,'') <> 'RECONSIDER')`,
   waiting: `select_status = '1A'`,
   selected: `select_status = '2A'`,
-  notwilling: `select_status = '6A'`,
+  notwilling: `(select_status = '6A' or (coalesce(select_status,'') = '' and tag1 = 'RECONSIDER'))`,
   joined: `select_status in ('3A','3B')`,
   notjoined: `select_status in ('7A','7B')`,
   tc: `select_status in ('8A','8B')`,
 };
+
+// Only for the super admin's Reconsider requests screen: the requests that wait for a decision.
+export const VIEW_SQL = { ...GROUP_SQL, reconsider: `(coalesce(select_status,'') = '' and tag1 = 'RECONSIDER')` };
