@@ -3,7 +3,7 @@ import { api, downloadFile } from '../../api/index.js';
 import { useDebounced } from '../../hooks/useDebounced.js';
 import { useFetch } from '../../hooks/useFetch.js';
 import { usePage } from '../../hooks/usePage.js';
-import { ALL_CODES, CODE, DMS_TABS, TABS, firstClass } from '../../lib/status.js';
+import { ALL_CODES, CODE, firstClass, tabsFor } from '../../lib/status.js';
 import { Alert, ClassTabs, Empty, Loading, PageHeader, Pager, Segmented, Table } from '../../components/ui/index.js';
 import RequestNewList from '../listRequests/RequestNewList.jsx';
 import StatusBadge from './StatusBadge.jsx';
@@ -13,13 +13,13 @@ const EMPTY = { rows: [], pages: 1 };
 
 export default function StudentDetails({ user }) {
   const dms = user.role === 'DISTRICT';
-  const [cls, setCls] = useState(firstClass(user)), [tab, setTab] = useState(dms ? 'waiting' : 'notlisted'), [status, setStatus] = useState(''), [search, setSearch] = useState(''), [district, setDistrict] = useState(''), [districts, setDistricts] = useState([]);
+  const [cls, setCls] = useState(firstClass(user)), [tab, setTab] = useState(user.role === 'SUPER_ADMIN' ? 'notlisted' : dms ? 'waiting' : 'all'), [status, setStatus] = useState(''), [search, setSearch] = useState(''), [district, setDistrict] = useState(''), [districts, setDistricts] = useState([]);
   const [open, setOpen] = useState(null), [dlErr, setDlErr] = useState('');
   const q = useDebounced(search), [page, setPage] = usePage(cls, tab, q, status, district);
   const multiDistrict = user.role === 'STATE' || user.role === 'SUPER_ADMIN';
   const { data, error, loading, reload } = useFetch(() => api(`/students?class=${cls}&view=${tab}&status=${status}&district=${encodeURIComponent(district)}&search=${encodeURIComponent(q)}&page=${page}`), [cls, tab, q, status, district, page], EMPTY);
   useEffect(() => { if (data.districts) setDistricts(data.districts); }, [data]);
-  const tabs = dms ? DMS_TABS : TABS;
+  const tabs = tabsFor(user);
 
   return <>
     <PageHeader title="Student Details" />

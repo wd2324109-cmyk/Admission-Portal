@@ -1,13 +1,11 @@
 import crypto from 'node:crypto';
-import { eq } from 'drizzle-orm';
-import { users } from '../schema/index.js';
-import { db } from '../db/index.js';
 import { isFrozen, FROZEN_MSG } from './freeze.js';
+import { hasSession } from './sessionStore.js';
 
 export const IDLE_SECONDS = +process.env.SESSION_IDLE_SECONDS || Math.max(1, +process.env.SESSION_IDLE_MINUTES || 30) * 60;
 const IDLE_MS = IDLE_SECONDS * 1000;
 // One login can be open on any number of devices. Each device has its own id (did): idle time and sign-out are tracked per device,
-// while the account-level session id (users.session_id) only changes when the password is changed or reset, or the login is frozen.
+// while the account-level session id (an access row tagged SESSION, see sessionStore.js) only changes when the login is frozen.
 const lastSeen = new Map();   // device id -> { t, uid, sid }
 const ended = new Map();      // device ids that signed out -> time their token expires anyway
 const TOKEN_MS = 8 * 60 * 60 * 1000 + 60 * 1000;
@@ -28,14 +26,14 @@ export const isSignedIn = uid => { const now = Date.now(); for (const v of lastS
 setInterval(() => { const now = Date.now(); for (const [k, v] of lastSeen) if (now - v.t > IDLE_MS * 2) lastSeen.delete(k); for (const [k, t] of ended) if (now > t) ended.delete(k); }, 10 * 60 * 1000).unref();
 
 export async function checkSession(claims) {
-  if (!claims?.id || !claims?.sid || !claims?.pv) return { ok: false, code: 'SESSION_ENDED' };
-  const [r] = await db.select().from(users).where(eq(users.id, claims.id));
-  if (r && (await isFrozen(r.username))) return { ok: false, code: 'ACCOUNT_FROZEN' };
-  if (!r || r.sessionId !== claims.sid || claims.pv !== pwStamp(r.passwordHash)) return { ok: false, code: 'SESSION_ENDED' };
+  const username = claims?.username;
+  if (!username || !claims?.sid) return { ok: false, code: 'SESSION_ENDED' };
+  if (await isFrozen(username)) return { ok: false, code: 'ACCOUNT_FROZEN' };
+  if (!(await hasSession(username, claims.sid))) return { ok: false, code: 'SESSION_ENDED' };
   const key = claims.did || claims.sid;
   if (ended.has(key)) return { ok: false, code: 'SESSION_ENDED' };
   const now = Date.now(), seen = lastSeen.get(key);
   if (seen && now - seen.t > IDLE_MS) { lastSeen.delete(key); return { ok: false, code: 'SESSION_EXPIRED' }; }
-  lastSeen.set(key, { t: now, uid: r.id, sid: claims.sid });
-  return { ok: true, user: { id: r.id, username: r.username, name: claims.name || null, role: r.role, region: r.region, district: r.district, sid: claims.sid, did: claims.did } };
+  lastSeen.set(key, { t: now, uid: username, sid: claims.sid });
+  return { ok: true, user: { id: username, username, name: claims.name || null, role: claims.role, region: claims.region ?? null, district: claims.district ?? null, sid: claims.sid, did: claims.did } };
 }

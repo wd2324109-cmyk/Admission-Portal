@@ -37,15 +37,8 @@ export default function Users({ me }) {
             {u.role === 'DISTRICT' && (u.frozen
               ? <button type="button" className="btn btn--sm" disabled={busy} onClick={() => run(() => api(`/users/${u.id}/unfreeze`, { method: 'POST' }))}>Unfreeze</button>
               : <button type="button" className="btn btn--sm btn--danger" disabled={busy} onClick={() => freeze(u)}>Freeze</button>)}
-            {u.role === 'SUPER_ADMIN' && u.id !== me.id && <button type="button" className="btn btn--sm" disabled={busy} onClick={() => newPassword(u)}>New password</button>}
           </div></td></tr>; })}</tbody>
       </Table>
-    </section>
-    <section className="panel"><h3 className="panel__title">Add a super admin</h3>
-      <div className="toolbar">
-        <input aria-label="Username" placeholder="Username" maxLength={100} autoComplete="off" value={f.username} onChange={e => setF({ ...f, username: e.target.value })} />
-        <button type="button" className="btn btn--primary" disabled={busy || !f.username.trim()} onClick={create}>Create super admin</button>
-      </div>
     </section>
   </>;
 }

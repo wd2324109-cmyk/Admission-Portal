@@ -1,5 +1,5 @@
 import { and, desc, eq, inArray, sql } from 'drizzle-orm';
-import { studentLog as L, users } from '../schema/index.js';
+import { studentLog as L } from '../schema/index.js';
 import { db } from '../db/index.js';
 import { HttpError } from '../common/http.js';
 import { classesOf, requireClass, scope, districtsOf } from '../common/access.js';
@@ -39,10 +39,8 @@ export const listRequestService = {
       for (const cls of await classesOf(user)) out.push({ classLevel: cls, ...progress(await counts(db, user, cls)) });
       return { rows: rows.map(r => shape(r)), progress: out };
     }
-    const names = [...new Set(rows.map(r => r.updatedBy).filter(Boolean))];
-    const [accounts, frozen] = await Promise.all([names.length ? db.select({ id: users.id, username: users.username }).from(users).where(inArray(users.username, names)) : [], frozenSet({ fresh: true })]);
-    const byName = new Map(accounts.map(a => [a.username, a.id]));
-    return { rows: rows.map(r => shape(r, { userId: byName.get(r.updatedBy) ?? null, frozen: frozen.has(r.updatedBy) })), progress: [] };
+    const frozen = await frozenSet({ fresh: true });
+    return { rows: rows.map(r => shape(r, { userId: r.updatedBy ?? null, frozen: frozen.has(r.updatedBy) })), progress: [] };
   },
 
   async raise({ user, body }) {

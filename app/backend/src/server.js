@@ -8,6 +8,7 @@ import { securityHeaders, apiHeaders, corsMiddleware } from './common/hardening.
 import { rateLimit } from './common/rateLimit.js';
 import { pool } from './db/index.js';
 import { describeProfile } from './db/profile.js';
+import { stampAllSeatRefs } from './stampSeatRefs.js';
 
 const app = express();
 app.disable('x-powered-by');
@@ -52,7 +53,10 @@ if (fs.existsSync(path.join(WEB, 'index.html'))) {
 app.use(errorHandler);
 
 const port = process.env.PORT || 4000;
-const server = app.listen(port, () => console.log('API on :' + port + '   database profile: ' + describeProfile()));
+const server = app.listen(port, () => {
+  console.log('API on :' + port + '   database profile: ' + describeProfile());
+  stampAllSeatRefs().catch(e => console.error('Seat reference check skipped:', e?.message || e)); // fills in missing seat references on existing data; a no-op once they are right
+});
 
 process.on('unhandledRejection', e => console.error('\n!! Unhandled error (the server keeps running):', e?.message || e, '\n', e?.stack || ''));
 const stop = () => { server.close(() => pool.end().finally(() => process.exit(0))); setTimeout(() => process.exit(1), 10000).unref(); };

@@ -5,6 +5,7 @@ import { seatTable } from '../common/seats.js';
 import { studentTable, parseClass, norm } from '../common/studentStore.js';
 import { holdsSeat, stateOf } from '../workflow/statuses.js';
 import { buildCells, studentCellKey, seatCellKey } from '../workflow/allocation.js';
+import { seatRef, isRef } from '../common/seatRef.js';
 
 async function loadClass(user, cls) {
   const V = seatTable(cls), T = studentTable(cls);
@@ -13,7 +14,7 @@ async function loadClass(user, cls) {
   return { seats, students: students.map(r => norm(r, cls)), T };
 }
 
-export const vacancyRef = (r, n) => [r.community, r.medium, r.gender, String(n).padStart(3, '0')].map(v => String(v ?? '').trim()).join('/');
+export const vacancyRef = seatRef;
 
 export const vacancyService = {
 
@@ -34,13 +35,20 @@ export const vacancyService = {
     const holders = new Map();
     for (const s of students.filter(s => holdsSeat(stateOf(s)))) (holders.get(studentCellKey(s, cls)) ?? holders.set(studentCellKey(s, cls), []).get(studentCellKey(s, cls))).push(s);
     for (const l of holders.values()) l.sort((a, b) => (a.orank ?? 1e12) - (b.orank ?? 1e12));
+    // A holder with a stored reference (remark2) owns exactly that seat; cells with no stored references fall back to rank order.
+    const byRef = new Map(), stored = new Set();
+    for (const s of students.filter(s => holdsSeat(stateOf(s)) && isRef(s.remark2))) { byRef.set(studentCellKey(s, cls) + '|' + s.remark2, s); stored.add(studentCellKey(s, cls)); }
     const used = new Map(), no = new Map(), rows = [];
     for (const r of seats) {
       const k = seatCellKey(r, cls), n = (no.get(k) ?? 0) + 1; no.set(k, n);
+      const ref = isRef(r.groupCode) ? r.groupCode : seatRef(r, n);
       let status = r.vacancyStatus === 'JOINED' ? 'JOINED' : 'VACANT', who = null;
       if (status === 'JOINED') { const j = byEmis.get(r.vacancyRefNo); who = j ? { id: j.id, name: j.name, emis: j.emis } : null; }
-      else { const i = used.get(k) ?? 0, h = holders.get(k)?.[i]; if (h) { status = 'RESERVED'; who = { id: h.id, name: h.name, emis: h.emis }; used.set(k, i + 1); } }
-      rows.push({ seatNo: n, refNo: vacancyRef(r, n), district: r.newDistrict, school: r.newSchoolName, gender: r.gender, medium: r.medium, community: r.community, status, who, remarks: r.remarks });
+      else {
+        const i = used.get(k) ?? 0, h = stored.has(k) ? byRef.get(k + '|' + ref) : holders.get(k)?.[i];
+        if (h) { status = 'RESERVED'; who = { id: h.id, name: h.name, emis: h.emis }; used.set(k, i + 1); }
+      }
+      rows.push({ seatNo: n, refNo: ref, district: r.newDistrict, school: r.newSchoolName, gender: r.gender, medium: r.medium, community: r.community, status, who, remarks: r.remarks });
     }
     // STATE and SUPER_ADMIN see every district, so they get a district filter.
     const multi = user.role === 'STATE' || user.role === 'SUPER_ADMIN', dist = multi ? String(query.district || '').trim().toUpperCase() : '';

@@ -405,7 +405,7 @@
      "type": "text"
     },
     {
-     "name": "Other marks",
+     "name": "Other_marks",
      "type": "integer"
     },
     {
@@ -627,7 +627,7 @@
      "type": "text"
     },
     {
-     "name": "Other marks",
+     "name": "Other_marks",
      "type": "integer"
     },
     {

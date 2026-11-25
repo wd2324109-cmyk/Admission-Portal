@@ -2,6 +2,7 @@ import { and, asc, eq, sql } from 'drizzle-orm';
 import { vacancies9th, vacancies10th } from '../schema/index.js';
 import { HttpError } from './http.js';
 import { logSeat } from './logs.js';
+import { seatRef } from './seatRef.js';
 
 export const VACANT = 'VACANT', JOINED = 'JOINED';
 const TABLES = { 9: vacancies9th, 10: vacancies10th };
@@ -15,12 +16,12 @@ const cellRows = (tx, T, st, cls) => tx.select().from(T).where(and(eq(T.classLev
 export async function joinSeat(tx, st, cls, user) {
   const T = seatTable(cls), rows = await cellRows(tx, T, st, cls);
   if (!rows.length) throw new HttpError('There is no vacancy row for this student\'s seat group, so the seat cannot be recorded. Import the vacancies first.', 409);
-  const seat = rows.find(r => r.vacancyStatus === VACANT);
+  const seat = (st.remark2 && rows.find(r => r.vacancyStatus === VACANT && r.groupCode === st.remark2)) || rows.find(r => r.vacancyStatus === VACANT);
   let row, from;
   if (seat) { [row] = await tx.update(T).set({ vacancyRefNo: st.emis, vacancyStatus: JOINED, remarks: null }).where(eq(T.id, seat.id)).returning(); from = VACANT; }
   else {
     const b = rows[0];
-    [row] = await tx.insert(T).values({ newDistrict: b.newDistrict, newUdiseType: b.newUdiseType, newUdiseCode: b.newUdiseCode, newSchoolName: b.newSchoolName, groupCode: b.groupCode, groupDesc: b.groupDesc,
+    [row] = await tx.insert(T).values({ newDistrict: b.newDistrict, newUdiseType: b.newUdiseType, newUdiseCode: b.newUdiseCode, newSchoolName: b.newSchoolName, groupCode: seatRef(b, rows.length + 1), groupDesc: b.groupDesc,
       classLevel: b.classLevel, gender: b.gender, medium: b.medium, community: b.community, vacancyRefNo: st.emis, vacancyStatus: JOINED, remarks: 'Seat added: no vacant seat was left' }).returning();
     from = '(new seat)';
   }

@@ -6,13 +6,14 @@
     "start": "node src/server.js",
     "db:push": "drizzle-kit push",
     "seed": "node src/seed.js",
-    "test": "node src/services/domain/selection.test.js && node src/services/domain/importMap.test.js && node src/services/domain/revert.test.js && node src/common/security.test.js && node src/common/msms.test.js",
+    "test": "node src/services/domain/selection.test.js && node src/services/domain/importMap.test.js && node src/services/domain/revert.test.js && node src/common/security.test.js && node src/common/msms.test.js && node src/common/seatRef.test.js",
     "seed:sample": "node src/seed.js --sample",
     "reset:superadmin": "node src/resetSuperadmin.js",
     "test:integration": "node test/workflow.integration.js",
     "db:ddl": "node src/dbDdl.js",
     "msms:check": "node src/msmsCheck.js",
-    "db:upgrade": "node src/dbUpgrade.js"
+    "db:upgrade": "node src/dbUpgrade.js",
+    "stamp:refs": "node src/stampSeatRefs.js"
   },
   "dependencies": {
     "bcryptjs": "^2.4.3",

@@ -16,11 +16,13 @@ export const GROUPS = [
 ];
 
 export const DMS_GROUPS = GROUPS.filter(([k]) => k !== 'notlisted').map(g => (g[0] === 'waiting' ? ['waiting', 'Pending', g[2], g[3]] : g));
-export const groupsFor = user => (user.role === 'DISTRICT' ? DMS_GROUPS : GROUPS);
+const LISTED_GROUPS = GROUPS.filter(([k]) => k !== 'notlisted');
+export const groupsFor = user => (user.role === 'DISTRICT' ? DMS_GROUPS : user.role === 'SUPER_ADMIN' ? GROUPS : LISTED_GROUPS);
 
 const noTc = list => list.filter(([k]) => k !== 'tc');
 export const DMS_TABS = noTc(DMS_GROUPS).map(([k, l]) => [k, l]);
 export const TABS = [['all', 'All'], ...noTc(GROUPS).map(([k, l]) => [k, l])];
+export const tabsFor = user => (user.role === 'DISTRICT' ? DMS_TABS : user.role === 'SUPER_ADMIN' ? TABS : TABS.filter(([k]) => k !== 'notlisted'));
 
 export const LETTER_KINDS = { HM: 'HM letter', STUDENT: 'Student unwilling letter', TC: 'TC request letter' };
 

@@ -18,7 +18,7 @@ export function mapStudentRow(row, cls) {
     disabilityStatus: /^(y|yes|true|1)/i.test(String(g('Disability_status'))), disabilityDesc: txt(g('Disability_desc')),
     phone: txt(g('Phone', 'phone_number')), address: txt(g('address')), pincode: txt(g('pincode')), pass: txt(g('pass')), orank: int(g('orank')) };
   Object.assign(v, { fatherName: txt(g('Father_name')), motherName: txt(g('Mother_name')), mark1Quarterly: int(g('mark1-quertly', 'mark1-quarterly', 'mark1', 'quarterly')), mark2Half: int(g('mark2-half', 'mark2', 'half_yearly')),
-    totalHighest: int(g('Total-highest of two', 'total_highest', 'total')), nmss: int(g('nmss', 'nmms')), trust: txt(g('Trust')), otherMarks: int(g('Other marks', 'other_marks')) });
+    totalHighest: int(g('Total-highest of two', 'total_highest', 'total')), nmss: int(g('nmss', 'nmms')), trust: txt(g('Trust')), otherMarks: int(g('Other marks', 'Other_marks', 'other_marks')) });
 
   const code = String(g('select_status', 'selectstatus')).toUpperCase();
   if (code && !STATUS[code]) return { error: `select_status must be one of ${Object.keys(STATUS).join(', ')} (or empty)` };

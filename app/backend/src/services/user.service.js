@@ -1,15 +1,14 @@
-import bcrypt from 'bcryptjs';
-import { and, asc, eq, sql } from 'drizzle-orm';
-import { users, access } from '../schema/index.js';
+import { and, eq } from 'drizzle-orm';
+import { access } from '../schema/index.js';
 import { db } from '../db/index.js';
 import { HttpError } from '../common/http.js';
-import { randPw } from '../common/excel.js';
 import { ACTIVE } from '../common/access.js';
 import { CLASSES } from '../common/studentStore.js';
 import { FROZEN, ALL_CLASSES, forgetFrozen } from '../common/freeze.js';
 import { forget, isSignedIn } from '../common/session.js';
+import { endSessions, parseProfile } from '../common/sessionStore.js';
 
-const ROLE = ['SUPER_ADMIN', 'STATE', 'REGION', 'DISTRICT'];
+const ROLE_ORDER = ['SUPER_ADMIN', 'STATE', 'REGION', 'DISTRICT'];
 const classList = v => [...new Set((Array.isArray(v) ? v : []).map(Number).filter(c => CLASSES.includes(c)))].sort();
 
 export async function setAccess(tx, username, classes) {
@@ -17,60 +16,51 @@ export async function setAccess(tx, username, classes) {
   if (classes.length) await tx.insert(access).values(classes.map(c => ({ user: username, classLevel: String(c), tag: ACTIVE })));
 }
 
+// There is no users table. A person exists once MSMS has let them in: they have rows in the access table. The id used in the URLs is the username.
+const rowsOf = async username => db.select().from(access).where(eq(access.user, username));
+async function known(params) {
+  const username = String(params?.id ?? '').trim();
+  const rows = username ? await rowsOf(username) : [];
+  if (!rows.length) throw new HttpError('User not found', 404);
+  return { username, rows, profile: parseProfile(rows) };
+}
+
 export const userService = {
   async list() {
-    const [rows, acc] = await Promise.all([
-      db.select({ id: users.id, username: users.username, role: users.role, region: users.region, district: users.district, }).from(users).orderBy(asc(users.role), asc(users.username)),
-      db.select().from(access)]);
-    return rows.map(u => ({ ...u, signedIn: isSignedIn(u.id), frozen: acc.some(a => a.user === u.username && a.tag === FROZEN), classes: acc.filter(a => a.user === u.username && a.tag === ACTIVE).map(a => +a.classLevel).sort() }));
-  },
-  async create({ body }) {
-    const { username, role, region, district } = body || {};
-    const name = String(username || '').trim();
-    if (!/^[A-Za-z0-9_.-]{3,60}$/.test(name)) throw new HttpError('Username: 3 to 60 letters, digits, dot, dash or underscore');
-    if (role !== 'SUPER_ADMIN') throw new HttpError('Only super admins are created here. Everyone else signs in with MSMS and appears after the first sign-in.');
-    if (role === 'DISTRICT' && !String(district || '').trim()) throw new HttpError('A DMS (district) user needs a district');
-    if (role === 'REGION' && !String(region || '').trim()) throw new HttpError('A regional coordinator needs a region: one district name, or several separated by commas');
-    const classes = classList(body.classes), password = randPw();
-    await db.transaction(async tx => {
-      if ((await tx.select({ id: users.id }).from(users).where(sql`lower(${users.username}) = ${name.toLowerCase()}`)).length) throw new HttpError('This username already exists (usernames are not case-sensitive)', 409);
-      await tx.insert(users).values({ username: name, passwordHash: bcrypt.hashSync(password, 10), role, region: role === 'REGION' ? String(region).trim().toUpperCase() : null, district: role === 'DISTRICT' ? String(district).trim().toUpperCase() : null });
-      await setAccess(tx, name, classes);
+    const all = await db.select().from(access);
+    const names = [...new Set(all.map(a => a.user).filter(Boolean))];
+    const rows = names.map(username => {
+      const mine = all.filter(a => a.user === username), p = parseProfile(mine);
+      return { id: username, username, role: p.role ?? null, region: p.region ?? null, district: p.district ?? null,
+        signedIn: isSignedIn(username), frozen: mine.some(a => a.tag === FROZEN),
+        classes: mine.filter(a => a.tag === ACTIVE).map(a => +a.classLevel).sort() };
     });
-    return { ok: true, username: name, password };
+    const rank = r => { const i = ROLE_ORDER.indexOf(r.role); return i < 0 ? ROLE_ORDER.length : i; };
+    return rows.sort((a, b) => rank(a) - rank(b) || a.username.localeCompare(b.username));
   },
-  async resetPassword({ params }) {
-    const [u] = await db.select().from(users).where(eq(users.id, +params.id || 0));
-    if (!u) throw new HttpError('User not found', 404);
-    if (u.role !== 'SUPER_ADMIN' || u.passwordHash === '!msms') throw new HttpError('This user signs in with MSMS. The password is changed there.', 409);
-    const password = randPw();
-    await db.update(users).set({ passwordHash: bcrypt.hashSync(password, 10), sessionId: null }).where(eq(users.id, u.id));
-    return { ok: true, username: u.username, password };
+  async create() {
+    throw new HttpError('Accounts are not created here. Everyone signs in with MSMS and appears in this list after the first sign-in.', 409);
   },
-
+  async resetPassword() {
+    throw new HttpError('Every user signs in with MSMS. The password is changed there.', 409);
+  },
   async freeze({ params }) {
-    const [u] = await db.select().from(users).where(eq(users.id, +params.id || 0));
-    if (!u) throw new HttpError('User not found', 404);
-    if (u.role !== 'DISTRICT') throw new HttpError('Only a DMS (district) login can be frozen', 409);
-    await db.transaction(async tx => {
-      await tx.insert(access).values({ user: u.username, classLevel: ALL_CLASSES, tag: FROZEN }).onConflictDoNothing();
-      await tx.update(users).set({ sessionId: null }).where(eq(users.id, u.id));
-    });
-    if (u.sessionId) forget(u.sessionId);
+    const { username, profile } = await known(params);
+    if (profile.role && profile.role !== 'DISTRICT') throw new HttpError('Only a DMS (district) login can be frozen', 409);
+    await db.insert(access).values({ user: username, classLevel: ALL_CLASSES, tag: FROZEN }).onConflictDoNothing();
+    for (const sid of await endSessions(username)) forget(sid);
     forgetFrozen();
     return { ok: true };
   },
   async unfreeze({ params }) {
-    const [u] = await db.select().from(users).where(eq(users.id, +params.id || 0));
-    if (!u) throw new HttpError('User not found', 404);
-    await db.delete(access).where(and(eq(access.user, u.username), eq(access.tag, FROZEN)));
+    const { username } = await known(params);
+    await db.delete(access).where(and(eq(access.user, username), eq(access.tag, FROZEN)));
     forgetFrozen();
     return { ok: true };
   },
   async setAccess({ params, body }) {
-    const [u] = await db.select().from(users).where(eq(users.id, +params.id || 0));
-    if (!u) throw new HttpError('User not found', 404);
-    await db.transaction(tx => setAccess(tx, u.username, classList(body?.classes)));
+    const { username } = await known(params);
+    await db.transaction(tx => setAccess(tx, username, classList(body?.classes)));
     return { ok: true };
   },
 };

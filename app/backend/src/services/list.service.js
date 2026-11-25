@@ -1,4 +1,4 @@
-import { eq, sql } from 'drizzle-orm';
+import { eq, inArray, sql } from 'drizzle-orm';
 import { db } from '../db/index.js';
 import { HttpError } from '../common/http.js';
 import { studentTable, parseClass, norm, pick } from '../common/studentStore.js';
@@ -9,6 +9,7 @@ import { stateOf, statusColumns, inListPool } from '../workflow/statuses.js';
 import { planList } from '../workflow/allocation.js';
 import { computeRanks, rankRemaining } from '../workflow/rank.js';
 import { nextListNumber } from '../common/listNumber.js';
+import { reconcileSeatRefs } from '../common/seatRef.js';
 
 const started = rows => rows.some(r => r.selectStatus);
 
@@ -59,7 +60,11 @@ export const listService = {
           newUdiseCode: c.newUdiseCode, newSchoolName: c.newSchoolName, tag1: 'LIST', remark1: `List ${listNumber}`, tag2: null })).where(eq(T.id, a.id)).returning();
         pairs.push([byId.get(a.id), after]);
       }
-      await logStudents(tx, cls, pairs, user);
+      // Each listed student now gets the reference of the exact seat (e.g. GT/Eng/Male/001) in remark2; the seat row carries the same reference in Group_code.
+      await reconcileSeatRefs(tx, V, T, cls);
+      const fresh = new Map();
+      for (let i = 0; i < pairs.length; i += 1000) for (const r of await tx.select().from(T).where(inArray(T.id, pairs.slice(i, i + 1000).map(p => p[1].id)))) fresh.set(r.id, r);
+      await logStudents(tx, cls, pairs.map(([b, a]) => [b, fresh.get(a.id) ?? a]), user);
       return { ...summary, preview: false, listNumber };
     });
   },

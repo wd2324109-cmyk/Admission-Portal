@@ -8,7 +8,8 @@ import { likeEsc } from '../common/query.js';
 import { requireClass, scope, inScope } from '../common/access.js';
 import { studentTable, parseClass, norm, pick } from '../common/studentStore.js';
 import { logStudent } from '../common/logs.js';
-import { joinSeat, releaseSeat } from '../common/seats.js';
+import { joinSeat, releaseSeat, seatTable } from '../common/seats.js';
+import { reconcileSeatRefs, isRef } from '../common/seatRef.js';
 import { lockClass } from '../common/locks.js';
 import { saveUpload } from '../common/upload.js';
 import { getLetter, allLetters, putLetter, KINDS, STAGE_KINDS } from '../common/letters.js';
@@ -21,7 +22,7 @@ export const view = (row, cls, role, prev) => {
   const st = stateOf(row);
   if (prev) st.prev = prev;
   const next = role === 'SUPER_ADMIN' ? nextCodes(st).map(c => ({ code: c, label: STATUS[c].label })) : [];
-  return { ...norm(row, cls), ...statusColumns(primary(st)), state: { code: st.code, tag2: st.tag2, tag1: st.tag1 }, group: groupOf(st), statusCode: primary(st), statusLabel: STATUS[primary(st)]?.label ?? 'Not listed', actions: availableActions(role, st), nextStatuses: next };
+  return { ...norm(row, cls), ...statusColumns(primary(st)), state: { code: st.code, tag2: st.tag2, tag1: st.tag1 }, group: groupOf(st), vacancyRef: isRef(row.remark2) ? row.remark2 : null, statusCode: primary(st), statusLabel: STATUS[primary(st)]?.label ?? 'Not listed', actions: availableActions(role, st), nextStatuses: next };
 };
 
 const SEAT_HOLDERS = ['1A', '2A', '7A'];
@@ -48,13 +49,20 @@ async function commit(tx, user, cls, row, patch) {
   const eff = seatEffect(stateOf(row), stateOf(after));
   if (eff === 'JOIN') await joinSeat(tx, norm(after, cls), cls, user);
   if (eff === 'RELEASE') await releaseSeat(tx, norm(after, cls), cls, user);
-  await logStudent(tx, cls, row, after, user);
-  return after;
+  // Keep the seat reference (remark2) in step with the new status: it shows while the student holds or occupies a seat and is cleared otherwise.
+  let cur = after;
+  if (after.newDistcName) {
+    await reconcileSeatRefs(tx, seatTable(cls), T, cls, { district: after.newDistcName, udise: after.newUdiseCode });
+    [cur = after] = await tx.select().from(T).where(eq(T.id, row.id));
+  }
+  await logStudent(tx, cls, row, cur, user);
+  return cur;
 }
 
 export const studentService = {
   async list({ user, query }) {
     const cls = await requireClass(user, parseClass(query.class)), T = studentTable(cls), term = String(query.search || '').trim();
+    if (query.view === 'notlisted' && user.role !== 'SUPER_ADMIN') throw new HttpError('Only the super admin can view the Not listed students', 403);
     const g = Object.hasOwn(GROUP_SQL, query.view) ? sql.raw(GROUP_SQL[query.view]) : undefined, page = Math.max(1, parseInt(query.page, 10) || 1);
     const q = term ? or(ilike(T.name, `%${likeEsc(term)}%`), sql`${T.emis}::text like ${likeEsc(term) + '%'}`) : undefined;
     const code = String(query.status || '').toUpperCase(), byCode = Object.hasOwn(STATUS, code) ? eq(T.selectStatus, code) : undefined;

@@ -1,13 +1,11 @@
-import bcrypt from 'bcryptjs';
 import { sql } from 'drizzle-orm';
-import { users } from '../schema/index.js';
 import { db } from '../db/index.js';
 import { HttpError } from '../common/http.js';
-import { readSheet, chunks, randPw, slug } from '../common/excel.js';
+import { readSheet, chunks } from '../common/excel.js';
 import { studentTable, parseClass, pick } from '../common/studentStore.js';
 import { seatTable, seatRowsOf } from '../common/seats.js';
+import { reconcileSeatRefs } from '../common/seatRef.js';
 import { lockClass } from '../common/locks.js';
-import { setAccess } from './user.service.js';
 import { mapStudentRow, mapVacancyRow } from '../workflow/importMap.js';
 import { districtsOf } from '../common/access.js';
 import { nextListNumber } from '../common/listNumber.js';
@@ -36,6 +34,7 @@ export const importService = {
         const listed = added.filter(r => r.selectStatus);
         if (listed.length) await logStudents(tx, cls, listed.map(r => [null, r]), user);
       }
+      if (listNumber) await reconcileSeatRefs(tx, seatTable(cls), T, cls); // students imported already listed get their seat reference
     });
     return { imported: inserted, skippedExisting: good.length - inserted, listNumber, ...brief(rejected) };
   },
@@ -53,11 +52,8 @@ export const importService = {
         await tx.delete(V);
       }
       for (const c of chunks(good.flatMap(seatRowsOf), 500)) await tx.insert(V).values(c);
-      if (user.role === 'SUPER_ADMIN') for (const d of new Set(good.map(g => g.newDistrict))) {
-        const username = `dms_${slug(d)}`, password = randPw();
-        const added = await tx.insert(users).values({ username, passwordHash: bcrypt.hashSync(password, 10), role: 'DISTRICT', district: d }).returning({ u: users.username }).onConflictDoNothing();
-        if (added.length) { newUsers.push({ username, password, role: 'DISTRICT', scope: d }); await setAccess(tx, username, [cls]); }
-      }
+      await reconcileSeatRefs(tx, V, T, cls); // every seat row gets its reference (Group_code); allotted students get theirs (remark2)
+      // DMS accounts are not created here any more: every DMS signs in with MSMS and gets class access on the first sign-in.
     });
     return { imported: good.length, seats: good.reduce((n, c) => n + c.admitted + c.vacancies, 0), mode, newUsers, ...brief(rejected) };
   },

@@ -16,7 +16,7 @@ const status = () => ({
 const upper = () => ({
   ...common(), fatherName: text('Father_name'), motherName: text('Mother_name'), phone: text('Phone'), address: text('address'), pincode: text('pincode'),
   mark1Quarterly: integer('mark1-quertly'), mark2Half: integer('mark2-half'), totalHighest: integer('Total-highest of two'), pass: text('pass'),
-  nmss: integer('nmss'), trust: text('Trust'), otherMarks: integer('Other marks'), orank: integer('orank'),
+  nmss: integer('nmss'), trust: text('Trust'), otherMarks: integer('Other_marks'), orank: integer('orank'),
   ...status(),
 });
 export const students9th = table('Students_master_9th', { ...upper(), remark2: text('remark2') });
