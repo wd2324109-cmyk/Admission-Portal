@@ -100,8 +100,6 @@ export async function regionRows(regionCode) {
   return rows;
 }
 
-export const regionDistricts = async regionCode => districtsFrom(await regionRows(regionCode));
-
 export function districtsOfHm(rows, phone) {
   const mine = rows.filter(r => phoneOf(r.hmPhone) && phoneOf(r.hmPhone) === phoneOf(phone));
   return districtsFrom(mine);

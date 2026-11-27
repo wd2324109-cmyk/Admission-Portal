@@ -36,6 +36,10 @@ services:
         generateValue: true
       - key: UPLOADS_DIR
         value: /var/data/uploads
+      - key: PRESIGN_API_URL
+        value: https://n07agelk4l.execute-api.ap-south-1.amazonaws.com/uploadsv1
+      - key: CLOUDFRONT_URL
+        value: https://d2n7f898nmjqsn.cloudfront.net
       - key: TRUST_PROXY
         value: "true"
       - key: SESSION_IDLE_MINUTES

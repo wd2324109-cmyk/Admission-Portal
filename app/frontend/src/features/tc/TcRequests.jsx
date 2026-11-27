@@ -3,12 +3,12 @@ import { api } from '../../api/index.js';
 import { useDebounced } from '../../hooks/useDebounced.js';
 import { useFetch } from '../../hooks/useFetch.js';
 import { usePage } from '../../hooks/usePage.js';
-import { TC_STAGE, TC_TABS, firstClass } from '../../lib/status.js';
+import { TC_STAGE, TC_TABS, TC_REJECTED_BY, firstClass } from '../../lib/status.js';
 import { Alert, Badge, ClassTabs, Empty, Loading, PageHeader, Pager, Segmented, Table } from '../../components/ui/index.js';
 import StudentModal from '../students/StudentModal.jsx';
 
 const EMPTY = { rows: [], pages: 1, total: 0 };
-const firstTab = user => (user.role === 'REGION' ? 'REGION' : user.role === 'STATE' ? 'STATE' : '');
+const firstTab = user => (user.role === 'REGION' ? 'REGION' : user.role === 'STATE' ? 'STATE' : user.role === 'SUPER_ADMIN' ? 'ADMIN' : '');
 
 export default function TcRequests({ user }) {
   const [cls, setCls] = useState(firstClass(user)), [tab, setTab] = useState(firstTab(user)), [search, setSearch] = useState(''), [open, setOpen] = useState(null);
@@ -24,7 +24,7 @@ export default function TcRequests({ user }) {
       <Table>
         <thead><tr><th>EMIS</th><th>Name</th><th>District</th><th>School</th><th>Reason</th><th>Stage</th><th><span className="sr-only">Actions</span></th></tr></thead>
         <tbody>{data.rows.map(r => { const [label, tone] = TC_STAGE[r.tcStage] || [r.tcStage || '—', 'neutral']; return <tr key={r.id}>
-          <td>{r.emis}</td><td>{r.name}</td><td>{r.district}</td><td>{r.newSchoolName || r.schoolname || '—'}</td><td>{r.reason || '—'}</td><td><Badge tone={tone}>{label}</Badge></td>
+          <td>{r.emis}</td><td>{r.name}</td><td>{r.district}</td><td>{r.newSchoolName || r.schoolname || '—'}</td><td>{r.reason || '—'}</td><td><Badge tone={tone}>{label}</Badge>{r.rejectedBy && <div className="muted">by {TC_REJECTED_BY[r.rejectedBy] || r.rejectedBy}</div>}</td>
           <td className="actions"><button type="button" className="btn btn--sm" aria-label={`View ${r.name}`} onClick={() => setOpen(r.id)}>View</button></td></tr>; })}</tbody>
       </Table>
       {loading && !error && <Loading />}

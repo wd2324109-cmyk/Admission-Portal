@@ -2,7 +2,6 @@
 
 Node.js + PostgreSQL API (`backend`) and React/Vite website (`frontend`). The database has **exactly the 10 tables of
 `Admission_Portal_Database_Tables.docx`**, and the process follows the flowchart *Student Selection and Admission to District Model Schools*.
-Read **WORKFLOW-AND-DATABASE.md** first: it says what is done, what is assumed and what to finish.
 
 ## Run
 ```

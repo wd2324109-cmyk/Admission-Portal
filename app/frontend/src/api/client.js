@@ -58,8 +58,17 @@ async function getFile(path, fallback) {
   return r;
 }
 
+const BLOCKED_TAB = 'Your browser blocked the new tab. Allow pop-ups for this portal and try again.';
+
 export async function openFile(path) {
-  const url = URL.createObjectURL(safeBlob(await (await getFile(path, 'Could not open file')).blob()));
+  const r = await getFile(path, 'Could not open file');
+  if ((r.headers.get('Content-Type') || '').includes('application/json')) {
+    const { url: link } = await r.json();
+    if (!/^https:\/\//i.test(link || '')) throw new Error('Could not open file');
+    if (!window.open(link, '_blank', 'noopener,noreferrer')) throw new Error(BLOCKED_TAB);
+    return;
+  }
+  const url = URL.createObjectURL(safeBlob(await r.blob()));
   const w = window.open(url, '_blank', 'noopener,noreferrer');
   if (!w) { URL.revokeObjectURL(url); throw new Error('Your browser blocked the new tab. Allow pop-ups for this portal and try again.'); }
   setTimeout(() => URL.revokeObjectURL(url), 5 * 60 * 1000);
@@ -67,6 +76,21 @@ export async function openFile(path) {
 
 export async function fileBlob(path) {
   return safeBlob(await (await getFile(path, 'Could not load file')).blob());
+}
+
+const FILE_TYPES = { pdf: 'application/pdf', png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg' };
+
+// Gives the viewer something it can show inline: a blob address for files the server streams, or the https address when the server answers with a storage link.
+export async function fileSource(path) {
+  const r = await getFile(path, 'Could not load file');
+  if ((r.headers.get('Content-Type') || '').includes('application/json')) {
+    const { url } = await r.json();
+    if (!/^https:\/\//i.test(url || '')) throw new Error('Could not load file');
+    const ext = /\.([a-z0-9]+)$/i.exec(new URL(url).pathname)?.[1]?.toLowerCase();
+    return { url, type: FILE_TYPES[ext] || '' };
+  }
+  const blob = safeBlob(await r.blob()), url = URL.createObjectURL(blob);
+  return { url, type: blob.type, revoke: () => URL.revokeObjectURL(url) };
 }
 
 const cleanName = n => String(n || '').replace(/[\\/:*?"<>|\u0000-\u001f]/g, '_').slice(0, 120) || 'download.xlsx';

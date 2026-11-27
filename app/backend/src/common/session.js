@@ -1,5 +1,5 @@
 import crypto from 'node:crypto';
-import { isFrozen, FROZEN_MSG } from './freeze.js';
+import { loginState, issuedBeforeFreeze, FROZEN_MSG } from './freeze.js';
 import { hasSession } from './sessionStore.js';
 
 export const IDLE_SECONDS = +process.env.SESSION_IDLE_SECONDS || Math.max(1, +process.env.SESSION_IDLE_MINUTES || 30) * 60;
@@ -17,8 +17,6 @@ export const SESSION_MSG = {
   ACCOUNT_FROZEN: FROZEN_MSG,
   UNAUTHORIZED: 'Unauthorized',
 };
-export const pwStamp = hash => crypto.createHash('sha256').update(String(hash)).digest('hex').slice(0, 16);
-export const newSessionId = () => crypto.randomUUID();
 export const newDeviceId = () => crypto.randomUUID();
 export const forget = sid => { for (const [k, v] of lastSeen) if (v.sid === sid) lastSeen.delete(k); };
 export const endDevice = did => { if (!did) return; lastSeen.delete(did); ended.set(did, Date.now() + TOKEN_MS); };
@@ -28,7 +26,9 @@ setInterval(() => { const now = Date.now(); for (const [k, v] of lastSeen) if (n
 export async function checkSession(claims) {
   const username = claims?.username;
   if (!username || !claims?.sid) return { ok: false, code: 'SESSION_ENDED' };
-  if (await isFrozen(username)) return { ok: false, code: 'ACCOUNT_FROZEN' };
+  const lock = await loginState(username);
+  if (lock.frozen) return { ok: false, code: 'ACCOUNT_FROZEN' };
+  if (issuedBeforeFreeze(claims.t, lock)) return { ok: false, code: 'SESSION_ENDED' };
   if (!(await hasSession(username, claims.sid))) return { ok: false, code: 'SESSION_ENDED' };
   const key = claims.did || claims.sid;
   if (ended.has(key)) return { ok: false, code: 'SESSION_ENDED' };

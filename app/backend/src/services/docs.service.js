@@ -5,7 +5,8 @@ import { likeEsc } from '../common/query.js';
 import { requireClass, scope, inScope } from '../common/access.js';
 import { studentTable, parseClass } from '../common/studentStore.js';
 import { lockClass } from '../common/locks.js';
-import { saveUpload } from '../common/upload.js';
+import { uploadFile } from '../common/bucket.js';
+import { saveFile, latestFile } from '../common/fileStore.js';
 import { getDocs, putDocs, getManyDocs, removeStored, storedPath } from '../common/studentDocs.js';
 import { GROUP_SQL, stateOf, primary } from '../workflow/statuses.js';
 import { DOC_TYPES, STATES, requiredFor, summarize, planSubmit, planReview } from '../workflow/documents.js';
@@ -57,19 +58,18 @@ export const docsService = {
   async submit({ user, params, body }) {
     const cls = await requireClass(user, parseClass(params.cls)), type = typeOf(params.type), pre = await loadStudent(db, user, cls, params.id);
     planSubmit({ code: primary(stateOf(pre)), student: pre, type, doc: (await getDocs(cls, pre.id))[type] });
-    const up = await saveUpload(body?.fileName, body?.fileData);
+    const up = await uploadFile(body?.fileName, body?.fileData);
     let old;
-    try {
-      await db.transaction(async tx => {
-        await lockClass(tx, cls);
-        const row = await loadStudent(tx, user, cls, params.id, true), docs = await getDocs(cls, row.id);
-        planSubmit({ code: primary(stateOf(row)), student: row, type, doc: docs[type] });
-        old = docs[type];
-        const now = new Date().toISOString(), n = (old?.submissions || 0) + 1;
-        await putDocs(cls, row.id, { ...docs, [type]: { fileName: up.name, stored: up.stored, status: 'PENDING', submittedBy: user.username, submittedAt: now, submissions: n,
-          reviewedBy: null, reviewedAt: null, remarks: null, history: [...(old?.history || []), event(old ? 'RESUBMITTED' : 'SUBMITTED', user, { fileName: up.name, attempt: n })] } });
-      });
-    } catch (e) { await removeStored(up.stored); throw e; }
+    await db.transaction(async tx => {
+      await lockClass(tx, cls);
+      const row = await loadStudent(tx, user, cls, params.id, true), docs = await getDocs(cls, row.id);
+      planSubmit({ code: primary(stateOf(row)), student: row, type, doc: docs[type] });
+      old = docs[type];
+      const now = new Date().toISOString(), n = (old?.submissions || 0) + 1;
+      await saveFile(tx, cls, { studentId: row.id, emis: row.emis, group: 'DOCUMENT', type, name: up.name, url: up.url, by: user.username });
+      await putDocs(cls, row.id, { ...docs, [type]: { fileName: up.name, status: 'PENDING', submittedBy: user.username, submittedAt: now, submissions: n,
+        reviewedBy: null, reviewedAt: null, remarks: null, history: [...(old?.history || []), event(old ? 'RESUBMITTED' : 'SUBMITTED', user, { fileName: up.name, attempt: n })] } });
+    });
     await removeStored(old?.stored);
     return { ok: true };
   },
@@ -87,22 +87,21 @@ export const docsService = {
     const pre = await loadStudent(db, user, cls, params.id);
     check(pre, await getDocs(cls, pre.id));
     const saved = [], replaced = [];
-    try {
-      for (const [type, f] of files) saved.push({ type, ...(await saveUpload(f.fileName, f.fileData)) });
-      await db.transaction(async tx => {
-        await lockClass(tx, cls);
-        const row = await loadStudent(tx, user, cls, params.id, true), docs = await getDocs(cls, row.id);
-        check(row, docs);
-        const now = new Date().toISOString(), next = { ...docs };
-        for (const up of saved) {
-          const old = docs[up.type], n = (old?.submissions || 0) + 1;
-          if (old?.stored) replaced.push(old.stored);
-          next[up.type] = { fileName: up.name, stored: up.stored, status: 'PENDING', submittedBy: user.username, submittedAt: now, submissions: n,
-            reviewedBy: null, reviewedAt: null, remarks: null, history: [...(old?.history || []), event(old ? 'RESUBMITTED' : 'SUBMITTED', user, { fileName: up.name, attempt: n })] };
-        }
-        await putDocs(cls, row.id, next);
-      });
-    } catch (e) { for (const up of saved) await removeStored(up.stored); throw e; }
+    for (const [type, f] of files) saved.push({ type, ...(await uploadFile(f.fileName, f.fileData)) });
+    await db.transaction(async tx => {
+      await lockClass(tx, cls);
+      const row = await loadStudent(tx, user, cls, params.id, true), docs = await getDocs(cls, row.id);
+      check(row, docs);
+      const now = new Date().toISOString(), next = { ...docs };
+      for (const up of saved) {
+        const old = docs[up.type], n = (old?.submissions || 0) + 1;
+        if (old?.stored) replaced.push(old.stored);
+        await saveFile(tx, cls, { studentId: row.id, emis: row.emis, group: 'DOCUMENT', type: up.type, name: up.name, url: up.url, by: user.username });
+        next[up.type] = { fileName: up.name, status: 'PENDING', submittedBy: user.username, submittedAt: now, submissions: n,
+          reviewedBy: null, reviewedAt: null, remarks: null, history: [...(old?.history || []), event(old ? 'RESUBMITTED' : 'SUBMITTED', user, { fileName: up.name, attempt: n })] };
+      }
+      await putDocs(cls, row.id, next);
+    });
     for (const stored of replaced) await removeStored(stored);
     return { ok: true, submitted: saved.length };
   },
@@ -122,6 +121,8 @@ export const docsService = {
   async file({ user, params }) {
     const cls = await requireClass(user, parseClass(params.cls)), type = typeOf(params.type), row = await loadStudent(db, user, cls, params.id), d = (await getDocs(cls, row.id))[type];
     if (!d) throw new HttpError('This document has not been submitted', 404);
+    const f = await latestFile(db, cls, row.id, 'DOCUMENT', type);
+    if (f) return { url: f.fileUrl, name: f.fileName };
     return { file: storedPath(d.stored), name: d.fileName };
   },
 };

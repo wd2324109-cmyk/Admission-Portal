@@ -11,11 +11,13 @@ import { logStudent } from '../common/logs.js';
 import { joinSeat, releaseSeat, seatTable } from '../common/seats.js';
 import { reconcileSeatRefs, isRef } from '../common/seatRef.js';
 import { lockClass } from '../common/locks.js';
-import { saveUpload } from '../common/upload.js';
+import { uploadFile } from '../common/bucket.js';
+import { saveFile, latestFile } from '../common/fileStore.js';
 import { getLetter, allLetters, putLetter, KINDS, STAGE_KINDS } from '../common/letters.js';
 import { UPLOADS } from '../common/paths.js';
-import { STATUS, GROUP_SQL, stateOf, groupOf, seatEffect, primary, statusColumns } from '../workflow/statuses.js';
+import { STATUS, GROUP_SQL, stateOf, groupOf, seatEffect, primary, statusColumns, tcTag2 } from '../workflow/statuses.js';
 import { planAction, availableActions, nextCodes, assertFresh, VALID_CODES } from '../workflow/transitions.js';
+import { TC_STEP_KEYS, tcThread } from '../common/tcRemarks.js';
 
 const SIZE = 25;
 export const view = (row, cls, role, prev) => {
@@ -25,17 +27,14 @@ export const view = (row, cls, role, prev) => {
   return { ...norm(row, cls), ...statusColumns(primary(st)), state: { code: st.code, tag2: st.tag2, tag1: st.tag1 }, group: groupOf(st), vacancyRef: isRef(row.remark2) ? row.remark2 : null, statusCode: primary(st), statusLabel: STATUS[primary(st)]?.label ?? 'Not listed', actions: availableActions(role, st), nextStatuses: next };
 };
 
-const SEAT_HOLDERS = ['1A', '2A', '7A'];
-const up = c => sql`upper(trim(coalesce(${c}, '')))`, U = v => String(v ?? '').trim().toUpperCase();
+const U = v => String(v ?? '').trim().toUpperCase();
 
-// A TC Issued / joined student came from 3A or 3B; the TC reject step and the correction list need to know which.
+// A student in the TC process came from 3A or 3B; withdrawing a rejected TC request and the correction list need to know which.
 async function joinedBefore(tx, cls, row) {
-  if (stateOf(row).code !== '8A') return undefined;
+  if (!['8A', '8B', '8C', '8Z'].includes(stateOf(row).code)) return undefined;
   const [lg] = await tx.select().from(studentLog).where(and(eq(studentLog.class, row.class ?? String(cls)), eq(studentLog.emis, row.emis), eq(studentLog.updateStatusAfter, '8A'), inArray(studentLog.updateStatusBefore, ['3A', '3B']))).orderBy(sql`${studentLog.id} desc`).limit(1);
   return lg?.updateStatusBefore || '3A';
 }
-
-const nul = v => (v === '' || v === undefined ? null : v);
 
 async function load(tx, user, cls, id, lock = false) {
   const T = studentTable(cls), q = tx.select().from(T).where(eq(T.id, +id || 0));
@@ -81,29 +80,33 @@ export const studentService = {
     const prev = await joinedBefore(db, cls, row);
     const logs = row.emis == null || user.role !== 'SUPER_ADMIN' ? [] : await db.select().from(studentLog).where(and(eq(studentLog.class, row.class ?? String(cls)), eq(studentLog.emis, row.emis))).orderBy(sql`${studentLog.id} desc`).limit(50);
     const letters = await allLetters(cls, row.id);
-    return { ...view(row, cls, user.role, prev), letters, logs: logs.map(l => ({ id: l.id, before: l.updateStatusBefore, after: l.updateStatusAfter, by: l.updatedBy, at: l.updatedAt, tag: l.tag1, remarks: l.remark1 })) };
+    // Every role that can open the student sees all the remarks given on the TC request; the history list below stays for the super admin only.
+    const tcLogs = row.emis == null || !stateOf(row).code.startsWith('8') && !prev ? [] : await db.select().from(studentLog).where(and(eq(studentLog.class, row.class ?? String(cls)), eq(studentLog.emis, row.emis), inArray(studentLog.tag1, TC_STEP_KEYS))).orderBy(sql`${studentLog.id} asc`);
+    return { ...view(row, cls, user.role, prev), letters, tcRemarks: tcThread(tcLogs, user.role), logs: logs.map(l => ({ id: l.id, before: l.updateStatusBefore, after: l.updateStatusAfter, by: l.updatedBy, at: l.updatedAt, tag: l.tag1, remarks: l.remark1 })) };
   },
 
   async act({ user, params, body }) {
     const cls = await requireClass(user, parseClass(params.cls));
-    let saved = [];
-    try {
-      await db.transaction(async tx => {
-        await lockClass(tx, cls);
-        const row = await load(tx, user, cls, params.id, true), st = stateOf(row);
+    const saved = [];
+    await db.transaction(async tx => {
+      await lockClass(tx, cls);
+      const row = await load(tx, user, cls, params.id, true), st = stateOf(row);
 
-        assertFresh(body?.expect, st);
-        const prev = await joinedBefore(tx, cls, row);
-        if (prev) st.prev = prev;
-        const plan = planAction(user.role, st, body?.action, body?.remarks);
-        if (plan.needsLetter) {
-          for (const k of plan.letters) if (!body?.letters?.[k]?.fileData) throw new HttpError(`Upload the ${KINDS[k]} (PDF, JPG or PNG, under 3 MB)`);
-          for (const k of plan.letters) saved.push({ kind: k, ...(await saveUpload(body.letters[k].fileName, body.letters[k].fileData)) });
-        }
-        await commit(tx, user, cls, row, { ...statusColumns(plan.after.code), tag2: plan.after.tag2 || null, tag1: plan.tag1, remark1: plan.remark1 });
-        for (const l of saved) await putLetter(cls, row.id, plan.tag1, l.kind, { fileName: l.name, stored: l.stored, by: user.username, at: new Date().toISOString() });
-      });
-    } catch (e) { for (const l of saved) await fs.unlink(path.join(UPLOADS, l.stored)).catch(() => {}); throw e; }
+      assertFresh(body?.expect, st);
+      const prev = await joinedBefore(tx, cls, row);
+      if (prev) st.prev = prev;
+      const plan = planAction(user.role, st, body?.action, body?.remarks);
+      if (plan.needsLetter) {
+        // A resubmitted TC request may keep a letter that is already on file; every other step needs each letter uploaded.
+        for (const k of plan.letters) if (!body?.letters?.[k]?.fileData && !(plan.keepLetters && await getLetter(cls, row.id, plan.letterStage, k))) throw new HttpError(`Upload the ${KINDS[k]} (PDF, JPG or PNG, under 3 MB)`);
+        for (const k of plan.letters) if (body?.letters?.[k]?.fileData) saved.push({ kind: k, ...(await uploadFile(body.letters[k].fileName, body.letters[k].fileData)) });
+      }
+      await commit(tx, user, cls, row, { ...statusColumns(plan.after.code), tag2: plan.after.tag2 || null, tag1: plan.tag1, remark1: plan.remark1 });
+      for (const l of saved) {
+        await saveFile(tx, cls, { studentId: row.id, emis: row.emis, group: 'LETTER', type: `${plan.letterStage}-${l.kind}`, name: l.name, url: l.url, by: user.username });
+        await putLetter(cls, row.id, plan.letterStage, l.kind, { fileName: l.name, by: user.username, at: new Date().toISOString() });
+      }
+    });
     return { ok: true };
   },
 
@@ -112,6 +115,8 @@ export const studentService = {
     if (!Object.hasOwn(STAGE_KINDS, stage) || !STAGE_KINDS[stage].includes(kind)) throw new HttpError('Unknown letter');
     const cls = await requireClass(user, parseClass(params.cls)), row = await load(db, user, cls, params.id), l = await getLetter(cls, row.id, stage, kind);
     if (!l) throw new HttpError('This letter has not been uploaded', 404);
+    const f = await latestFile(db, cls, row.id, 'LETTER', `${stage}-${kind}`);
+    if (f) return { url: f.fileUrl, name: f.fileName };
     return { file: path.join(UPLOADS, l.stored), name: l.fileName };
   },
 
@@ -128,7 +133,7 @@ export const studentService = {
       if (!code || !nextCodes(st).includes(code)) throw new HttpError(`Correction can only move this student to the next status: ${nextCodes(st).map(c => STATUS[c].label).join(' or ') || 'none (this is the last status)'}`, 409);
       if (!(row.newDistcName && row.selectedCategory)) throw new HttpError('This student has not been allotted to a school by a list yet', 409);
       await commit(tx, user, cls, row, { ...statusColumns(code), tag1: 'OVERRIDE', remark1: note,
-        tag2: code === '8B' ? 'TC-DONE' : code === '8A' ? (row.tag2 && row.tag2 !== 'TC-DONE' ? row.tag2 : 'TC-RC') : null });
+        tag2: tcTag2(code) || null });
     });
     return { ok: true };
   },

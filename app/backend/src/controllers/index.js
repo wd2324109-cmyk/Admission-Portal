@@ -16,6 +16,7 @@ import { listRequestService } from '../services/listRequest.service.js';
 
 const api = Router(), ADMIN = only('SUPER_ADMIN'), NOT_DMS = only('SUPER_ADMIN', 'STATE', 'REGION'), DOCS = only('DISTRICT', 'SUPER_ADMIN');
 const json = fn => wrap(async (req, res) => res.json(await fn(ctx(req))));
+const served = fn => wrap(async (req, res) => { const f = await fn(ctx(req)); if (f.url) return res.json({ url: f.url, name: f.name }); res.download(f.file, f.name, e => e && !res.headersSent && res.status(404).json({ error: 'File is missing' })); });
 const sheet = fn => wrap(async (req, res) => { const f = await fn(ctx(req)); res.set({ 'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', 'Content-Disposition': `attachment; filename="${f.filename}"` }); res.send(f.buffer); });
 
 api.post('/auth/login', json(authService.login));
@@ -27,7 +28,7 @@ api.get('/dashboard', auth, json(dashboardService.summary));
 api.get('/students', auth, json(studentService.list));
 api.get('/students/:cls/:id', auth, json(studentService.getById));
 api.post('/students/:cls/:id/action', auth, json(studentService.act));
-api.get('/students/:cls/:id/letter', auth, wrap(async (req, res) => { const f = await studentService.letter(ctx(req)); res.download(f.file, f.name, e => e && !res.headersSent && res.status(404).json({ error: 'File is missing' })); }));
+api.get('/students/:cls/:id/letter', auth, served(studentService.letter));
 api.post('/students/:cls/:id/override', auth, ADMIN, json(studentService.override));
 
 api.get('/vacancies', auth, NOT_DMS, json(vacancyService.cells));
@@ -38,7 +39,7 @@ api.get('/documents', auth, DOCS, json(docsService.list));
 api.get('/documents/:cls/:id', auth, DOCS, json(docsService.get));
 api.post('/documents/:cls/:id', auth, only('DISTRICT'), json(docsService.submitAll));
 api.post('/documents/:cls/:id/:type', auth, only('DISTRICT'), json(docsService.submit));
-api.get('/documents/:cls/:id/:type/file', auth, DOCS, wrap(async (req, res) => { const f = await docsService.file(ctx(req)); res.download(f.file, f.name, e => e && !res.headersSent && res.status(404).json({ error: 'File is missing' })); }));
+api.get('/documents/:cls/:id/:type/file', auth, DOCS, served(docsService.file));
 api.post('/documents/:cls/:id/:type/review', auth, ADMIN, json(docsService.review));
 
 api.post('/rank/generate', auth, ADMIN, json(listService.rank));

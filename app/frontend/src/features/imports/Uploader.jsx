@@ -1,11 +1,13 @@
 import { useState } from 'react';
 import { api } from '../../api/index.js';
 import { toBase64 } from '../../lib/format.js';
+import { SHEET_FILES } from '../../lib/files.js';
+import { FileDrop } from '../../components/files/index.js';
 import { Alert, Table, useConfirm } from '../../components/ui/index.js';
 
 export default function Uploader({ title, hint, columns, path, cls, canReplace, modes }) {
   const confirm = useConfirm();
-  const [file, setFile] = useState(null), [replace, setReplace] = useState(false), [mode, setMode] = useState('replace'), [busy, setBusy] = useState(false), [res, setRes] = useState(null), [err, setErr] = useState('');
+  const [pick, setPick] = useState(null), [file, setFile] = useState(null), [replace, setReplace] = useState(false), [mode, setMode] = useState('replace'), [busy, setBusy] = useState(false), [res, setRes] = useState(null), [err, setErr] = useState('');
 
   const go = async () => {
     if (!file) return setErr('Choose an Excel (.xlsx) file first');
@@ -19,7 +21,7 @@ export default function Uploader({ title, hint, columns, path, cls, canReplace, 
   return <section className="panel"><h3 className="panel__title">{title}</h3>
     <p className="hint">{hint}</p>
     {columns && <details className="details"><summary>Expected columns</summary><p>{columns}</p></details>}
-    <div className="toolbar"><input type="file" accept=".xlsx,.xls" aria-label={`${title} file`} onChange={e => { setFile(e.target.files[0] || null); setRes(null); }} /></div>
+    <div className="uploader__drop"><FileDrop value={pick} spec={SHEET_FILES} read={false} previewable={false} label={`${title} file`} onError={setErr} onChange={f => { setPick(f); setFile(f?.file || null); setRes(null); }} /></div>
     {canReplace && <label className="check"><input type="checkbox" checked={replace} onChange={e => setReplace(e.target.checked)} /> Replace existing Class {cls} students (start fresh)</label>}
     {modes && <div className="toolbar"><select aria-label="Mode" value={mode} onChange={e => setMode(e.target.value)}><option value="replace">Replace this class's vacancies</option><option value="append">Add seats (a later round)</option></select></div>}
     <div className="toolbar"><button type="button" className="btn btn--primary" disabled={busy || !file} title={file ? undefined : 'Choose an Excel (.xlsx) file first'} onClick={go}>{busy ? 'Importing…' : `Import for Class ${cls}`}</button></div>

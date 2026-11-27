@@ -1,9 +1,9 @@
 export const CODE = {
   '1A': 'Waiting', '2A': 'Selected', '6A': 'Not Willing',
   '3A': 'Joined by HM', '3B': 'Joined by RC', '7A': 'Not Joined - Pending', '7B': 'Not Joined - Approved',
-  '8A': 'TC-Waiting', '8B': 'TC Issued',
+  '8A': 'TC Requested', '8B': 'TC - RC Approved', '8C': 'TC - SC Approved', '8D': 'TC Issued', '8Z': 'TC Rejected - Resubmit',
 };
-export const ALL_CODES = ['', '1A', '2A', '6A', '3A', '3B', '7A', '7B', '8A', '8B'];
+export const ALL_CODES = ['', '1A', '2A', '6A', '3A', '3B', '7A', '7B', '8A', '8B', '8C', '8D', '8Z'];
 export const stageOf = c => CODE[c] || c || 'start';
 export const admitOf = r => (r.statusCode ? CODE[r.statusCode] : r.admitStatus) || '—';
 
@@ -24,11 +24,13 @@ export const DMS_TABS = noTc(DMS_GROUPS).map(([k, l]) => [k, l]);
 export const TABS = [['all', 'All'], ...noTc(GROUPS).map(([k, l]) => [k, l])];
 export const tabsFor = user => (user.role === 'DISTRICT' ? DMS_TABS : user.role === 'SUPER_ADMIN' ? TABS : TABS.filter(([k]) => k !== 'notlisted'));
 
-export const LETTER_KINDS = { HM: 'HM letter', STUDENT: 'Student unwilling letter', TC: 'TC request letter' };
+export const LETTER_KINDS = { HM: 'HM letter', STUDENT: 'Student unwilling letter', REASON: 'Reason letter', TC: 'TC request letter' };
 
 export const SEAT_TAG = { RESERVED: ['Reserved', 'info'], JOINED: ['Joined', 'ok'], VACANT: ['Vacant', 'outline'] };
-export const TC_STAGE = { JOINED: ['Joined · TC not requested', 'ok'], REGION: ['Waiting for the Regional Coordinator', 'warn'], STATE: ['Waiting for the State Regional Coordinator', 'info'], DONE: ['TC Issued', 'tc'] };
-export const TC_TABS = [['', 'All'], ['JOINED', 'Joined'], ['REGION', 'Waiting for RC'], ['STATE', 'Waiting for State RC'], ['DONE', 'TC Issued']];
+export const TC_STAGE = { JOINED: ['Joined · TC not requested', 'ok'], REGION: ['Waiting for the Regional Coordinator (RC)', 'warn'], STATE: ['Waiting for the State Coordinator (SC)', 'info'], ADMIN: ['Waiting for the Super Admin', 'info'], DONE: ['TC Issued', 'tc'], REJECTED: ['Rejected · resubmit', 'bad'] };
+export const TC_TABS = [['', 'All'], ['JOINED', 'Joined'], ['REGION', 'Waiting for RC'], ['STATE', 'Waiting for SC'], ['ADMIN', 'Waiting for Admin'], ['DONE', 'TC Issued'], ['REJECTED', 'Rejected']];
+export const TC_REJECTED_BY = { RC: 'the Regional Coordinator', SC: 'the State Coordinator', ADMIN: 'the Super Admin' };
+export const TC_OUTCOME = { REQUESTED: ['Requested', 'info'], RESUBMITTED: ['Resubmitted', 'info'], APPROVED: ['Approved', 'ok'], REJECTED: ['Rejected', 'bad'], NOTE: ['Remark saved', 'neutral'], WITHDRAWN: ['Withdrawn', 'neutral'] };
 
 export const DOC_NAMES = { WILLING: 'Willing letter', TC: 'Transfer Certificate (TC)', COMMUNITY: 'Community certificate', PWD: 'PWD letter' };
 export const DOC_SHORT = { WILLING: 'Willing letter', TC: 'TC', COMMUNITY: 'Community', PWD: 'PWD letter' };

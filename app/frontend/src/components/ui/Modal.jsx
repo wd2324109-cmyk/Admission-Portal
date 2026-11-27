@@ -1,10 +1,11 @@
 import { useEffect, useId, useRef } from 'react';
 import { createPortal } from 'react-dom';
+import Icon from './Icon.jsx';
 
 const stack = [];
 const FOCUSABLE = 'a[href],button:not([disabled]),input:not([disabled]):not([type=hidden]),select:not([disabled]),textarea:not([disabled]),[tabindex]:not([tabindex="-1"])';
 
-export default function Modal({ title, titleExtra, onClose, dismissable = true, role = 'dialog', width, describedBy, footer, className = '', children }) {
+export default function Modal({ title, titleExtra, subtitle, leading, belowHead, side = false, rich = false, onClose, dismissable = true, role = 'dialog', width, describedBy, footer, className = '', children }) {
   const titleId = useId(), box = useRef(null), pressedBackdrop = useRef(false), close = useRef(onClose);
   close.current = onClose;
 
@@ -33,10 +34,17 @@ export default function Modal({ title, titleExtra, onClose, dismissable = true, 
   }, [dismissable]);
 
   return createPortal(
-    <div className={`modal ${className}`} onMouseDown={e => { pressedBackdrop.current = e.target === e.currentTarget; }}
+    <div className={`modal ${side ? 'modal--drawer' : ''} ${className}`} onMouseDown={e => { pressedBackdrop.current = e.target === e.currentTarget; }}
       onClick={e => { if (dismissable && pressedBackdrop.current && e.target === e.currentTarget) close.current?.(); }}>
       <div className="dialog" ref={box} tabIndex={-1} role={role} aria-modal="true" aria-labelledby={title ? titleId : undefined} aria-describedby={describedBy} style={width ? { width } : undefined}>
-        {title && <header className="dialog__head"><h2 id={titleId}>{title}</h2>{titleExtra}</header>}
+        {side || rich
+          ? <header className="dialog__head dialog__head--side">
+            {leading}
+            <div className="dialog__titles"><div className="dialog__row"><h2 id={titleId}>{title}</h2>{titleExtra}</div>{subtitle && <p className="dialog__sub">{subtitle}</p>}</div>
+            <button type="button" className="iconbtn dialog__x" aria-label="Close" onClick={() => close.current?.()}><Icon n="x" size={18} /></button>
+          </header>
+          : title && <header className="dialog__head"><h2 id={titleId}>{title}</h2>{titleExtra}</header>}
+        {belowHead}
         <div className="dialog__body">{children}</div>
         {footer && <footer className="dialog__foot">{footer}</footer>}
       </div>

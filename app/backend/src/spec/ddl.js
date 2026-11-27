@@ -22,6 +22,7 @@ export const INDEXES = [
     `CREATE INDEX IF NOT EXISTS students_${c}th_newdist_idx ON ${qualified(`Students_master_${c}th`)} ("New_distc_name")`,
     `CREATE INDEX IF NOT EXISTS vacancies_${c}th_cell_idx ON ${qualified(`Vacancies_${c}th`)} ("New_district", gender, medium, community)`,
   ]),
+  ...[9, 10].map(c => `CREATE INDEX IF NOT EXISTS student_files_${c}th_lookup_idx ON ${qualified(`Student_files_${c}th`)} (student_id, file_group, file_type, id)`),
   `CREATE INDEX IF NOT EXISTS student_log_emis_idx ON ${qualified('Student_LOG')} ("class", "Emis", id)`,
   `CREATE INDEX IF NOT EXISTS vacancy_logs_idx ON ${qualified('VACANCY_logs')} (class_level, id)`,
 ];

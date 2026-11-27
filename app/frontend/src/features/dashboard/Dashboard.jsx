@@ -1,8 +1,8 @@
 import { api } from '../../api/index.js';
 import { useFetch } from '../../hooks/useFetch.js';
-import { groupsFor } from '../../lib/status.js';
+import { groupsFor, scopeOf } from '../../lib/status.js';
 import { num } from '../../lib/format.js';
-import { Alert, Icon, PageHeader } from '../../components/ui/index.js';
+import { Alert, Icon, Loading, PageHeader } from '../../components/ui/index.js';
 import Donut from '../../components/charts/Donut.jsx';
 import ColumnChart from '../../components/charts/ColumnChart.jsx';
 import StackedBars from '../../components/charts/StackedBars.jsx';
@@ -16,8 +16,8 @@ const Stat = ({ icon, color, label, value, note }) => <article className="stat" 
 
 export default function Dashboard({ user, go }) {
   const { data: d, error, reload } = useFetch(() => api('/dashboard'), []);
-  const head = <PageHeader title="Dashboard" />;
-  if (!d) return <>{head}{error ? <><Alert>{error}</Alert><button type="button" className="btn" onClick={reload}>Try again</button></> : <p className="muted">Loading…</p>}</>;
+  const head = <PageHeader title="Dashboard" note={`Admission progress for Class 9 and 10 · ${scopeOf(user)}`} />;
+  if (!d) return <>{head}{error ? <><Alert>{error}</Alert><button type="button" className="btn" onClick={reload}>Try again</button></> : <Loading />}</>;
 
   const keys = groupsFor(user), dms = user.role === 'DISTRICT';
   const byClass = d.byClass || [], tot = k => byClass.reduce((a, r) => a + (Number(r[k]) || 0), 0);

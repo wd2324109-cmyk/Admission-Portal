@@ -17,7 +17,6 @@ if (!secret || secret.length < 32) {
 } else if (/\s/.test(secret) || new Set(secret).size < 12) {
   console.warn('WARNING: JWT_SECRET looks like a typed phrase, not a random key. Production will refuse to start with it.');
 }
-export const SECRET = secret;
 export const KEY = secret;
 
 export const signToken = profile => jwt.sign(profile, KEY, { algorithm: 'HS256', expiresIn: '8h' });

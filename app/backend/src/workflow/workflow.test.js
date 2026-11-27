@@ -1,6 +1,6 @@
 import assert from 'node:assert';
 import { planAction, availableActions, nextCodes, assertFresh } from './transitions.js';
-import { stateOf, seatEffect, holdsSeat, groupOf, STATUS, GROUPS } from './statuses.js';
+import { seatEffect, holdsSeat, groupOf, STATUS, GROUPS } from './statuses.js';
 import { planList } from './allocation.js';
 import { computeRanks, rankRemaining } from './rank.js';
 import { requiredFor, summarize, planSubmit, planReview } from './documents.js';
@@ -27,19 +27,25 @@ assert.equal(run('REGION', S('2A', '7A'), 'RC_APPROVE_NOT_JOINED').code, '7B');
 fails(() => run('DISTRICT', S('2A', '7A'), 'RC_READMIT'), 403);
 fails(() => run('REGION', S('2A'), 'RC_READMIT'), 409);
 
+// TC: 8A requested -> 8B RC approved -> 8C SC approved -> 8D admin approved (issued)
 let st = run('DISTRICT', S('2A', '3A'), 'TC_REQUEST'); assert.deepEqual([st.code, st.tag2], ['8A', 'TC-RC']);
-fails(() => run('STATE', st, 'TC_STATE_APPROVE'), 409);
-st = run('REGION', st, 'TC_RC_APPROVE'); assert.equal(st.tag2, 'TC-SRC');
+fails(() => run('STATE', st, 'TC_SC_APPROVE'), 409);
+fails(() => run('SUPER_ADMIN', st, 'TC_ADMIN_APPROVE'), 409);
+st = run('REGION', st, 'TC_RC_APPROVE'); assert.deepEqual([st.code, st.tag2], ['8B', 'TC-SC']);
 fails(() => run('REGION', st, 'TC_RC_APPROVE'), 409);
-st = run('STATE', st, 'TC_STATE_APPROVE'); assert.deepEqual([st.code, st.tag2], ['8B', 'TC-DONE']);
+st = run('STATE', st, 'TC_SC_APPROVE'); assert.deepEqual([st.code, st.tag2], ['8C', 'TC-ADMIN']);
+fails(() => run('STATE', st, 'TC_SC_APPROVE'), 409);
+st = run('SUPER_ADMIN', st, 'TC_ADMIN_APPROVE'); assert.deepEqual([st.code, st.tag2], ['8D', 'TC-DONE']);
 fails(() => run('DISTRICT', S('2A', '3B'), 'JOINED_HM'), 409);
 
 assert.equal(seatEffect(S('2A'), S('2A', '3A')), 'JOIN');
 assert.equal(seatEffect(S('2A', '7A'), S('2A', '3B')), 'JOIN');
 assert.equal(seatEffect(S('2A', '3A'), S('2A', '8A')), null);
-assert.equal(seatEffect(S('2A', '8A'), S('2A', '8B')), 'RELEASE');
+assert.equal(seatEffect(S('2A', '8A'), S('2A', '8B')), null, 'the seat is kept while the TC is being approved');
+assert.equal(seatEffect(S('2A', '8B'), S('2A', '8C')), null); assert.equal(seatEffect(S('2A', '8C'), S('2A', '8Z')), null); assert.equal(seatEffect(S('2A', '8Z'), S('2A', '8A')), null);
+assert.equal(seatEffect(S('2A', '8C'), S('2A', '8D')), 'RELEASE', 'the seat is released when the TC is issued');
 assert.equal(seatEffect(S('2A'), S('2A', '7B')), null);
-assert([S('1A'), S('2A'), S('2A', '7A')].every(holdsSeat) && ![RQ(), S('6A'), S('2A', '7B'), S('2A', '8B'), S('2A', '3A')].some(holdsSeat));
+assert([S('1A'), S('2A'), S('2A', '7A')].every(holdsSeat) && ![RQ(), S('6A'), S('2A', '7B'), S('2A', '8D'), S('2A', '3A')].some(holdsSeat));
 
 assert.deepEqual(availableActions('DISTRICT', S('1A')).map(a => a.key).sort(), ['NOT_WILLING', 'WILLING']);
 assert.deepEqual(availableActions('DISTRICT', S('2A')).map(a => a.key).sort(), ['JOINED_HM', 'NOT_JOINED']);
@@ -47,7 +53,7 @@ assert.deepEqual(availableActions('DISTRICT', S('2A')).map(a => a.key).sort(), [
 fails(() => run('DISTRICT', S('1A'), 'JOINED_HM'), 409); fails(() => run('DISTRICT', S('1A'), 'NOT_JOINED', 'x'), 409);
 fails(() => run('SUPER_ADMIN', S('2A'), 'JOINED_HM'), 403); fails(() => run('SUPER_ADMIN', S('1A'), 'WILLING'), 403); fails(() => run('SUPER_ADMIN', S('1A'), 'NOT_WILLING', 'x'), 403); fails(() => run('SUPER_ADMIN', S('6A'), 'RECONSIDER', 'x'), 403); fails(() => run('SUPER_ADMIN', S('3A'), 'TC_REQUEST', 'x'), 403); fails(() => run('REGION', S('2A'), 'NOT_JOINED'), 403); fails(() => run('DISTRICT', S('1B'), 'JOINED_HM'), 409);
 assert.deepEqual(availableActions('REGION', S('1A')), []);
-assert.deepEqual(availableActions('STATE', S('2A', '8A', 'TC-SRC')).map(a => a.key).sort(), ['TC_STATE_APPROVE', 'TC_STATE_REJECT']);
+assert.deepEqual(availableActions('STATE', S('2A', '8B', 'TC-SC')).map(a => a.key).sort(), ['TC_SC_APPROVE', 'TC_SC_NOTE', 'TC_SC_REJECT']);
 assert.equal(groupOf(S('6A')), 'notwilling');
 // Reconsideration: no approval step; the super admin has no reconsider action, the student is simply hidden and back in the pool
 assert.deepEqual(availableActions('SUPER_ADMIN', RQ()), []); assert.deepEqual(availableActions('DISTRICT', RQ()), []);
@@ -64,8 +70,9 @@ assert.deepEqual(nextCodes(S('6A')), [], 'Correction never offers an empty statu
 assert.deepEqual(nextCodes(S('2A')).sort(), ['3A', '7A']);
 assert.deepEqual(nextCodes(S('2A', '3A')), ['8A']);
 assert.deepEqual(nextCodes(S('2A', '7A')).sort(), ['2A', '3B', '7B']);
-assert.deepEqual(nextCodes({ code: '8A', tag2: 'TC-RC', prev: '3B' }).sort(), ['3B', '8B']);
-assert.deepEqual(nextCodes(S('2A', '8B', 'TC-DONE')), []);
+assert.deepEqual(nextCodes({ code: '8A', tag2: 'TC-RC', prev: '3B' }).sort(), ['8B', '8Z']);
+assert.deepEqual(nextCodes({ code: '8Z', tag2: 'TC-REJ-RC', prev: '3B' }).sort(), ['3B', '8A']);
+assert.deepEqual(nextCodes(S('2A', '8D', 'TC-DONE')), []);
 assert.deepEqual(nextCodes(S('')), []);
 // Ranks of a later batch start after the last listed student's rank
 { const rows = [{ id: 1, selectStatus: '2A', orank: 1, total: 500 }, { id: 2, selectStatus: '6A', orank: 2, total: 480 }, { id: 3, selectStatus: '1A', orank: 3, total: 470 },
@@ -75,7 +82,7 @@ assert.deepEqual(nextCodes(S('')), []);
 // Stale screens: a second login / double click must not apply a later step by mistake
 assertFresh({ code: '1A', tag2: '' }, S('1A')); assertFresh(undefined, S('2A'));
 fails(() => assertFresh({ code: '1A', tag2: '' }, S('2A')), 409);
-fails(() => assertFresh({ code: '8A', tag2: 'TC-RC' }, S('2A', '8A', 'TC-SRC')), 409);
+fails(() => assertFresh({ code: '8A', tag2: 'TC-RC' }, S('2A', '8B', 'TC-SC')), 409);
 
 
 const seat = (community, status = 'VACANT', extra = {}) => ({ newDistrict: 'ERODE', newUdiseCode: 'U1', newSchoolName: 'DMS ERODE', gender: 'Boy', medium: 'Tamil', community, vacancyStatus: status, classLevel: 9, ...extra });
@@ -139,12 +146,33 @@ assert.equal(groupOf(S('2A', '7A')), 'notjoined'); assert.equal(groupOf(S('2A', 
 assert.equal(run('REGION', S('2A', '7A'), 'RC_REJECT_NOT_JOINED').code, '2A');
 fails(() => run('DISTRICT', S('2A', '7A'), 'RC_REJECT_NOT_JOINED'), 403); fails(() => planAction('REGION', S('2A', '7A'), 'RC_REJECT_NOT_JOINED', ''), 400);
 st = { ...S('2A', '8A', 'TC-RC'), prev: '3B' };
-assert.deepEqual(availableActions('REGION', st).map(a => a.key).sort(), ['TC_RC_APPROVE', 'TC_RC_REJECT']);
-assert.deepEqual([run('REGION', st, 'TC_RC_REJECT').code, run('REGION', st, 'TC_RC_REJECT').tag2], ['3B', '']);
-assert.equal(run('REGION', S('2A', '8A', 'TC-RC'), 'TC_RC_REJECT').code, '3A');
+assert.deepEqual(availableActions('REGION', st).map(a => a.key).sort(), ['TC_RC_APPROVE', 'TC_RC_NOTE', 'TC_RC_REJECT']);
+// A rejection at any step goes to 8Z (back to the HM), never straight back to joined
+assert.deepEqual([run('REGION', st, 'TC_RC_REJECT').code, run('REGION', st, 'TC_RC_REJECT').tag2], ['8Z', 'TC-REJ-RC']);
+assert.deepEqual([run('STATE', S('2A', '8B', 'TC-SC'), 'TC_SC_REJECT').code, run('STATE', S('2A', '8B', 'TC-SC'), 'TC_SC_REJECT').tag2], ['8Z', 'TC-REJ-SC']);
+assert.deepEqual([run('SUPER_ADMIN', S('2A', '8C', 'TC-ADMIN'), 'TC_ADMIN_REJECT').code, run('SUPER_ADMIN', S('2A', '8C', 'TC-ADMIN'), 'TC_ADMIN_REJECT').tag2], ['8Z', 'TC-REJ-ADMIN']);
 fails(() => run('DISTRICT', st, 'TC_RC_REJECT'), 403); fails(() => planAction('REGION', st, 'TC_RC_REJECT', ''), 400);
-assert.equal(run('STATE', { ...S('2A', '8A', 'TC-SRC'), prev: '3A' }, 'TC_STATE_REJECT').code, '3A');
-fails(() => run('STATE', st, 'TC_STATE_REJECT'), 409);
+fails(() => planAction('STATE', S('2A', '8B', 'TC-SC'), 'TC_SC_REJECT', ''), 400); fails(() => planAction('SUPER_ADMIN', S('2A', '8C', 'TC-ADMIN'), 'TC_ADMIN_REJECT', ''), 400);
+fails(() => run('STATE', st, 'TC_SC_REJECT'), 409);
+// Each step belongs to its own role only
+fails(() => run('SUPER_ADMIN', st, 'TC_RC_APPROVE'), 403); fails(() => run('REGION', S('2A', '8C', 'TC-ADMIN'), 'TC_ADMIN_APPROVE'), 403); fails(() => run('STATE', S('2A', '8B', 'TC-SC'), 'TC_RC_APPROVE'), 403);
+
+// Resubmission: the HM gets the rejected request back, resubmits, and the same RC -> SC -> admin flow runs again
+const rej = { ...S('2A', '8Z', 'TC-REJ-SC'), prev: '3B' };
+assert.deepEqual(availableActions('DISTRICT', rej).map(a => a.key).sort(), ['TC_RESUBMIT', 'TC_WITHDRAW']);
+assert.deepEqual(availableActions('REGION', rej), []); assert.deepEqual(availableActions('STATE', rej), []); assert.deepEqual(availableActions('SUPER_ADMIN', rej), []);
+{ const re = planAction('DISTRICT', rej, 'TC_RESUBMIT', 'fixed'); assert.deepEqual([re.after.code, re.after.tag2], ['8A', 'TC-RC']); assert.equal(re.keepLetters, true); assert.equal(re.letterStage, 'TC_REQUEST'); assert.deepEqual(re.letters, ['STUDENT', 'HM', 'REASON']); }
+fails(() => planAction('DISTRICT', rej, 'TC_RESUBMIT', ''), 400); fails(() => run('REGION', rej, 'TC_RESUBMIT'), 403); fails(() => run('DISTRICT', S('2A', '8A', 'TC-RC'), 'TC_RESUBMIT'), 409);
+assert.deepEqual([run('DISTRICT', rej, 'TC_WITHDRAW').code, run('DISTRICT', rej, 'TC_WITHDRAW').tag2], ['3B', '']);
+{ let again = run('DISTRICT', rej, 'TC_RESUBMIT'); again = run('REGION', again, 'TC_RC_APPROVE'); again = run('STATE', again, 'TC_SC_APPROVE'); again = run('SUPER_ADMIN', again, 'TC_ADMIN_APPROVE'); assert.equal(again.code, '8D'); }
+
+// Remarks: only the approver whose step it is can save (edit) his remark; every other login is refused
+assert.deepEqual(availableActions('REGION', S('2A', '8A', 'TC-RC')).filter(a => a.note).map(a => a.key), ['TC_RC_NOTE']);
+{ const n = planAction('REGION', S('2A', '8A', 'TC-RC'), 'TC_RC_NOTE', 'checked the letters'); assert.deepEqual([n.after.code, n.after.tag2], ['8A', 'TC-RC']); assert.equal(n.tag1, 'TC_RC_NOTE'); }
+fails(() => run('REGION', S('2A', '8B', 'TC-SC'), 'TC_RC_NOTE'), 409); fails(() => run('STATE', S('2A', '8A', 'TC-RC'), 'TC_SC_NOTE'), 409);
+fails(() => run('STATE', S('2A', '8A', 'TC-RC'), 'TC_RC_NOTE'), 403); fails(() => run('DISTRICT', S('2A', '8A', 'TC-RC'), 'TC_RC_NOTE'), 403); fails(() => run('SUPER_ADMIN', S('2A', '8A', 'TC-RC'), 'TC_RC_NOTE'), 403);
+fails(() => run('REGION', S('2A', '8B', 'TC-SC'), 'TC_RC_NOTE'), 409); fails(() => planAction('REGION', S('2A', '8A', 'TC-RC'), 'TC_RC_NOTE', ''), 400);
+assert.deepEqual(availableActions('STATE', S('2A', '8A', 'TC-RC')), [], 'the SC has nothing to do while the request is with the RC');
 console.log('Reject / letter rules OK');
 
 {
@@ -161,13 +189,13 @@ assert.deepEqual(availableActions('REGION', S('2A', '3A')).map(a => a.key), []);
 assert.deepEqual(availableActions('SUPER_ADMIN', S('2A', '3A')).map(a => a.key), []);
 
 assert.equal(planAction('DISTRICT', S('2A', '3A'), 'TC_REQUEST', 'reason').needsLetter, true);
-assert.deepEqual(planAction('DISTRICT', S('2A', '3A'), 'TC_REQUEST', 'reason').letters, ['TC']);
-assert.deepEqual(availableActions('DISTRICT', S('2A', '3A'))[0].letters, ['TC']);
+assert.deepEqual(planAction('DISTRICT', S('2A', '3A'), 'TC_REQUEST', 'reason').letters, ['STUDENT', 'HM', 'REASON']);
+assert.deepEqual(availableActions('DISTRICT', S('2A', '3A'))[0].letters, ['STUDENT', 'HM', 'REASON']);
 assert.deepEqual(planAction('DISTRICT', S('2A'), 'NOT_JOINED', 'x').letters, ['HM', 'STUDENT']);
 assert.equal(planAction('REGION', S('2A', '8A', 'TC-RC'), 'TC_RC_APPROVE').needsLetter, false, 'only the DMS request carries a letter');
 {
   const { STAGE_KINDS, KINDS } = await import('../common/letters.js');
-  assert.deepEqual(STAGE_KINDS.TC_REQUEST, ['TC']); assert.equal(KINDS.TC, 'TC request letter');
+  assert.deepEqual(STAGE_KINDS.TC_REQUEST.slice(0, 3), ['STUDENT', 'HM', 'REASON']); assert.equal(KINDS.REASON, 'Reason letter'); assert.equal(KINDS.TC, 'TC request letter', 'old single-letter requests stay readable');
   for (const [key, a] of Object.entries((await import('./transitions.js')).ACTIONS)) for (const k of a.letters || []) assert(KINDS[k], `${key}: unknown letter kind ${k}`);
 }
 console.log('TC request rules OK');
@@ -189,7 +217,7 @@ console.log('TC request rules OK');
   assert.equal(sub().resubmission, false);
   assert.equal(sub({ doc: d('PENDING') }).resubmission, true); assert.equal(sub({ doc: d('REJECTED') }).resubmission, true);
   fails(() => sub({ doc: d('VERIFIED') }), 409);
-  fails(() => sub({ code: '2A' }), 409); fails(() => sub({ code: '8A' }), 409);
+  fails(() => sub({ code: '2A' }), 409); fails(() => sub({ code: '8A' }), 409); fails(() => sub({ code: '8Z' }), 409);
   fails(() => sub({ type: 'PWD' }), 400); assert.equal(sub({ type: 'PWD', student: pwd }).resubmission, false);
   fails(() => sub({ type: 'AADHAAR' }), 400);
 

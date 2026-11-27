@@ -19,7 +19,7 @@ export const REF_RE = /^[A-Z][A-Z-]*\/[A-Za-z]{1,3}\/[A-Za-z]+\/\d{3,}$/;
 export const isRef = v => REF_RE.test(clean(v));
 export const seatRef = (r, n) => [U(r.community), medium3(r.medium), sexOf(r.gender), String(n).padStart(3, '0')].join('/');
 
-const HOLD = ['1A', '2A', '7A'], JOIN = ['3A', '3B', '8A'];
+const HOLD = ['1A', '2A', '7A'], JOIN = ['3A', '3B', '8A', '8B', '8C', '8Z'];
 const rankOf = s => (Number.isInteger(s.orank) ? s.orank : Number.MAX_SAFE_INTEGER);
 
 const writeColumn = async (tx, T, column, pairs) => {

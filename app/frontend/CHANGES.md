@@ -47,3 +47,21 @@ no Linux build of rollup) and a real backend. Run `npm ci && npm run build` and 
 * `UPGRADE-NOTES.md` mentions a forgot-password flow and Password Requests page in the frontend; neither exists in the current source
   (the sign-in page says to ask the super admin). The backend has the pieces if you want it back.
 * The sign-in token is still a Bearer header (as before); an HttpOnly cookie would need backend work.
+
+## UI polish pass (same navy theme)
+* Bundled Inter variable font (`src/styles/fonts/`, OFL licence included) so text renders the same on every machine, with no external request.
+* Refined sidebar (gradient, active-item accent bar), blurred top bar, scope chip, avatars.
+* Tables: softer header, rounded container, row hover; search box with icon; custom select arrows; segmented tabs with depth.
+* Dialogs: rounded, blurred backdrop, open animation. Stat cards use an accent tile and bar; donut legend and seat summary tidied.
+* Loading shows skeleton rows; empty lists show an icon. Dashboard has a subtitle with the user's scope.
+* Sign-in page: layered brand panel with a faint grid, softer card.
+
+## Student record drawer
+* Clicking View in Student Details, TC Requests or Reconsider Requests now opens a right-side drawer (`Modal` with `side`) instead of a centred dialog.
+* Tabs (`components/ui/Tabs.jsx`): Details, Next step (dot when an action is waiting), TC remarks, History (super admin). TC Requests opens on the TC request tab.
+* Details is regrouped into cards (`StudentProfile.jsx`): key figures, Student, Family and contact, Marks, Allotment, Letters on file. Every field from the old table is still shown. `StudentInfo.jsx` is unchanged and still used by Document Verification.
+* History is a timeline. All actions, confirmations, letters and remarks logic in `StudentModal.jsx` is unchanged.
+
+## Student record: one centred page
+* The record opens as a centred dialog (not the right-side drawer) and shows everything on one page, with no tabs: the student's details in full, then the TC remarks, the step to take ("TC request" on the TC page, "Action" elsewhere), and for the super admin the correction and history. Student Details, TC Requests and Reconsider Requests all use it.
+* `Modal` has a `rich` prop (avatar, subtitle and close button in the header) that works with or without `side`.

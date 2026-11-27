@@ -954,6 +954,88 @@
      "type": "text"
     }
    ]
+  },
+  {
+   "name": "Student_files_9th",
+   "columns": [
+    {
+     "name": "id",
+     "type": "serial"
+    },
+    {
+     "name": "student_id",
+     "type": "integer"
+    },
+    {
+     "name": "emis",
+     "type": "integer"
+    },
+    {
+     "name": "file_group",
+     "type": "text"
+    },
+    {
+     "name": "file_type",
+     "type": "text"
+    },
+    {
+     "name": "file_name",
+     "type": "text"
+    },
+    {
+     "name": "file_url",
+     "type": "text"
+    },
+    {
+     "name": "uploaded_by",
+     "type": "text"
+    },
+    {
+     "name": "uploaded_at",
+     "type": "timestamp"
+    }
+   ]
+  },
+  {
+   "name": "Student_files_10th",
+   "columns": [
+    {
+     "name": "id",
+     "type": "serial"
+    },
+    {
+     "name": "student_id",
+     "type": "integer"
+    },
+    {
+     "name": "emis",
+     "type": "integer"
+    },
+    {
+     "name": "file_group",
+     "type": "text"
+    },
+    {
+     "name": "file_type",
+     "type": "text"
+    },
+    {
+     "name": "file_name",
+     "type": "text"
+    },
+    {
+     "name": "file_url",
+     "type": "text"
+    },
+    {
+     "name": "uploaded_by",
+     "type": "text"
+    },
+    {
+     "name": "uploaded_at",
+     "type": "timestamp"
+    }
+   ]
   }
  ]
 }

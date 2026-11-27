@@ -6,14 +6,17 @@
     "start": "node src/server.js",
     "db:push": "drizzle-kit push",
     "seed": "node src/seed.js",
-    "test": "node src/services/domain/selection.test.js && node src/services/domain/importMap.test.js && node src/services/domain/revert.test.js && node src/common/security.test.js && node src/common/msms.test.js && node src/common/seatRef.test.js",
+    "test": "node src/services/domain/selection.test.js && node src/services/domain/importMap.test.js && node src/services/domain/revert.test.js && node src/common/security.test.js && node src/common/msms.test.js && node src/common/seatRef.test.js && node src/common/access.test.js && node src/common/hardening.test.js && node src/common/routes.test.js && node src/db/profile.test.js && node src/spec/schema.test.js && node src/workflow/listRequest.test.js && node src/workflow/workflow.test.js && node src/common/freeze.test.js && node src/common/tcRemarks.test.js",
     "seed:sample": "node src/seed.js --sample",
     "reset:superadmin": "node src/resetSuperadmin.js",
     "test:integration": "node test/workflow.integration.js",
     "db:ddl": "node src/dbDdl.js",
     "msms:check": "node src/msmsCheck.js",
     "db:upgrade": "node src/dbUpgrade.js",
-    "stamp:refs": "node src/stampSeatRefs.js"
+    "stamp:refs": "node src/stampSeatRefs.js",
+    "tc:migrate": "node src/tcMigrate.js",
+    "db:setup": "node src/dbSetup.js",
+    "db:verify": "node src/dbVerify.js"
   },
   "dependencies": {
     "bcryptjs": "^2.4.3",

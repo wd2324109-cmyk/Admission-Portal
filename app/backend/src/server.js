@@ -41,7 +41,9 @@ app.use('/api', notFound);
 
 const WEB = path.resolve(process.env.FRONTEND_DIST || path.join(process.cwd(), '..', 'frontend', 'dist'));
 if (fs.existsSync(path.join(WEB, 'index.html'))) {
-  const CSP = "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; frame-src blob:; "
+  // Uploaded documents are served from the CloudFront address; the viewer shows them inline, so that one address is allowed for images and frames.
+  let FILES = ''; try { FILES = ' ' + new URL(process.env.CLOUDFRONT_URL || 'https://d2n7f898nmjqsn.cloudfront.net').origin; } catch { /* no file host */ }
+  const CSP = "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:" + FILES + "; frame-src blob:" + FILES + "; "
     + "connect-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'";
   app.use(express.static(WEB, { index: false, setHeaders: (res, file) =>
     res.set('Cache-Control', file.includes(`${path.sep}assets${path.sep}`) ? 'public, max-age=31536000, immutable' : 'no-cache') }));
